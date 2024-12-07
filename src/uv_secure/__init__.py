@@ -1,2 +1,4 @@
-def main() -> None:
-    print("Hello from uv-secure!")
+from uv_secure.run import app
+
+
+__all__ = ["app"]
