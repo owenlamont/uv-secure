@@ -1,0 +1,19 @@
+# See rule descriptions here:
+# https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+# See yaml schema here:
+# https://github.com/DavidAnson/markdownlint/blob/main/schema/.markdownlint.yaml
+
+default: true
+
+MD013:
+  line_length: 88
+  heading_line_length: 88
+  code_block_line_length: 88
+  code_blocks: true
+  tables: true
+  headings: true
+  strict: false
+  stern: false
+
+MD035:
+  style: "---"

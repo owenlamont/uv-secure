@@ -1,0 +1,151 @@
+[project]
+name = "uv-secure"
+version = "0.1.0"
+description = "Scan your uv.lock file for dependencies with known vulnerabilities"
+readme = "README.md"
+authors = [
+    { name = "Owen Lamont", email = "owenrlamont@gmail.com" }
+]
+requires-python = ">=3.9"
+dependencies = [
+    "httpx>=0.28.1",
+    "pydantic>=2.10.3",
+    "rich>=13.9.4",
+    "typer>=0.15.1",
+]
+
+[project.scripts]
+uv-secure = "uv_secure:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+
+[tool.mypy]
+plugins = [
+  "pydantic.mypy"
+]
+
+python_version = "3.9"
+files = ["src"]
+
+ignore_missing_imports = true
+follow_imports = "silent"
+
+check_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+no_implicit_reexport = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unused_configs = true
+warn_unused_ignores = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "error",
+]
+testpaths = ["tests"]
+
+[tool.ruff]
+
+line-length = 88
+indent-width = 4
+target-version = "py39"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = true
+line-ending = "lf"
+
+[tool.ruff.lint]
+# See https://docs.astral.sh/ruff/rules/
+select = [
+    "A",
+    "B",
+    "C4",
+    "D",
+    "E",
+    "F",
+    "FURB",
+    "I",
+    "ISC",
+    "NPY",
+    "PD",
+    "PT",
+    "Q",
+    "RET",
+    "RUF",
+    "SIM",
+    "UP"
+]
+ignore = [
+    "D100", # Missing docstring in public module
+    "D101", # Missing docstring in public class
+    "D102", # Missing docstring in public method
+    "D103", # Missing docstring in public function
+    "D104", # Missing docstring in public package
+    "D105", # Missing docstring in magic method
+    "D106", # Missing docstring in public nested class
+    "D107", # Missing docstring in __init__
+    "D202", # No blank lines allowed after function docstring
+    "D213", # Multi-line docstring summary should start at the second line
+    "D214", # Section is over-indented
+    "D215", # Section underline is over-indented
+    "D400", # First line should end with a period
+    "D401", # First line of docstring should be in imperative mood
+    "D415", # First line should end with a period, question mark, or exclamation
+    "D416", # Section name should end with a colon
+    "D417", # Missing argument descriptions in the docstring
+    "D418", # Function/ Method decorated with @overload shouldn't contain a docstring
+    "E203", # Whitespace before ':' (fights ruff format)
+    "ISC001", # Implicitly concatenated string literals on one line
+]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = [
+    "B905", # Enforce strict argument on zip - but don't autofix as strict=False
+]
+
+[tool.ruff.lint.flake8-pytest-style]
+mark-parentheses = false
+
+[tool.ruff.lint.isort]
+case-sensitive = false
+combine-as-imports = true
+force-sort-within-sections = true
+lines-after-imports = 2
+order-by-type = false
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder"
+]
+split-on-trailing-comma=false
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.typos]
+
+[dependency-groups]
+dev = [
+    "coverage>=7.6.9",
+    "pytest>=8.3.4",
+    "pytest-cov>=6.0.0",
+    "pytest-httpx>=0.35.0",
+    "pytest-mock>=3.14.0",
+]
