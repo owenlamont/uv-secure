@@ -1,6 +1,6 @@
 [project]
 name = "uv-secure"
-version = "0.1.0"
+version = "0.2.0"
 description = "Scan your uv.lock file for dependencies with known vulnerabilities"
 readme = "README.md"
 authors = [
@@ -9,6 +9,7 @@ authors = [
 requires-python = ">=3.9"
 dependencies = [
     "httpx>=0.28.1",
+    "inflect>=7.4.0",
     "pydantic>=2.10.3",
     "rich>=13.9.4",
     "typer>=0.15.1",
