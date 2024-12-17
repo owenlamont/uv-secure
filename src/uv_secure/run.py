@@ -88,7 +88,7 @@ async def check_all_vulnerabilities(
         return await asyncio.gather(*tasks)
 
 
-def check_dependencies(uv_lock_path: Path) -> int:
+def check_dependencies(uv_lock_path: Path, ignore_ids: list[str]) -> int:
     """Checks dependencies for vulnerabilities and summarizes the results."""
     console = Console()
     inf = inflect.engine()
@@ -107,15 +107,17 @@ def check_dependencies(uv_lock_path: Path) -> int:
     vulnerabilities_found = []
 
     for dep, vulnerabilities in results:
-        if vulnerabilities:
+        # Filter out ignored vulnerabilities
+        filtered_vulnerabilities = [
+            vuln for vuln in vulnerabilities if vuln.id not in ignore_ids
+        ]
+        if filtered_vulnerabilities:
             vulnerable_count += 1
-            vulnerabilities_found.append((dep, vulnerabilities))
+            vulnerabilities_found.append((dep, filtered_vulnerabilities))
 
-    # Summarize Results
     total_plural = inf.plural("dependency", total_dependencies)
     vulnerable_plural = inf.plural("dependency", vulnerable_count)
 
-    # Summarize Results
     if vulnerable_count > 0:
         console.print(
             Panel.fit(
@@ -137,14 +139,16 @@ def check_dependencies(uv_lock_path: Path) -> int:
 
         for dep, vulnerabilities in vulnerabilities_found:
             for vuln in vulnerabilities:
-                # Make the Vulnerability ID a hyperlink
-                vuln_id_hyperlink = Text(vuln.id, style="cyan")
-                if vuln.link:
-                    vuln_id_hyperlink = Text.assemble((vuln.id, f"link {vuln.link}"))
-
+                vuln_id_hyperlink = (
+                    Text.assemble((vuln.id, f"link {vuln.link}"))
+                    if vuln.link
+                    else Text(vuln.id)
+                )
                 table.add_row(dep.name, dep.version, vuln_id_hyperlink, vuln.details)
+
         console.print(table)
         return 1  # Exit with failure status
+
     console.print(
         Panel.fit(
             f"[bold green]No vulnerabilities detected![/]\n"
@@ -155,10 +159,19 @@ def check_dependencies(uv_lock_path: Path) -> int:
     return 0  # Exit successfully
 
 
+_ignore_option = typer.Option(
+    "",
+    "--ignore",
+    "-i",
+    help="Comma-separated list of vulnerability IDs to ignore, e.g. VULN-123,VULN-456",
+)
+
+
 @app.command()
-def main(uv_lock_path: Path) -> int:
+def main(uv_lock_path: Path, ignore: str = _ignore_option) -> int:
     """Parse a uv.lock file, check vulnerabilities, and display summary."""
-    return check_dependencies(uv_lock_path)
+    ignore_ids = [vuln_id.strip() for vuln_id in ignore.split(",") if vuln_id.strip()]
+    return check_dependencies(uv_lock_path, ignore_ids)
 
 
 if __name__ == "__main__":
