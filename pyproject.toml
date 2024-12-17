@@ -1,6 +1,6 @@
 [project]
 name = "uv-secure"
-version = "0.1.0"
+version = "0.2.0"
 description = "Scan your uv.lock file for dependencies with known vulnerabilities"
 readme = "README.md"
 authors = [
@@ -9,9 +9,23 @@ authors = [
 requires-python = ">=3.9"
 dependencies = [
     "httpx>=0.28.1",
+    "inflect>=7.4.0",
     "pydantic>=2.10.3",
     "rich>=13.9.4",
     "typer>=0.15.1",
+]
+
+[project.optional-dependencies]
+jupyter = [
+    "ipywidgets>=8.1.5",
+    "jupyterlab-code-formatter>=3.0.2",
+    "jupyterlab>=4.2.5",
+    "lckr-jupyterlab-variableinspector>=3.2.4",
+    "nbdime>=4.0.2",
+    "nbstripout>=0.7.1",
+    "notebook>=7.2.2",
+    "ruff>=0.6.4",
+    "tqdm>=4.66.6",
 ]
 
 [project.scripts]
