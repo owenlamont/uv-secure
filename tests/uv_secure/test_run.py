@@ -1,12 +1,10 @@
 from pathlib import Path
 
-from _pytest.capture import CaptureFixture
 import pytest
 from pytest_httpx import HTTPXMock
-from pytest_mock import MockFixture
 from typer.testing import CliRunner
 
-from uv_secure import app, check_dependencies
+from uv_secure import app
 
 
 runner = CliRunner()
@@ -26,22 +24,13 @@ def temp_uv_lock_file(tmp_path: Path) -> Path:
     return uv_lock_path
 
 
-def test_app(mocker: MockFixture) -> None:
-    mock_check_dependencies = mocker.patch("uv_secure.run.check_dependencies")
-    result = runner.invoke(app, ("--uv-lock-path", "uv.lock"))
-    mock_check_dependencies.assert_called_once_with(Path("uv.lock"), [])
-    assert result.exit_code == 0
-
-
 def test_app_version() -> None:
     result = runner.invoke(app, "--version")
     assert result.exit_code == 0
     assert "uv-secure " in result.output
 
 
-def test_check_dependencies_no_vulnerabilities(
-    temp_uv_lock_file: Path, httpx_mock: HTTPXMock, capsys: CaptureFixture[str]
-) -> None:
+def test_app_no_vulnerabilities(temp_uv_lock_file: Path, httpx_mock: HTTPXMock) -> None:
     """Test check_dependencies with a single dependency and no vulnerabilities."""
     # Mock PyPI JSON API response with no vulnerabilities
     httpx_mock.add_response(
@@ -49,21 +38,17 @@ def test_check_dependencies_no_vulnerabilities(
         json={"vulnerabilities": []},
     )
 
-    # Run the check_dependencies function
-    exit_code = check_dependencies(temp_uv_lock_file, ignore_ids=[])
-
-    # Capture the console output
-    captured = capsys.readouterr()
+    result = runner.invoke(app, ("--uv-lock-path", temp_uv_lock_file))
 
     # Assertions
-    assert exit_code == 0
-    assert "No vulnerabilities detected!" in captured.out
-    assert "Checked: 1 dependency" in captured.out
-    assert "All dependencies appear safe!" in captured.out
+    assert result.exit_code == 0
+    assert "No vulnerabilities detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
 
 
 def test_check_dependencies_with_vulnerability(
-    temp_uv_lock_file: Path, httpx_mock: HTTPXMock, capsys: CaptureFixture[str]
+    temp_uv_lock_file: Path, httpx_mock: HTTPXMock
 ) -> None:
     """Test check_dependencies with a single dependency and a single vulnerability."""
     # Mock PyPI JSON API response with one vulnerability
@@ -81,18 +66,14 @@ def test_check_dependencies_with_vulnerability(
         },
     )
 
-    # Run the check_dependencies function
-    exit_code = check_dependencies(temp_uv_lock_file, ignore_ids=[])
-
-    # Capture the console output
-    captured = capsys.readouterr()
+    result = runner.invoke(app, ("--uv-lock-path", temp_uv_lock_file))
 
     # Assertions
-    assert exit_code == 1
-    assert "Vulnerabilities detected!" in captured.out
-    assert "Checked: 1 dependency" in captured.out
-    assert "Vulnerable: 1 dependency" in captured.out
-    assert "example-package" in captured.out
-    assert "VULN-123" in captured.out
-    assert "A critical vulnerability in" in captured.out
-    assert "example-package." in captured.out
+    assert result.exit_code == 1
+    assert "Vulnerabilities detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "Vulnerable: 1 dependency" in result.output
+    assert "example-package" in result.output
+    assert "VULN-123" in result.output
+    assert "A critical vulnerability in" in result.output
+    assert "example-package." in result.output
