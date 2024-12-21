@@ -1,6 +1,6 @@
 [project]
 name = "uv-secure"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Scan your uv.lock file for dependencies with known vulnerabilities"
 readme = "README.md"
 authors = [
@@ -29,7 +29,7 @@ jupyter = [
 ]
 
 [project.scripts]
-uv-secure = "uv_secure:main"
+uv-secure = "uv_secure.run:app"
 
 [build-system]
 requires = ["hatchling"]
@@ -37,6 +37,9 @@ build-backend = "hatchling.build"
 
 [tool.bandit]
 exclude_dirs = ["tests"]
+
+[tool.hatch.version]
+path = "src/uv_secure/__version__.py"
 
 [tool.mypy]
 plugins = [

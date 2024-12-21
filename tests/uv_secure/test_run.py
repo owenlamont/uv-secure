@@ -28,9 +28,15 @@ def temp_uv_lock_file(tmp_path: Path) -> Path:
 
 def test_app(mocker: MockFixture) -> None:
     mock_check_dependencies = mocker.patch("uv_secure.run.check_dependencies")
-    result = runner.invoke(app, "uv.lock")
+    result = runner.invoke(app, ("--uv-lock-path", "uv.lock"))
     mock_check_dependencies.assert_called_once_with(Path("uv.lock"), [])
     assert result.exit_code == 0
+
+
+def test_app_version() -> None:
+    result = runner.invoke(app, "--version")
+    assert result.exit_code == 0
+    assert "uv-secure " in result.output
 
 
 def test_check_dependencies_no_vulnerabilities(
