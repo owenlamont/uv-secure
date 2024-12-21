@@ -34,6 +34,7 @@ dependencies = [
     "inflect>=7.4.0",
     "pydantic>=2.10.3",
     "rich>=13.9.4",
+    'tomli; python_version < "3.11"',
     "typer>=0.15.1",
 ]
 

@@ -19,7 +19,7 @@ jobs:
       - uses: astral-sh/setup-uv@v3
       - run: uv build
       - name: Smoke test (wheel)
-        run: uv run --isolated --no-project -p 3.13 --with dist/*.whl tests/smoke_test.py
+        run: uv run --isolated --no-project -p 3.9 --with dist/*.whl tests/smoke_test.py
       - name: Smoke test (source distribution)
-        run: uv run --isolated --no-project -p 3.13 --with dist/*.tar.gz tests/smoke_test.py
+        run: uv run --isolated --no-project -p 3.9 --with dist/*.tar.gz tests/smoke_test.py
       - run: uv publish --trusted-publishing always
