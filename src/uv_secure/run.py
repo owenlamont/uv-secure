@@ -194,10 +194,12 @@ def main(
     uv_lock_path: Path = _uv_lock_path_option,
     ignore: str = _ignore_option,
     version: bool = _version_option,
-) -> int:
+) -> None:
     """Parse a uv.lock file, check vulnerabilities, and display summary."""
     ignore_ids = [vuln_id.strip() for vuln_id in ignore.split(",") if vuln_id.strip()]
-    return check_dependencies(uv_lock_path, ignore_ids)
+    status = check_dependencies(uv_lock_path, ignore_ids)
+    if status != 0:
+        raise typer.Exit(code=status)
 
 
 if __name__ == "__main__":

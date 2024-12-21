@@ -33,7 +33,7 @@ repos:
       - id: markdownlint
         args: [--fix]
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.13.0
+    rev: v1.14.0
     hooks:
       - id: mypy
         additional_dependencies:
@@ -54,6 +54,10 @@ repos:
           --force-exclude,
           # --write-changes (Don't use this to stop typos making auto-corrections)
         ]
+  - repo: https://github.com/owenlamont/uv-secure
+    rev: 0.1.1
+    hooks:
+      - id: uv-secure
   - repo: https://github.com/adrienverge/yamllint.git
     rev: v1.35.1
     hooks:
