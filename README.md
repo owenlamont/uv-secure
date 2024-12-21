@@ -2,6 +2,42 @@
 
 Scan your uv.lock file for dependencies with known vulnerabilities
 
+## Usage
+
+After installation you can run uv-secure --help to see the options.
+
+```text
+>> uv-secure --help
+
+ Usage: uv-secure [OPTIONS]
+
+ Parse a uv.lock file, check vulnerabilities, and display summary.
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────╮
+│ --uv-lock-path        -p      PATH  Path to the uv.lock file [default: uv.lock]      │
+│ --ignore              -i      TEXT  Comma-separated list of vulnerability IDs to     │
+│                                     ignore, e.g. VULN-123,VULN-456                   │
+│ --version                           Show the application's version                   │
+│ --install-completion                Install completion for the current shell.        │
+│ --show-completion                   Show completion for the current shell, to copy   │
+│                                     it or customize the installation.                │
+│ --help                              Show this message and exit.                      │
+╰──────────────────────────────────────────────────────────────────────────────────────╯
+```
+
+By default if run with no options uv-secure will look for a uv.lock file in the current
+working directory and scan that for known vulnerabilities. E.g.
+
+```text
+>> uv-secure
+Checking dependencies for vulnerabilities...
+╭──────────────────────────────────╮
+│ No vulnerabilities detected!     │
+│ Checked: 160 dependencies        │
+│ All dependencies appear safe! 🎉 │
+╰──────────────────────────────────╯
+```
+
 ## Related Work and Motivation
 
 I created this package as I wanted a dependency vulnerability scanner but I wasn't
