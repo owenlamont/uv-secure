@@ -169,10 +169,7 @@ def version_callback(value: bool) -> None:
 
 
 _uv_lock_path_option = typer.Option(
-    Path("./uv.lock"),
-    "--uv-lock-path",
-    "-p",
-    help="Path to the uv.lock file - defaults to working directory if not specified",
+    Path("./uv.lock"), "--uv-lock-path", "-p", help="Path to the uv.lock file"
 )
 
 
@@ -188,7 +185,7 @@ _version_option = typer.Option(
     "--version",
     callback=version_callback,
     is_eager=True,
-    help="Show the application's version and exit.",
+    help="Show the application's version",
 )
 
 
