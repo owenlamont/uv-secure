@@ -31,11 +31,11 @@ working directory and scan that for known vulnerabilities. E.g.
 ```text
 >> uv-secure
 Checking dependencies for vulnerabilities...
-╭──────────────────────────────────╮
-│ No vulnerabilities detected!     │
-│ Checked: 160 dependencies        │
-│ All dependencies appear safe! 🎉 │
-╰──────────────────────────────────╯
+╭───────────────────────────────╮
+│ No vulnerabilities detected!  │
+│ Checked: 160 dependencies     │
+│ All dependencies appear safe! │
+╰───────────────────────────────╯
 ```
 
 ## Related Work and Motivation
