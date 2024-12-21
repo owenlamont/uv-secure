@@ -2,6 +2,26 @@
 
 Scan your uv.lock file for dependencies with known vulnerabilities
 
+## Installation
+
+I recommend installing uv-secure as a uv tool or with pipx as it's intended to be used
+as a CLI tool and it probably only makes sense to have one version installed globally.
+
+Installing with uv tool as follows:
+
+```shell
+uv tool install uv-secure
+```
+
+or with pipx:
+
+```shell
+pipx install uv-secure
+```
+
+you can optionally install uv-secure as a development dependency in a virtual
+environment.
+
 ## Usage
 
 After installation you can run uv-secure --help to see the options.
@@ -31,11 +51,11 @@ working directory and scan that for known vulnerabilities. E.g.
 ```text
 >> uv-secure
 Checking dependencies for vulnerabilities...
-╭──────────────────────────────────╮
-│ No vulnerabilities detected!     │
-│ Checked: 160 dependencies        │
-│ All dependencies appear safe! 🎉 │
-╰──────────────────────────────────╯
+╭───────────────────────────────╮
+│ No vulnerabilities detected!  │
+│ Checked: 160 dependencies     │
+│ All dependencies appear safe! │
+╰───────────────────────────────╯
 ```
 
 ## Related Work and Motivation

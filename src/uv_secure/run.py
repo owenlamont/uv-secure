@@ -156,7 +156,7 @@ def check_dependencies(uv_lock_path: Path, ignore_ids: list[str]) -> int:
         Panel.fit(
             f"[bold green]No vulnerabilities detected![/]\n"
             f"Checked: [bold]{total_dependencies}[/] {total_plural}\n"
-            f"All dependencies appear safe! 🎉"
+            f"All dependencies appear safe!"
         )
     )
     return 0  # Exit successfully
