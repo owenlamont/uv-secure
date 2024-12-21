@@ -7,11 +7,34 @@ authors = [
     { name = "Owen Lamont", email = "owenrlamont@gmail.com" }
 ]
 requires-python = ">=3.9"
+keywords = [
+  "uv", "uv.lock", "vulnerabilities"
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "License :: OSI Approved :: MIT License",
+  "Natural Language :: English",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Software Development :: Quality Assurance",
+  "Topic :: Software Development :: Testing",
+  "Topic :: Software Development :: Libraries",
+]
+
 dependencies = [
     "httpx>=0.28.1",
     "inflect>=7.4.0",
     "pydantic>=2.10.3",
     "rich>=13.9.4",
+    'tomli; python_version < "3.11"',
     "typer>=0.15.1",
 ]
 
@@ -30,6 +53,10 @@ jupyter = [
 
 [project.scripts]
 uv-secure = "uv_secure.run:app"
+
+[project.urls]
+Repository = "https://github.com/owenlamont/uv-secure"
+Releases = "https://github.com/owenlamont/uv-secure/releases"
 
 [build-system]
 requires = ["hatchling"]
