@@ -13,6 +13,8 @@ from rich.table import Table
 from rich.text import Text
 import typer
 
+from uv_secure.__version__ import __version__
+
 
 app = typer.Typer()
 
@@ -115,6 +117,7 @@ def check_dependencies(uv_lock_path: Path, ignore_ids: list[str]) -> int:
             vulnerable_count += 1
             vulnerabilities_found.append((dep, filtered_vulnerabilities))
 
+    inf = inflect.engine()
     total_plural = inf.plural("dependency", total_dependencies)
     vulnerable_plural = inf.plural("dependency", vulnerable_count)
 
@@ -159,6 +162,17 @@ def check_dependencies(uv_lock_path: Path, ignore_ids: list[str]) -> int:
     return 0  # Exit successfully
 
 
+def version_callback(value: bool) -> None:
+    if value:
+        typer.echo(f"uv-secure {__version__}")
+        raise typer.Exit()
+
+
+_uv_lock_path_option = typer.Option(
+    Path("./uv.lock"), "--uv-lock-path", "-p", help="Path to the uv.lock file"
+)
+
+
 _ignore_option = typer.Option(
     "",
     "--ignore",
@@ -166,9 +180,21 @@ _ignore_option = typer.Option(
     help="Comma-separated list of vulnerability IDs to ignore, e.g. VULN-123,VULN-456",
 )
 
+_version_option = typer.Option(
+    None,
+    "--version",
+    callback=version_callback,
+    is_eager=True,
+    help="Show the application's version",
+)
+
 
 @app.command()
-def main(uv_lock_path: Path, ignore: str = _ignore_option) -> int:
+def main(
+    uv_lock_path: Path = _uv_lock_path_option,
+    ignore: str = _ignore_option,
+    version: bool = _version_option,
+) -> int:
     """Parse a uv.lock file, check vulnerabilities, and display summary."""
     ignore_ids = [vuln_id.strip() for vuln_id in ignore.split(",") if vuln_id.strip()]
     return check_dependencies(uv_lock_path, ignore_ids)
