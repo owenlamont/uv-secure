@@ -29,12 +29,14 @@ After installation you can run uv-secure --help to see the options.
 ```text
 >> uv-secure --help
 
- Usage: uv-secure [OPTIONS]
+ Usage: run.py [OPTIONS] [UV_LOCK_PATHS]...
 
- Parse a uv.lock file, check vulnerabilities, and display summary.
+ Parse uv.lock files, check vulnerabilities, and display summary.
 
+╭─ Arguments ──────────────────────────────────────────────────────────────────────────╮
+│   uv_lock_paths      [UV_LOCK_PATHS]...  Paths to the uv.lock files [default: None]  │
+╰──────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ────────────────────────────────────────────────────────────────────────────╮
-│ --uv-lock-path        -p      PATH  Path to the uv.lock file [default: uv.lock]      │
 │ --ignore              -i      TEXT  Comma-separated list of vulnerability IDs to     │
 │                                     ignore, e.g. VULN-123,VULN-456                   │
 │ --version                           Show the application's version                   │

@@ -38,7 +38,7 @@ def test_app_no_vulnerabilities(temp_uv_lock_file: Path, httpx_mock: HTTPXMock) 
         json={"vulnerabilities": []},
     )
 
-    result = runner.invoke(app, ("--uv-lock-path", temp_uv_lock_file))
+    result = runner.invoke(app, [str(temp_uv_lock_file)])
 
     # Assertions
     assert result.exit_code == 0
@@ -66,7 +66,7 @@ def test_check_dependencies_with_vulnerability(
         },
     )
 
-    result = runner.invoke(app, ("--uv-lock-path", temp_uv_lock_file))
+    result = runner.invoke(app, [str(temp_uv_lock_file)])
 
     # Assertions
     assert result.exit_code == 1

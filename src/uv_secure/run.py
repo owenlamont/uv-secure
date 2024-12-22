@@ -93,14 +93,15 @@ async def check_all_vulnerabilities(
 def check_dependencies(uv_lock_path: Path, ignore_ids: list[str]) -> int:
     """Checks dependencies for vulnerabilities and summarizes the results."""
     console = Console()
-    inf = inflect.engine()
 
     if not uv_lock_path.exists():
         console.print(f"[bold red]Error:[/] File {uv_lock_path} does not exist.")
         raise typer.Exit(1)
 
     dependencies = parse_uv_lock_file(uv_lock_path)
-    console.print("[bold cyan]Checking dependencies for vulnerabilities...[/]")
+    console.print(
+        f"[bold cyan]Checking {uv_lock_path} dependencies for vulnerabilities...[/]"
+    )
 
     results = asyncio.run(check_all_vulnerabilities(dependencies))
 
@@ -168,9 +169,7 @@ def version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
-_uv_lock_path_option = typer.Option(
-    Path("./uv.lock"), "--uv-lock-path", "-p", help="Path to the uv.lock file"
-)
+_uv_lock_path_args = typer.Argument(None, help="Paths to the uv.lock files")
 
 
 _ignore_option = typer.Option(
@@ -191,15 +190,19 @@ _version_option = typer.Option(
 
 @app.command()
 def main(
-    uv_lock_path: Path = _uv_lock_path_option,
+    uv_lock_paths: Optional[list[Path]] = _uv_lock_path_args,
     ignore: str = _ignore_option,
     version: bool = _version_option,
 ) -> None:
-    """Parse a uv.lock file, check vulnerabilities, and display summary."""
+    """Parse uv.lock files, check vulnerabilities, and display summary."""
+    if not uv_lock_paths:
+        uv_lock_paths = [Path("./uv.lock")]
     ignore_ids = [vuln_id.strip() for vuln_id in ignore.split(",") if vuln_id.strip()]
-    status = check_dependencies(uv_lock_path, ignore_ids)
-    if status != 0:
-        raise typer.Exit(code=status)
+
+    for uv_lock_path in uv_lock_paths:
+        status = check_dependencies(uv_lock_path, ignore_ids)
+        if status != 0:
+            raise typer.Exit(code=status)
 
 
 if __name__ == "__main__":
