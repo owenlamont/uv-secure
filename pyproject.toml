@@ -38,19 +38,6 @@ dependencies = [
     "typer>=0.15.1",
 ]
 
-[project.optional-dependencies]
-jupyter = [
-    "ipywidgets>=8.1.5",
-    "jupyterlab-code-formatter>=3.0.2",
-    "jupyterlab>=4.2.5",
-    "lckr-jupyterlab-variableinspector>=3.2.4",
-    "nbdime>=4.0.2",
-    "nbstripout>=0.7.1",
-    "notebook>=7.2.2",
-    "ruff>=0.6.4",
-    "tqdm>=4.66.6",
-]
-
 [project.scripts]
 uv-secure = "uv_secure.run:app"
 
