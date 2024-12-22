@@ -67,7 +67,7 @@ uv-secure can be run as a pre-commit hook by adding this configuration to your
 
 ```yaml
   - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.1.1
+    rev: 0.2.0
     hooks:
       - id: uv-secure
 ```
@@ -87,8 +87,8 @@ from where pre-commit is run.
 
 Below are some ideas (in no particular order) I have for improving uv-secure:
 
-- Update the command line arguments and pre-commit configuration to support finding and
-  testing all uv.lock files.
+- Support reading configuration from pyproject.toml
+- Support reading configuration for multiple pyproject.toml files for mono repos
 - Add rate limiting on how hard the PyPi json API is hit to query package
   vulnerabilities (this hasn't been a problem yet but I suspect may be for uv.lock files
   with many dependencies).
