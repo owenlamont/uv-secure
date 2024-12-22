@@ -5,7 +5,7 @@ Scan your uv.lock file for dependencies with known vulnerabilities
 ## Installation
 
 I recommend installing uv-secure as a uv tool or with pipx as it's intended to be used
-as a CLI tool and it probably only makes sense to have one version installed globally.
+as a CLI tool, and it probably only makes sense to have one version installed globally.
 
 Installing with uv tool as follows:
 
@@ -24,17 +24,19 @@ environment.
 
 ## Usage
 
-After installation you can run uv-secure --help to see the options.
+After installation, you can run uv-secure --help to see the options.
 
 ```text
 >> uv-secure --help
 
- Usage: uv-secure [OPTIONS]
+ Usage: run.py [OPTIONS] [UV_LOCK_PATHS]...
 
- Parse a uv.lock file, check vulnerabilities, and display summary.
+ Parse uv.lock files, check vulnerabilities, and display summary.
 
+╭─ Arguments ──────────────────────────────────────────────────────────────────────────╮
+│   uv_lock_paths      [UV_LOCK_PATHS]...  Paths to the uv.lock files [default: None]  │
+╰──────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ────────────────────────────────────────────────────────────────────────────╮
-│ --uv-lock-path        -p      PATH  Path to the uv.lock file [default: uv.lock]      │
 │ --ignore              -i      TEXT  Comma-separated list of vulnerability IDs to     │
 │                                     ignore, e.g. VULN-123,VULN-456                   │
 │ --version                           Show the application's version                   │
@@ -45,8 +47,8 @@ After installation you can run uv-secure --help to see the options.
 ╰──────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-By default if run with no options uv-secure will look for a uv.lock file in the current
-working directory and scan that for known vulnerabilities. E.g.
+By default, if run with no arguments uv-secure will look for a uv.lock file in the
+current working directory and scan that for known vulnerabilities. E.g.
 
 ```text
 >> uv-secure
@@ -65,7 +67,7 @@ uv-secure can be run as a pre-commit hook by adding this configuration to your
 
 ```yaml
   - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.1.1
+    rev: 0.2.0
     hooks:
       - id: uv-secure
 ```
@@ -85,8 +87,8 @@ from where pre-commit is run.
 
 Below are some ideas (in no particular order) I have for improving uv-secure:
 
-- Update the command line arguments and pre-commit configuration to support finding and
-  testing all uv.lock files.
+- Support reading configuration from pyproject.toml
+- Support reading configuration for multiple pyproject.toml files for mono repos
 - Add rate limiting on how hard the PyPi json API is hit to query package
   vulnerabilities (this hasn't been a problem yet but I suspect may be for uv.lock files
   with many dependencies).
