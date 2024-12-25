@@ -4,7 +4,7 @@ from typing import Optional
 import typer
 
 from uv_secure.__version__ import __version__
-from uv_secure.dependency_checker import check_dependencies
+from uv_secure.dependency_checker.dependency_checker import check_lock_files
 
 
 app = typer.Typer()
@@ -44,12 +44,11 @@ def main(
     """Parse uv.lock files, check vulnerabilities, and display summary."""
     if not uv_lock_paths:
         uv_lock_paths = [Path("./uv.lock")]
-    ignore_ids = [vuln_id.strip() for vuln_id in ignore.split(",") if vuln_id.strip()]
+    ignore_ids = {vuln_id.strip() for vuln_id in ignore.split(",") if vuln_id.strip()}
 
-    for uv_lock_path in uv_lock_paths:
-        status = check_dependencies(uv_lock_path, ignore_ids)
-        if status != 0:
-            raise typer.Exit(code=status)
+    vulnerabilities_found = check_lock_files(uv_lock_paths, ignore_ids)
+    if vulnerabilities_found:
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":
