@@ -30,6 +30,7 @@ classifiers = [
 ]
 
 dependencies = [
+    "anyio>=4.7.0",
     "httpx>=0.28.1",
     "inflect>=7.4.0",
     "pydantic>=2.10.3",
