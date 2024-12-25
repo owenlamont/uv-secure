@@ -1,6 +1,6 @@
-from pathlib import Path
 import sys
 
+from anyio import Path
 from pydantic import BaseModel
 
 
@@ -16,10 +16,9 @@ class Dependency(BaseModel):
     version: str
 
 
-def parse_uv_lock_file(file_path: Path) -> list[Dependency]:
+async def parse_uv_lock_file(file_path: Path) -> list[Dependency]:
     """Parses a uv.lock TOML file and extracts package PyPi dependencies"""
-    with file_path.open("rb") as f:
-        data = toml.load(f)
+    data = toml.loads(await file_path.read_text())
 
     package_data = data.get("package", [])
     return [
