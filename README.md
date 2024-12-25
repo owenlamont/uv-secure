@@ -106,9 +106,9 @@ Below are some ideas (in no particular order) I have for improving uv-secure:
 ## Related Work and Motivation
 
 I created this package as I wanted a dependency vulnerability scanner but I wasn't
-completely happy with the options that seemed available. I use
+completely happy with the options that were available. I use
 [uv](https://docs.astral.sh/uv/) and wanted something that works with uv.lock files but
-neither of the main package options I found fitted my requirements:
+neither of the main package options I found were as frictionless as I had hoped:
 
 - [pip-audit](https://pypi.org/project/pip-audit/) uv-secure is very much based on doing
   the same vulnerability check that pip-audit does using PyPi's json API. pip-audit
@@ -117,9 +117,8 @@ neither of the main package options I found fitted my requirements:
   run pip-audit with the --no-deps and/or --no-pip options to stop pip-audit trying to
   create a virtual environment from the requirements.txt file. In short, you can use
   pip-audit instead of uv-secure albeit with a bit more friction for uv projects. I hope
-  to add extra features beyond what pip-audit does or optimise things better given the
-  more specialised case of only needing to support uv.lock files at present in the
-  future.
+  to add extra features beyond what pip-audit does or optimise things better (given the
+  more specialised case of only needing to support uv.lock files) in the future.
 - [safety](https://pypi.org/project/safety/) also doesn't work with uv.lock file out of
   the box, it does apparently work statically without needing to build a virtual
   environment but it does require you to create an account on the
