@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import Iterable
 from pathlib import Path
+import sys
 
 from anyio import Path as APath
 import inflect
@@ -11,6 +12,13 @@ from rich.text import Text
 import typer
 
 from uv_secure.package_info import download_vulnerabilities, parse_uv_lock_file
+
+
+if sys.platform in ("win32", "cygwin", "cli"):
+    from winloop import run
+else:
+    # if we're on apple or linux do this instead
+    from uvloop import run
 
 
 async def check_dependencies(
@@ -112,7 +120,7 @@ def check_lock_files(uv_lock_paths: Iterable[Path], ignore_ids: set[str]) -> boo
     -------
         True if vulnerabilities were found, False otherwise.
     """
-    status_outputs = asyncio.run(process_lock_files(uv_lock_paths, ignore_ids))
+    status_outputs = run(process_lock_files(uv_lock_paths, ignore_ids))
     console = Console()
     vulnerabilities_found = False
     for status, console_output in status_outputs:
