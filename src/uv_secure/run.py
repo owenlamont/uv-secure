@@ -1,10 +1,17 @@
 from pathlib import Path
+import sys
 from typing import Optional
 
 import typer
 
 from uv_secure.__version__ import __version__
 from uv_secure.dependency_checker.dependency_checker import check_lock_files
+
+
+if sys.platform in ("win32", "cygwin", "cli"):
+    from winloop import run
+else:
+    from uvloop import run
 
 
 app = typer.Typer()
@@ -20,7 +27,7 @@ _uv_lock_path_args = typer.Argument(None, help="Paths to the uv.lock files")
 
 
 _ignore_option = typer.Option(
-    "",
+    None,
     "--ignore",
     "-i",
     help="Comma-separated list of vulnerability IDs to ignore, e.g. VULN-123,VULN-456",
@@ -34,19 +41,20 @@ _version_option = typer.Option(
     help="Show the application's version",
 )
 
+_config_option = typer.Option(
+    None, "--config", help="Optional path to a configuration file"
+)
+
 
 @app.command()
 def main(
     uv_lock_paths: Optional[list[Path]] = _uv_lock_path_args,
-    ignore: str = _ignore_option,
+    ignore: Optional[str] = _ignore_option,
+    config_path: Optional[Path] = _config_option,
     version: bool = _version_option,
 ) -> None:
     """Parse uv.lock files, check vulnerabilities, and display summary."""
-    if not uv_lock_paths:
-        uv_lock_paths = [Path("./uv.lock")]
-    ignore_ids = {vuln_id.strip() for vuln_id in ignore.split(",") if vuln_id.strip()}
-
-    vulnerabilities_found = check_lock_files(uv_lock_paths, ignore_ids)
+    vulnerabilities_found = run(check_lock_files(uv_lock_paths, ignore, config_path))
     if vulnerabilities_found:
         raise typer.Exit(code=1)
 
