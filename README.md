@@ -1,6 +1,22 @@
 # uv-secure
 
-Scan your uv.lock file for dependencies with known vulnerabilities
+Scan your uv.lock file for dependencies with known vulnerabilities.
+
+## Scope and Limitations
+
+This tool will scan PyPi dependencies listed in your uv.lock file and check for known
+vulnerabilities listed against those packages and versions in the PyPi json API. Since
+it is making network requests for each PyPi package this can be a relatively slow tool
+to run, and it will only work in test environments with access to the PyPi API.
+Currently only packages sourced from PyPi are tested - there's no support for custom
+packages or packages stored in private PyPi servers. See roadmap below for my plans for
+future enhancements.
+
+## Disclaimer
+
+This tool is still in an alpha phase and although it's unlikely to lose functionality
+arguments may get changed with no deprecation warning. I'm still in the process of
+refining the command line arguments and configuration behaviour.
 
 ## Installation
 
@@ -88,24 +104,30 @@ from where pre-commit is run.
 Below are some ideas (in no particular order) I have for improving uv-secure:
 
 - Support reading configuration from pyproject.toml
+- Support searching a directory for all uv.lock files
 - Support reading configuration for multiple pyproject.toml files for mono repos
 - Package for conda on conda-forge
 - Add rate limiting on how hard the PyPi json API is hit to query package
-  vulnerabilities (this hasn't been a problem yet but I suspect may be for uv.lock files
-  with many dependencies).
+  vulnerabilities (this hasn't been a problem yet, but I suspect may be for uv.lock
+  files with many dependencies)
 - Explore some local caching for recording known vulnerabilities for specific package
-  versions to speed up re-runs.
-- Add support for other lock file formats beyond uv.lock.
-- Add a severity threshold option for reporting vulnerabilities against.
+  versions to speed up re-runs
+- Support parsing uv generated requirements.txt files (assume full dependency tree and
+  pinned package versions)
+- Add support for other lock file formats beyond uv.lock
+- Consider adding support for scanning dependencies from the current venv
+- Add a severity threshold option for reporting vulnerabilities against
 - Add an autofix option for updating package versions with known vulnerabilities if
-  is a more recent fixed version.
+  is a more recent fixed version
+- Investigate supporting private PyPi repos
+- Add support for different output formats as pip-audit does
 - Add translations to support languages beyond English (not sure of the merits of this
   given most vulnerability reports appear to be only in English but happy to take
-  feedback on this).
+  feedback on this)
 
 ## Related Work and Motivation
 
-I created this package as I wanted a dependency vulnerability scanner but I wasn't
+I created this package as I wanted a dependency vulnerability scanner, but I wasn't
 completely happy with the options that were available. I use
 [uv](https://docs.astral.sh/uv/) and wanted something that works with uv.lock files but
 neither of the main package options I found were as frictionless as I had hoped:
