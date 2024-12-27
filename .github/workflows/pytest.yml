@@ -30,12 +30,12 @@ jobs:
       - name: Install the project
         run: uv sync --all-extras --dev
       - name: Run tests with Coverage
-        run: uv run pytest tests --cov=. --cov-report=term
+        run: uv run pytest tests --cov=. --cov-report=term --parallel-mode
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
           name: coverage-${{ matrix.python-version }}
-          path: .coverage
+          path: .coverage.*
           include-hidden-files: true
   combine-and-comment:
     runs-on: ubuntu-latest
