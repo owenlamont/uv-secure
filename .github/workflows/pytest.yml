@@ -31,8 +31,6 @@ jobs:
         run: uv sync --all-extras --dev
       - name: Run tests with Coverage
         run: uv run pytest tests --cov=. --cov-report=term
-      - name: Debug coverage file
-        run: ls -al
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
@@ -83,7 +81,7 @@ jobs:
         run: pip install coverage
       - name: Combine coverage data
         run: |
-          coverage combine coverage/3.9 coverage/3.10 coverage/3.11 coverage/3.12 coverage/3.13
+          coverage combine coverage/3.*/.coverage
           coverage report > coverage_summary.txt
       - name: Prepare Comment Body
         run: |
