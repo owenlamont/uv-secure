@@ -12,6 +12,13 @@ Currently only packages sourced from PyPi are tested - there's no support for cu
 packages or packages stored in private PyPi servers. See roadmap below for my plans for
 future enhancements.
 
+I don't intend uv-secure to ever create virtual environments or do dependency
+resolution - the plan is to leave that all to uv since it does that so well and just
+target lock files (and potentially fully pinned and dependency resolved requirements.txt
+files). If you want a tool that does dependency resolution on requirements.txt files for
+first order and unpinned dependencies I recommend using [pip-audit](https://pypi.org/project/pip-audit/)
+instead.
+
 ## Disclaimer
 
 This tool is still in an alpha phase and although it's unlikely to lose functionality
@@ -43,7 +50,7 @@ environment.
 After installation, you can run uv-secure --help to see the options.
 
 ```text
->> uv-secure --help
+>> uv run src/uv_secure/run.py --help
 
  Usage: run.py [OPTIONS] [UV_LOCK_PATHS]...
 
@@ -55,6 +62,11 @@ After installation, you can run uv-secure --help to see the options.
 ╭─ Options ────────────────────────────────────────────────────────────────────────────╮
 │ --ignore              -i      TEXT  Comma-separated list of vulnerability IDs to     │
 │                                     ignore, e.g. VULN-123,VULN-456                   │
+│                                     [default: None]                                  │
+│ --config                      PATH  Optional path to a configuration file            │
+│                                     (uv-secure.toml, .uv-secure.toml, or             │
+│                                     pyproject.toml)                                  │
+│                                     [default: None]                                  │
 │ --version                           Show the application's version                   │
 │ --install-completion                Install completion for the current shell.        │
 │ --show-completion                   Show completion for the current shell, to copy   │
@@ -74,6 +86,23 @@ Checking dependencies for vulnerabilities...
 │ Checked: 160 dependencies     │
 │ All dependencies appear safe! │
 ╰───────────────────────────────╯
+```
+
+## Configuration
+
+uv-secure can read configuration from a toml file specified with the config option. E.g.
+
+### uv-secure.toml / .uv-secure.toml
+
+```toml
+ignore_vulnerabilities = ["VULN-123"]
+```
+
+### pyproject.toml
+
+```toml
+[tool.uv-secure]
+ignore_vulnerabilities = ["VULN-123"]
 ```
 
 ## Pre-commit Usage

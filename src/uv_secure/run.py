@@ -42,7 +42,12 @@ _version_option = typer.Option(
 )
 
 _config_option = typer.Option(
-    None, "--config", help="Optional path to a configuration file"
+    None,
+    "--config",
+    help=(
+        "Optional path to a configuration file (uv-secure.toml, .uv-secure.toml, or "
+        "pyproject.toml)"
+    ),
 )
 
 
