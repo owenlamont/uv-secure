@@ -2,8 +2,12 @@ name: Pytest
 on:
   pull_request:
 jobs:
-  pytest:
-    runs-on: ubuntu-latest
+  pytest-with-coverage:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
     permissions:
       contents: read
       pull-requests: write
@@ -18,11 +22,42 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version-file: ".python-version"
+          python-version: ${{ matrix.python-version }}
       - name: Install the project
-        run: uv sync --all-extras --dev
+        run: uv sync --dev
       - name: Run tests with Coverage
-        run: uv run pytest tests --cov=. --cov-report=term > coverage_summary.txt
+        run: uv run pytest tests --cov=. --cov-report=term
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.os }}-python-${{ matrix.python-version }}
+          path: .coverage
+          include-hidden-files: true
+  combine-and-comment:
+    runs-on: ubuntu-latest
+    needs: pytest-with-coverage
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install the project
+        run: uv sync --dev
+      - name: Download all coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: coverage
+      - name: Combine coverage data
+        run: |
+          uv run coverage combine coverage/*-python-*/.coverage
+          uv run coverage report > coverage_summary.txt
       - name: Prepare Comment Body
         run: |
           echo '### Coverage Report' >> comment_body.md
@@ -45,31 +80,3 @@ jobs:
           body-path: comment_body.md
           comment-id: ${{ steps.find-comment.outputs.comment-id }}
           edit-mode: replace
-  pytest-additional-versions:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version:
-          - "3.10"
-          - "3.11"
-          - "3.12"
-          - "3.13"
-    permissions:
-      contents: read
-      pull-requests: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Install the project
-        run: uv sync --all-extras --dev
-      - name: Run tests
-        run: uv run pytest tests
