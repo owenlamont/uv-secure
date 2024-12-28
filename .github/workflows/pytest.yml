@@ -2,16 +2,12 @@ name: Pytest
 on:
   pull_request:
 jobs:
-  pytest-ubuntu:
-    runs-on: ubuntu-latest
+  pytest-with-coverage:
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version:
-          - "3.9"
-          - "3.10"
-          - "3.11"
-          - "3.12"
-          - "3.13"
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: [3.9, 3.10, 3.11, 3.12, 3.13]
     permissions:
       contents: read
       pull-requests: write
@@ -34,12 +30,12 @@ jobs:
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-${{ matrix.python-version }}
+          name: coverage-${{ matrix.os }}-${{ matrix.python-version }}
           path: .coverage
           include-hidden-files: true
   combine-and-comment:
     runs-on: ubuntu-latest
-    needs: pytest-ubuntu
+    needs: pytest-with-coverage
     permissions:
       contents: read
       pull-requests: write
@@ -55,33 +51,12 @@ jobs:
       - name: Download coverage 3.9
         uses: actions/download-artifact@v4
         with:
-          name: coverage-3.9
-          path: coverage/3.9
-      - name: Download coverage 3.10
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-3.10
-          path: coverage/3.10
-      - name: Download coverage 3.11
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-3.11
-          path: coverage/3.11
-      - name: Download coverage 3.12
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-3.12
-          path: coverage/3.12
-      - name: Download coverage 3.13
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-3.13
-          path: coverage/3.13
+          path: coverage
       - name: Install coverage
         run: pip install coverage
       - name: Combine coverage data
         run: |
-          coverage combine coverage/3.*/.coverage
+          coverage combine coverage/**/*.coverage
           coverage report > coverage_summary.txt
       - name: Prepare Comment Body
         run: |
