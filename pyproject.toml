@@ -55,6 +55,20 @@ build-backend = "hatchling.build"
 [tool.bandit]
 exclude_dirs = ["tests"]
 
+[tool.coverage.paths]
+source = [
+  "src",
+  "/Users/runner/work/uv-secure/uv-secure/src",
+  "/home/runner/work/uv-secure/uv-secure/src",
+  "D:/a/uv-secure/uv-secure/src"
+]
+tests = [
+  "tests",
+  "/Users/runner/work/uv-secure/uv-secure/tests",
+  "/home/runner/work/uv-secure/uv-secure/tests",
+  "D:/a/uv-secure/uv-secure/tests"
+]
+
 [tool.hatch.version]
 path = "src/uv_secure/__version__.py"
 
