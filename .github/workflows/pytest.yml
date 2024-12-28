@@ -56,7 +56,7 @@ jobs:
         run: pip install coverage
       - name: Combine coverage data
         run: |
-          coverage combine coverage
+          coverage combine coverage/*-latest-3.*/.coverage
           coverage report > coverage_summary.txt
       - name: Prepare Comment Body
         run: |
