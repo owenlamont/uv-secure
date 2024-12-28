@@ -24,7 +24,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install the project
-        run: uv sync --all-extras --dev
+        run: uv sync --dev
       - name: Run tests with Coverage
         run: uv run pytest tests --cov=. --cov-report=term
       - name: Upload coverage artifact
@@ -46,14 +46,12 @@ jobs:
         uses: astral-sh/setup-uv@v4
       - name: Set up Python
         uses: actions/setup-python@v5
-      - name: install coverage
-        run: uv tool install coverage
+      - name: Install the project
+        run: uv sync --dev
       - name: Download all coverage artifacts
         uses: actions/download-artifact@v4
         with:
           path: coverage
-      - name: Install coverage
-        run: pip install coverage
       - name: Combine coverage data
         run: |
           coverage combine coverage/*-latest-3.*/.coverage
