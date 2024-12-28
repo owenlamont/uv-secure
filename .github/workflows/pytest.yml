@@ -30,7 +30,7 @@ jobs:
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-${{ matrix.os }}-${{ matrix.python-version }}
+          name: coverage-${{ matrix.os }}-python-${{ matrix.python-version }}
           path: .coverage
           include-hidden-files: true
   combine-and-comment:
@@ -46,6 +46,8 @@ jobs:
         uses: astral-sh/setup-uv@v4
       - name: Set up Python
         uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
       - name: Install the project
         run: uv sync --dev
       - name: Download all coverage artifacts
@@ -54,7 +56,7 @@ jobs:
           path: coverage
       - name: Combine coverage data
         run: |
-          uv run coverage combine coverage/*-latest-3.*/.coverage
+          uv run coverage combine coverage/*-python-*/.coverage
           uv run coverage report > coverage_summary.txt
       - name: Prepare Comment Body
         run: |
