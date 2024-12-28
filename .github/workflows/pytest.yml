@@ -54,8 +54,8 @@ jobs:
           path: coverage
       - name: Combine coverage data
         run: |
-          coverage combine coverage/*-latest-3.*/.coverage
-          coverage report > coverage_summary.txt
+          uv run coverage combine coverage/*-latest-3.*/.coverage
+          uv run coverage report > coverage_summary.txt
       - name: Prepare Comment Body
         run: |
           echo '### Coverage Report' >> comment_body.md
