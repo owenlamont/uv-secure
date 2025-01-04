@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Optional
 
@@ -15,6 +15,7 @@ from uv_secure.configuration import (
     config_file_factory,
     Configuration,
 )
+from uv_secure.directory_scanner import get_config_lock_file_pairs
 from uv_secure.package_info import download_vulnerabilities, parse_uv_lock_file
 
 
@@ -98,7 +99,7 @@ async def check_dependencies(
 
 
 async def check_lock_files(
-    uv_lock_paths: Optional[Iterable[Path]],
+    file_paths: Optional[Sequence[Path]],
     ignore: Optional[str],
     config_path: Optional[Path],
 ) -> bool:
@@ -112,8 +113,12 @@ async def check_lock_files(
     -------
         True if vulnerabilities were found, False otherwise.
     """
-    if not uv_lock_paths:
-        uv_lock_paths = [Path("./uv.lock")]
+    if not file_paths:
+        file_paths = [Path("./uv.lock")]
+
+    if len(file_paths) == 1 and file_paths[0].is_dir():
+        _ = await get_config_lock_file_pairs(APath(file_paths[0]))
+        pass
 
     if ignore is not None:
         config = config_cli_arg_factory(ignore)
@@ -124,8 +129,7 @@ async def check_lock_files(
         config = Configuration()
 
     status_output_tasks = [
-        check_dependencies(APath(uv_lock_path), config)
-        for uv_lock_path in uv_lock_paths
+        check_dependencies(APath(uv_lock_path), config) for uv_lock_path in file_paths
     ]
     status_outputs = await asyncio.gather(*status_output_tasks)
     console = Console()

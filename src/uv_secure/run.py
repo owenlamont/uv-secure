@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import sys
 from typing import Optional
@@ -8,10 +9,12 @@ from uv_secure.__version__ import __version__
 from uv_secure.dependency_checker.dependency_checker import check_lock_files
 
 
-if sys.platform in ("win32", "cygwin", "cli"):
-    from winloop import run
+if os.getenv("PYTHON_ENV") == "development":
+    from asyncio import run
+elif sys.platform in ("win32", "cygwin", "cli"):
+    from winloop import run  # type: ignore
 else:
-    from uvloop import run
+    from uvloop import run  # type: ignore
 
 
 app = typer.Typer()
