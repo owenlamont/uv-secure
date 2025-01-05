@@ -31,25 +31,17 @@ async def _get_root_dir(file_paths: Iterable[Path]) -> Path:
     if len(resolved_paths) == 1:
         return resolved_paths[0].parent
 
-    # --- Split resolved paths into parts ---
     split_paths = [list(rp.parts) for rp in resolved_paths]
-
-    # Find the minimum length of these parts to avoid index errors
     min_length = min(len(parts) for parts in split_paths)
     common_prefix_len = 0
 
-    # Compare each path segment across all paths
-    for i in range(min_length):
-        segment_set = {parts[i] for parts in split_paths}
+    for part_idx in range(min_length):
+        segment_set = {parts[part_idx] for parts in split_paths}
         if len(segment_set) == 1:
-            # All paths have the same segment at index i
             common_prefix_len += 1
         else:
-            # A mismatch occurred
             break
 
-    # Rebuild the common directory from the shared prefix
-    # (Using the first path's parts up to common_prefix_len)
     common_parts = split_paths[0][:common_prefix_len]
     return Path(*common_parts)
 
