@@ -78,9 +78,6 @@ After installation, you can run uv-secure --help to see the options.
 ╰──────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-By default, if run with no arguments uv-secure will look for a uv.lock file in the
-current working directory and scan that for known vulnerabilities. E.g.
-
 ```text
 >> uv-secure
 Checking dependencies for vulnerabilities...
@@ -108,6 +105,33 @@ ignore_vulnerabilities = ["VULN-123"]
 ignore_vulnerabilities = ["VULN-123"]
 ```
 
+### Configuration discovery
+
+If the ignore and config options are left unset uv-secure will search for configuration
+files above each uv.lock file and use the deepest found pyproject.toml, uv-secure.toml,
+or .uv-secure.toml for the configuration when processing that specific uv.lock file.
+uv-secure tries to follow
+[Ruff's configuration file discovery strategy](https://docs.astral.sh/ruff/configuration/#config-file-discovery)
+
+Similar to Ruff, pyproject.toml files that don't contain uv-secure configuration are
+ignored. Currently if multiple uv-secure configuration files are defined in the same
+directory upstream from a uv.lock file the configurations are used in this precedence
+order:
+
+1. .uv-secure.toml
+2. uv-secure.toml
+3. pyproject.toml (assuming it contains uv-secure configuration)
+
+So .uv-secure.toml files are used first, then uv-secure.toml files, and last
+pyproject.toml files with uv-secure config (only if you define all three in the same
+directory though - which would be a bit weird - I may make this a warning or error in
+future).
+
+Like Ruff configuration files aren't hierarchically combined, just the nearest / highest
+precedence configuration is used. If you do specify configuration options directly using
+the --ignore option or pass a specific configuration file those take precedence and
+hierarchical configuration file discovery is disabled.
+
 ## Pre-commit Usage
 
 uv-secure can be run as a pre-commit hook by adding this configuration to your
@@ -115,7 +139,7 @@ uv-secure can be run as a pre-commit hook by adding this configuration to your
 
 ```yaml
   - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.2.0
+    rev: 0.3.0
     hooks:
       - id: uv-secure
 ```
@@ -135,9 +159,6 @@ from where pre-commit is run.
 
 Below are some ideas (in no particular order) I have for improving uv-secure:
 
-- Support reading configuration from pyproject.toml
-- Support searching a directory for all uv.lock files
-- Support reading configuration for multiple pyproject.toml files for mono repos
 - Package for conda on conda-forge
 - Add rate limiting on how hard the PyPi json API is hit to query package
   vulnerabilities (this hasn't been a problem yet, but I suspect may be for uv.lock
