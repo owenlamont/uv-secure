@@ -1,4 +1,8 @@
-from uv_secure.dependency_checker.dependency_checker import check_dependencies
+from uv_secure.dependency_checker.dependency_checker import (
+    check_dependencies,
+    check_lock_files,
+    RunStatus,
+)
 
 
-__all__ = ["check_dependencies"]
+__all__ = ["RunStatus", "check_dependencies", "check_lock_files"]

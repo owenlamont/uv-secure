@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Iterable, Sequence
+from enum import Enum
 from pathlib import Path
 from typing import Optional
 
@@ -98,11 +99,17 @@ async def check_dependencies(
     return 0, console_outputs  # Exit successfully
 
 
+class RunStatus(Enum):
+    NO_VULNERABILITIES = (0,)
+    VULNERABILITIES_FOUND = 1
+    RUNTIME_ERROR = 2
+
+
 async def check_lock_files(
     file_paths: Optional[Sequence[Path]],
     ignore: Optional[str],
     config_path: Optional[Path],
-) -> bool:
+) -> RunStatus:
     """Checks
 
     Args:
@@ -116,27 +123,40 @@ async def check_lock_files(
     if not file_paths:
         file_paths = (Path("."),)
 
+    console = Console()
     if len(file_paths) == 1 and file_paths[0].is_dir():
         lock_to_config_map = await get_lock_to_config_map(APath(file_paths[0]))
         file_paths = tuple(lock_to_config_map.keys())
     else:
         if ignore is not None:
             config = config_cli_arg_factory(ignore)
+            lock_to_config_map = {APath(file): config for file in file_paths}
         elif config_path is not None:
             possible_config = await config_file_factory(APath(config_path))
             config = possible_config if possible_config is not None else Configuration()
+            lock_to_config_map = {APath(file): config for file in file_paths}
+        elif all(file_path.name == "uv.lock" for file_path in file_paths):
+            lock_to_config_map = await get_lock_to_config_map(
+                [APath(file_path) for file_path in file_paths]
+            )
+            file_paths = tuple(lock_to_config_map.keys())
         else:
-            config = Configuration()
-        lock_to_config_map = {APath(file): config for file in file_paths}
+            console.print(
+                "[bold red]Error:[/] file_paths must either reference a single "
+                "project root directory or a sequence of uv.lock file paths"
+            )
+            return RunStatus.RUNTIME_ERROR
+
     status_output_tasks = [
         check_dependencies(APath(uv_lock_path), lock_to_config_map[APath(uv_lock_path)])
         for uv_lock_path in file_paths
     ]
     status_outputs = await asyncio.gather(*status_output_tasks)
-    console = Console()
     vulnerabilities_found = False
     for status, console_output in status_outputs:
         console.print(*console_output)
         if status != 0:
             vulnerabilities_found = True
-    return vulnerabilities_found
+    if vulnerabilities_found:
+        return RunStatus.VULNERABILITIES_FOUND
+    return RunStatus.NO_VULNERABILITIES

@@ -6,7 +6,7 @@ from typing import Optional
 import typer
 
 from uv_secure.__version__ import __version__
-from uv_secure.dependency_checker.dependency_checker import check_lock_files
+from uv_secure.dependency_checker import check_lock_files, RunStatus
 
 
 if os.getenv("PYTHON_ENV") == "development":
@@ -62,9 +62,11 @@ def main(
     version: bool = _version_option,
 ) -> None:
     """Parse uv.lock files, check vulnerabilities, and display summary."""
-    vulnerabilities_found = run(check_lock_files(uv_lock_paths, ignore, config_path))
-    if vulnerabilities_found:
+    run_status = run(check_lock_files(uv_lock_paths, ignore, config_path))
+    if run_status == RunStatus.VULNERABILITIES_FOUND:
         raise typer.Exit(code=1)
+    if run_status == RunStatus.RUNTIME_ERROR:
+        raise typer.Exit(code=2)
 
 
 if __name__ == "__main__":

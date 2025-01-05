@@ -151,6 +151,12 @@ def test_app_version() -> None:
     assert "uv-secure " in result.output
 
 
+def test_bad_file_name() -> None:
+    result = runner.invoke(app, "i_dont_exist.txt")
+    assert result.exit_code == 2
+    assert "Error" in result.output
+
+
 def test_app_no_vulnerabilities(
     temp_uv_lock_file: Path, no_vulnerabilities_response: HTTPXMock
 ) -> None:
@@ -295,6 +301,25 @@ def test_app_multiple_lock_files_no_root_config_one_nested_ignored_vulnerability
     one_vulnerability_response_v2: HTTPXMock,
 ) -> None:
     result = runner.invoke(app, [str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert result.output.count("No vulnerabilities detected!") == 2
+    assert result.output.count("Checked: 1 dependency") == 2
+    assert result.output.count("All dependencies appear safe!") == 2
+    assert result.output.count("nested_project") == 2
+
+
+def test_app_multiple_lock_files_one_nested_ignored_vulnerability_pass_lock_files(
+    tmp_path: Path,
+    temp_uv_lock_file: Path,
+    temp_double_nested_uv_lock_file: Path,
+    temp_nested_uv_secure_toml_file_ignored_vulnerability: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    one_vulnerability_response_v2: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), str(temp_double_nested_uv_lock_file)]
+    )
 
     assert result.exit_code == 0
     assert result.output.count("No vulnerabilities detected!") == 2
