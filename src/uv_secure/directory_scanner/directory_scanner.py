@@ -1,25 +1,55 @@
-from collections.abc import Iterable
-
 from anyio import Path
 from asyncer import create_task_group
 
-from uv_secure.configuration import Configuration
+from uv_secure.configuration import config_file_factory, Configuration
 
 
-async def find_files(directory: Path) -> dict[str, Iterable[Path]]:
+async def search_file(directory: Path, filename: str) -> list[Path]:
+    return [file_path async for file_path in directory.glob(f"**/{filename}")]
+
+
+async def find_files(directory: Path) -> dict[str, list[Path]]:
     filenames = ["pyproject.toml", "uv-secure.toml", ".uv-secure.toml", "uv.lock"]
 
-    async def search_file(filename: str) -> Iterable[Path]:
-        return [file_path async for file_path in directory.glob(f"**/{filename}")]
-
     async with create_task_group() as tg:
-        tasks = {filename: tg.soonify(search_file)(filename) for filename in filenames}
+        tasks = {
+            filename: tg.soonify(search_file)(directory, filename)
+            for filename in filenames
+        }
 
     return {filename: task.value for filename, task in tasks.items()}
 
 
-async def get_config_lock_file_pairs(
-    root_dir: Path,
-) -> dict[Configuration, Iterable[Path]]:
-    _ = await find_files(root_dir)
-    return {Configuration(): []}
+async def get_lock_to_config_map(root_dir: Path) -> dict[Path, Configuration]:
+    config_and_lock_files = await find_files(root_dir)
+
+    config_file_paths = (
+        config_and_lock_files["pyproject.toml"]
+        + config_and_lock_files["uv-secure.toml"]
+        + config_and_lock_files[".uv-secure.toml"]
+    )
+
+    async with create_task_group() as tg:
+        config_futures = [
+            tg.soonify(config_file_factory)(path) for path in config_file_paths
+        ]
+    configs = [future.value for future in config_futures]
+    path_config_map = {
+        p.parent: c for p, c in zip(config_file_paths, configs) if c is not None
+    }
+
+    lock_file_paths = config_and_lock_files.get("uv.lock", [])
+    lock_to_config_map: dict[Path, Configuration] = {}
+    default_config = Configuration()
+    for lock_file in lock_file_paths:
+        current_dir = lock_file.parent
+        while True:
+            found_config = path_config_map.get(current_dir)
+            if found_config is not None or current_dir == root_dir:
+                break
+            current_dir = current_dir.parent
+
+        if found_config is None:
+            found_config = default_config
+        lock_to_config_map[lock_file] = found_config
+    return lock_to_config_map

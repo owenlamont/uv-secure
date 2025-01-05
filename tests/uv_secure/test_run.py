@@ -25,7 +25,7 @@ def temp_uv_lock_file(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def temp_uv_secure_toml_file(tmp_path: Path) -> Path:
+def temp_uv_secure_toml_file_ignored_vulnerability(tmp_path: Path) -> Path:
     """Fixture to create a temporary uv.lock file with a single dependency."""
     uv_secure_toml_path = tmp_path / "uv-secure.toml"
     uv_lock_data = """
@@ -36,7 +36,28 @@ def temp_uv_secure_toml_file(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def temp_pyproject_toml_file(tmp_path: Path) -> Path:
+def temp_dot_uv_secure_toml_file(tmp_path: Path) -> Path:
+    """Fixture to create a temporary uv.lock file with a single dependency."""
+    uv_secure_toml_path = tmp_path / ".uv-secure.toml"
+    uv_lock_data = ""
+    uv_secure_toml_path.write_text(uv_lock_data)
+    return uv_secure_toml_path
+
+
+@pytest.fixture
+def temp_nested_uv_secure_toml_file_ignored_vulnerability(tmp_path: Path) -> Path:
+    """Fixture to create a temporary uv.lock file with a single dependency."""
+    nested_uv_lock_path = tmp_path / "nested_project"
+    uv_secure_toml_path = nested_uv_lock_path / "uv-secure.toml"
+    uv_lock_data = """
+    ignore_vulnerabilities = ["VULN-123"]
+    """
+    uv_secure_toml_path.write_text(uv_lock_data)
+    return uv_secure_toml_path
+
+
+@pytest.fixture
+def temp_pyproject_toml_file_ignored_vulnerability(tmp_path: Path) -> Path:
     """Fixture to create a temporary uv.lock file with a single dependency."""
     uv_secure_toml_path = tmp_path / "pyproject.toml"
     uv_lock_data = """
@@ -53,6 +74,22 @@ def temp_nested_uv_lock_file(tmp_path: Path) -> Path:
     nested_uv_lock_path = tmp_path / "nested_project"
     nested_uv_lock_path.mkdir()
     uv_lock_path = nested_uv_lock_path / "uv.lock"
+    uv_lock_data = """
+    [[package]]
+    name = "example-package"
+    version = "2.0.0"
+    source = { registry = "https://pypi.org/simple" }
+    """
+    uv_lock_path.write_text(uv_lock_data)
+    return uv_lock_path
+
+
+@pytest.fixture
+def temp_double_nested_uv_lock_file(tmp_path: Path) -> Path:
+    """Fixture to create a temporary uv.lock file with a single dependency."""
+    double_nested_uv_lock_path = tmp_path / "nested_project" / "double_nested_project"
+    double_nested_uv_lock_path.mkdir(parents=True)
+    uv_lock_path = double_nested_uv_lock_path / "uv.lock"
     uv_lock_data = """
     [[package]]
     name = "example-package"
@@ -156,12 +193,17 @@ def test_app_with_arg_ignored_vulnerability(
 
 def test_app_with_uv_secure_toml_ignored_vulnerability(
     temp_uv_lock_file: Path,
-    temp_uv_secure_toml_file: Path,
+    temp_uv_secure_toml_file_ignored_vulnerability: Path,
     one_vulnerability_response: HTTPXMock,
 ) -> None:
     """Test check_dependencies with a single dependency and no vulnerabilities."""
     result = runner.invoke(
-        app, [str(temp_uv_lock_file), "--config", temp_uv_secure_toml_file]
+        app,
+        [
+            str(temp_uv_lock_file),
+            "--config",
+            temp_uv_secure_toml_file_ignored_vulnerability,
+        ],
     )
 
     assert result.exit_code == 0
@@ -172,12 +214,17 @@ def test_app_with_uv_secure_toml_ignored_vulnerability(
 
 def test_app_with_pyproject_toml_ignored_vulnerability(
     temp_uv_lock_file: Path,
-    temp_pyproject_toml_file: Path,
+    temp_pyproject_toml_file_ignored_vulnerability: Path,
     one_vulnerability_response: HTTPXMock,
 ) -> None:
     """Test check_dependencies with a single dependency and no vulnerabilities."""
     result = runner.invoke(
-        app, [str(temp_uv_lock_file), "--config", temp_pyproject_toml_file]
+        app,
+        [
+            str(temp_uv_lock_file),
+            "--config",
+            temp_pyproject_toml_file_ignored_vulnerability,
+        ],
     )
 
     assert result.exit_code == 0
@@ -219,3 +266,38 @@ def test_app_multiple_lock_files_one_vulnerabilities(
     assert result.exit_code == 1
     assert result.output.count("No vulnerabilities detected!") == 1
     assert result.output.count("Vulnerabilities detected!") == 1
+
+
+def test_app_multiple_lock_files_one_nested_ignored_vulnerability(
+    tmp_path: Path,
+    temp_uv_lock_file: Path,
+    temp_nested_uv_lock_file: Path,
+    temp_dot_uv_secure_toml_file: Path,
+    temp_nested_uv_secure_toml_file_ignored_vulnerability: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    one_vulnerability_response_v2: HTTPXMock,
+) -> None:
+    result = runner.invoke(app, [str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert result.output.count("No vulnerabilities detected!") == 2
+    assert result.output.count("Checked: 1 dependency") == 2
+    assert result.output.count("All dependencies appear safe!") == 2
+    assert result.output.count("nested_project") == 1
+
+
+def test_app_multiple_lock_files_no_root_config_one_nested_ignored_vulnerability(
+    tmp_path: Path,
+    temp_uv_lock_file: Path,
+    temp_double_nested_uv_lock_file: Path,
+    temp_nested_uv_secure_toml_file_ignored_vulnerability: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    one_vulnerability_response_v2: HTTPXMock,
+) -> None:
+    result = runner.invoke(app, [str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert result.output.count("No vulnerabilities detected!") == 2
+    assert result.output.count("Checked: 1 dependency") == 2
+    assert result.output.count("All dependencies appear safe!") == 2
+    assert result.output.count("nested_project") == 2

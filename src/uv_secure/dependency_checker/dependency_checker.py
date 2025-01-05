@@ -15,7 +15,7 @@ from uv_secure.configuration import (
     config_file_factory,
     Configuration,
 )
-from uv_secure.directory_scanner import get_config_lock_file_pairs
+from uv_secure.directory_scanner import get_lock_to_config_map
 from uv_secure.package_info import download_vulnerabilities, parse_uv_lock_file
 
 
@@ -106,7 +106,7 @@ async def check_lock_files(
     """Checks
 
     Args:
-        uv_lock_paths: paths to uv_lock files
+        file_paths: paths to files or directory to process
         ignore_ids: Vulnerabilities IDs to ignore
 
     Returns
@@ -114,22 +114,23 @@ async def check_lock_files(
         True if vulnerabilities were found, False otherwise.
     """
     if not file_paths:
-        file_paths = [Path("./uv.lock")]
+        file_paths = (Path("."),)
 
     if len(file_paths) == 1 and file_paths[0].is_dir():
-        _ = await get_config_lock_file_pairs(APath(file_paths[0]))
-        pass
-
-    if ignore is not None:
-        config = config_cli_arg_factory(ignore)
-    elif config_path is not None:
-        possible_config = await config_file_factory(APath(config_path))
-        config = possible_config if possible_config is not None else Configuration()
+        lock_to_config_map = await get_lock_to_config_map(APath(file_paths[0]))
+        file_paths = tuple(lock_to_config_map.keys())
     else:
-        config = Configuration()
-
+        if ignore is not None:
+            config = config_cli_arg_factory(ignore)
+        elif config_path is not None:
+            possible_config = await config_file_factory(APath(config_path))
+            config = possible_config if possible_config is not None else Configuration()
+        else:
+            config = Configuration()
+        lock_to_config_map = {APath(file): config for file in file_paths}
     status_output_tasks = [
-        check_dependencies(APath(uv_lock_path), config) for uv_lock_path in file_paths
+        check_dependencies(APath(uv_lock_path), lock_to_config_map[APath(uv_lock_path)])
+        for uv_lock_path in file_paths
     ]
     status_outputs = await asyncio.gather(*status_output_tasks)
     console = Console()
