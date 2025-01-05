@@ -157,6 +157,12 @@ def test_bad_file_name() -> None:
     assert "Error" in result.output
 
 
+def test_missing_file(tmp_path: Path) -> None:
+    result = runner.invoke(app, [str(tmp_path / "uv.lock")])
+    assert result.exit_code == 2
+    assert "Error" in result.output
+
+
 def test_app_no_vulnerabilities(
     temp_uv_lock_file: Path, no_vulnerabilities_response: HTTPXMock
 ) -> None:

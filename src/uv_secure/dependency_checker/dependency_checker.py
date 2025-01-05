@@ -30,7 +30,7 @@ async def check_dependencies(
         console_outputs.append(
             f"[bold red]Error:[/] File {uv_lock_path} does not exist."
         )
-        return 1, console_outputs
+        return 2, console_outputs
 
     dependencies = await parse_uv_lock_file(uv_lock_path)
     console_outputs.append(
@@ -153,10 +153,15 @@ async def check_lock_files(
     ]
     status_outputs = await asyncio.gather(*status_output_tasks)
     vulnerabilities_found = False
+    runtime_error = False
     for status, console_output in status_outputs:
         console.print(*console_output)
-        if status != 0:
+        if status == 1:
             vulnerabilities_found = True
+        elif status == 2:
+            runtime_error = True
+    if runtime_error:
+        return RunStatus.RUNTIME_ERROR
     if vulnerabilities_found:
         return RunStatus.VULNERABILITIES_FOUND
     return RunStatus.NO_VULNERABILITIES

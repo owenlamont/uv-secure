@@ -11,7 +11,7 @@ async def search_file(directory: Path, filename: str) -> list[Path]:
     return [file_path async for file_path in directory.glob(f"**/{filename}")]
 
 
-async def find_files(
+async def _find_files(
     directory: Path, filenames: Iterable[str]
 ) -> dict[str, list[Path]]:
     async with create_task_group() as tg:
@@ -49,14 +49,25 @@ async def _get_root_dir(file_paths: Iterable[Path]) -> Path:
 async def get_lock_to_config_map(
     file_paths: Union[Path, list[Path]],
 ) -> dict[Path, Configuration]:
+    """Get map of uv.lock files to their configurations.
+
+    Using provided uv.lock files or root directory discover the uv.lock files and also
+    find and map the nearest parent configuration for each uv.lock file.
+
+    Args:
+        file_paths: A list of uv.lock files or root directory
+
+    Returns:
+        A dictionary mapping uv.lock files to their nearest Configuration
+    """
     if type(file_paths) is Path:
         root_dir = file_paths
-        config_and_lock_files = await find_files(
+        config_and_lock_files = await _find_files(
             root_dir, ["pyproject.toml", "uv-secure.toml", ".uv-secure.toml", "uv.lock"]
         )
     else:
         root_dir = await _get_root_dir(file_paths)
-        config_and_lock_files = await find_files(
+        config_and_lock_files = await _find_files(
             root_dir, ["pyproject.toml", "uv-secure.toml", ".uv-secure.toml"]
         )
         config_and_lock_files["uv.lock"] = file_paths
