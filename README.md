@@ -57,7 +57,10 @@ After installation, you can run uv-secure --help to see the options.
  Parse uv.lock files, check vulnerabilities, and display summary.
 
 ╭─ Arguments ──────────────────────────────────────────────────────────────────────────╮
-│   uv_lock_paths      [UV_LOCK_PATHS]...  Paths to the uv.lock files [default: None]  │
+│   uv_lock_paths      [UV_LOCK_PATHS]...  Paths to the uv.lock files or a single      │
+│                                          project root level directory (defaults to   │
+│                                          working directory if not set)               │
+│                                          [default: None]                             │
 ╰──────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ────────────────────────────────────────────────────────────────────────────╮
 │ --ignore              -i      TEXT  Comma-separated list of vulnerability IDs to     │

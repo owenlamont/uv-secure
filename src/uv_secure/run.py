@@ -26,7 +26,13 @@ def version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
-_uv_lock_path_args = typer.Argument(None, help="Paths to the uv.lock files")
+_uv_lock_path_args = typer.Argument(
+    None,
+    help=(
+        "Paths to the uv.lock files or a single project root level directory (defaults "
+        "to working directory if not set)"
+    ),
+)
 
 
 _ignore_option = typer.Option(
