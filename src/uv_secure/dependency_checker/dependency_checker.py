@@ -1,5 +1,6 @@
 import asyncio
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
+from enum import Enum
 from pathlib import Path
 from typing import Optional
 
@@ -15,6 +16,7 @@ from uv_secure.configuration import (
     config_file_factory,
     Configuration,
 )
+from uv_secure.directory_scanner import get_lock_to_config_map
 from uv_secure.package_info import download_vulnerabilities, parse_uv_lock_file
 
 
@@ -28,7 +30,7 @@ async def check_dependencies(
         console_outputs.append(
             f"[bold red]Error:[/] File {uv_lock_path} does not exist."
         )
-        return 1, console_outputs
+        return 2, console_outputs
 
     dependencies = await parse_uv_lock_file(uv_lock_path)
     console_outputs.append(
@@ -97,41 +99,69 @@ async def check_dependencies(
     return 0, console_outputs  # Exit successfully
 
 
+class RunStatus(Enum):
+    NO_VULNERABILITIES = (0,)
+    VULNERABILITIES_FOUND = 1
+    RUNTIME_ERROR = 2
+
+
 async def check_lock_files(
-    uv_lock_paths: Optional[Iterable[Path]],
+    file_paths: Optional[Sequence[Path]],
     ignore: Optional[str],
     config_path: Optional[Path],
-) -> bool:
+) -> RunStatus:
     """Checks
 
     Args:
-        uv_lock_paths: paths to uv_lock files
+        file_paths: paths to files or directory to process
         ignore_ids: Vulnerabilities IDs to ignore
 
     Returns
     -------
         True if vulnerabilities were found, False otherwise.
     """
-    if not uv_lock_paths:
-        uv_lock_paths = [Path("./uv.lock")]
+    if not file_paths:
+        file_paths = (Path("."),)
 
-    if ignore is not None:
-        config = config_cli_arg_factory(ignore)
-    elif config_path is not None:
-        possible_config = await config_file_factory(APath(config_path))
-        config = possible_config if possible_config is not None else Configuration()
+    console = Console()
+    if len(file_paths) == 1 and file_paths[0].is_dir():
+        lock_to_config_map = await get_lock_to_config_map(APath(file_paths[0]))
+        file_paths = tuple(lock_to_config_map.keys())
     else:
-        config = Configuration()
+        if ignore is not None:
+            config = config_cli_arg_factory(ignore)
+            lock_to_config_map = {APath(file): config for file in file_paths}
+        elif config_path is not None:
+            possible_config = await config_file_factory(APath(config_path))
+            config = possible_config if possible_config is not None else Configuration()
+            lock_to_config_map = {APath(file): config for file in file_paths}
+        elif all(file_path.name == "uv.lock" for file_path in file_paths):
+            lock_to_config_map = await get_lock_to_config_map(
+                [APath(file_path) for file_path in file_paths]
+            )
+            file_paths = tuple(lock_to_config_map.keys())
+        else:
+            console.print(
+                "[bold red]Error:[/] file_paths must either reference a single "
+                "project root directory or a sequence of uv.lock file paths"
+            )
+            return RunStatus.RUNTIME_ERROR
 
     status_output_tasks = [
-        check_dependencies(APath(uv_lock_path), config)
-        for uv_lock_path in uv_lock_paths
+        check_dependencies(APath(uv_lock_path), lock_to_config_map[APath(uv_lock_path)])
+        for uv_lock_path in file_paths
     ]
     status_outputs = await asyncio.gather(*status_output_tasks)
-    console = Console()
     vulnerabilities_found = False
+    runtime_error = False
     for status, console_output in status_outputs:
         console.print(*console_output)
-        if status != 0:
+        if status == 1:
             vulnerabilities_found = True
-    return vulnerabilities_found
+        elif status == 2:
+            runtime_error = True
+    if runtime_error:
+        return RunStatus.RUNTIME_ERROR
+    if vulnerabilities_found:
+        return RunStatus.VULNERABILITIES_FOUND
+    return RunStatus.NO_VULNERABILITIES

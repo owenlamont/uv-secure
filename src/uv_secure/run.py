@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import sys
 from typing import Optional
@@ -5,13 +6,15 @@ from typing import Optional
 import typer
 
 from uv_secure.__version__ import __version__
-from uv_secure.dependency_checker.dependency_checker import check_lock_files
+from uv_secure.dependency_checker import check_lock_files, RunStatus
 
 
-if sys.platform in ("win32", "cygwin", "cli"):
-    from winloop import run
+if os.getenv("PYTHON_ENV") == "development":
+    from asyncio import run
+elif sys.platform in ("win32", "cygwin", "cli"):
+    from winloop import run  # type: ignore
 else:
-    from uvloop import run
+    from uvloop import run  # type: ignore
 
 
 app = typer.Typer()
@@ -23,7 +26,13 @@ def version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
-_uv_lock_path_args = typer.Argument(None, help="Paths to the uv.lock files")
+_uv_lock_path_args = typer.Argument(
+    None,
+    help=(
+        "Paths to the uv.lock files or a single project root level directory (defaults "
+        "to working directory if not set)"
+    ),
+)
 
 
 _ignore_option = typer.Option(
@@ -59,9 +68,11 @@ def main(
     version: bool = _version_option,
 ) -> None:
     """Parse uv.lock files, check vulnerabilities, and display summary."""
-    vulnerabilities_found = run(check_lock_files(uv_lock_paths, ignore, config_path))
-    if vulnerabilities_found:
+    run_status = run(check_lock_files(uv_lock_paths, ignore, config_path))
+    if run_status == RunStatus.VULNERABILITIES_FOUND:
         raise typer.Exit(code=1)
+    if run_status == RunStatus.RUNTIME_ERROR:
+        raise typer.Exit(code=2)
 
 
 if __name__ == "__main__":
