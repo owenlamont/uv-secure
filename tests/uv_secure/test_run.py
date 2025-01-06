@@ -59,6 +59,17 @@ def temp_nested_uv_secure_toml_file_ignored_vulnerability(tmp_path: Path) -> Pat
 
 
 @pytest.fixture
+def temp_pyproject_toml_file(tmp_path: Path) -> Path:
+    """Fixture to create a temporary uv.lock file with a single dependency."""
+    uv_secure_toml_path = tmp_path / "pyproject.toml"
+    uv_lock_data = """
+    [tool.uv-secure]
+    """
+    uv_secure_toml_path.write_text(uv_lock_data)
+    return uv_secure_toml_path
+
+
+@pytest.fixture
 def temp_pyproject_toml_file_ignored_vulnerability(tmp_path: Path) -> Path:
     """Fixture to create a temporary uv.lock file with a single dependency."""
     uv_secure_toml_path = tmp_path / "pyproject.toml"
@@ -66,6 +77,15 @@ def temp_pyproject_toml_file_ignored_vulnerability(tmp_path: Path) -> Path:
     [tool.uv-secure]
     ignore_vulnerabilities = ["VULN-123"]
     """
+    uv_secure_toml_path.write_text(uv_lock_data)
+    return uv_secure_toml_path
+
+
+@pytest.fixture
+def temp_nested_pyproject_toml_file_no_config(tmp_path: Path) -> Path:
+    """Fixture to create a temporary uv.lock file with a single dependency."""
+    uv_secure_toml_path = tmp_path / "nested_project" / "pyproject.toml"
+    uv_lock_data = ""
     uv_secure_toml_path.write_text(uv_lock_data)
     return uv_secure_toml_path
 
@@ -407,3 +427,18 @@ def test_app_multiple_lock_files_one_nested_ignored_vulnerability_pass_lock_file
     assert result.output.count("Checked: 1 dependency") == 2
     assert result.output.count("All dependencies appear safe!") == 2
     assert result.output.count("nested_project") == 2
+
+
+def test_app_multiple_lock_files_one_vulnerabilities_ignored_nested_pyproject_toml(
+    temp_uv_lock_file: Path,
+    temp_nested_uv_lock_file: Path,
+    temp_pyproject_toml_file: Path,
+    temp_nested_pyproject_toml_file_no_config: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    one_vulnerability_response_v2: HTTPXMock,
+) -> None:
+    """Test check_dependencies with a single dependency and no vulnerabilities."""
+    result = runner.invoke(app, [str(temp_uv_lock_file), str(temp_nested_uv_lock_file)])
+    assert result.exit_code == 1
+    assert result.output.count("No vulnerabilities detected!") == 1
+    assert result.output.count("Vulnerabilities detected!") == 1
