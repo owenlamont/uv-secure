@@ -1,5 +1,7 @@
+import os
 from pathlib import Path
 
+from httpx import Request, RequestError
 import pytest
 from pytest_httpx import HTTPXMock
 from typer.testing import CliRunner
@@ -145,6 +147,25 @@ def one_vulnerability_response_v2(httpx_mock: HTTPXMock) -> HTTPXMock:
     return httpx_mock
 
 
+@pytest.fixture
+def package_version_not_found_response(httpx_mock: HTTPXMock) -> HTTPXMock:
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json", status_code=404
+    )
+    return httpx_mock
+
+
+@pytest.fixture
+def missing_vulnerability_response(httpx_mock: HTTPXMock) -> HTTPXMock:
+    httpx_mock.add_exception(
+        RequestError(
+            "Request failed",
+            request=Request("GET", "https://pypi.org/pypi/example-package/1.0.0/json"),
+        )
+    )
+    return httpx_mock
+
+
 def test_app_version() -> None:
     result = runner.invoke(app, "--version")
     assert result.exit_code == 0
@@ -170,6 +191,60 @@ def test_app_no_vulnerabilities(
     result = runner.invoke(app, [str(temp_uv_lock_file)])
 
     assert result.exit_code == 0
+    assert "No vulnerabilities detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
+
+
+def test_app_no_vulnerabilities_relative_lock_file_path(
+    tmp_path: Path, temp_uv_lock_file: Path, no_vulnerabilities_response: HTTPXMock
+) -> None:
+    """Test check_dependencies with a single dependency and no vulnerabilities."""
+
+    os.chdir(tmp_path)
+    result = runner.invoke(app, ["uv.lock"])
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
+
+
+def test_app_no_vulnerabilities_relative_no_specified_path(
+    tmp_path: Path, temp_uv_lock_file: Path, no_vulnerabilities_response: HTTPXMock
+) -> None:
+    """Test check_dependencies with a single dependency and no vulnerabilities."""
+
+    os.chdir(tmp_path)
+    result = runner.invoke(app)
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
+
+
+def test_app_failed_vulnerability_request(
+    temp_uv_lock_file: Path, missing_vulnerability_response: HTTPXMock
+) -> None:
+    """Test check_dependencies with a single dependency and no vulnerabilities."""
+    result = runner.invoke(app, [str(temp_uv_lock_file)])
+
+    assert result.exit_code == 0
+    assert "Error fetching example-package==1.0.0: Request failed" in result.output
+    assert "No vulnerabilities detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
+
+
+def test_app_package_not_found(
+    temp_uv_lock_file: Path, package_version_not_found_response: HTTPXMock
+) -> None:
+    """Test check_dependencies with a single dependency and no vulnerabilities."""
+    result = runner.invoke(app, [str(temp_uv_lock_file)])
+
+    assert result.exit_code == 0
+    assert "Warning: Could not fetch data for example-package==1.0.0" in result.output
     assert "No vulnerabilities detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "All dependencies appear safe!" in result.output
