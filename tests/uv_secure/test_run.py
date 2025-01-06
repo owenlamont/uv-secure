@@ -207,7 +207,6 @@ def test_missing_file(tmp_path: Path) -> None:
 def test_app_no_vulnerabilities(
     temp_uv_lock_file: Path, no_vulnerabilities_response: HTTPXMock
 ) -> None:
-    """Test check_dependencies with a single dependency and no vulnerabilities."""
     result = runner.invoke(app, [str(temp_uv_lock_file)])
 
     assert result.exit_code == 0
@@ -219,8 +218,6 @@ def test_app_no_vulnerabilities(
 def test_app_no_vulnerabilities_relative_lock_file_path(
     tmp_path: Path, temp_uv_lock_file: Path, no_vulnerabilities_response: HTTPXMock
 ) -> None:
-    """Test check_dependencies with a single dependency and no vulnerabilities."""
-
     os.chdir(tmp_path)
     result = runner.invoke(app, ["uv.lock"])
 
@@ -233,8 +230,6 @@ def test_app_no_vulnerabilities_relative_lock_file_path(
 def test_app_no_vulnerabilities_relative_no_specified_path(
     tmp_path: Path, temp_uv_lock_file: Path, no_vulnerabilities_response: HTTPXMock
 ) -> None:
-    """Test check_dependencies with a single dependency and no vulnerabilities."""
-
     os.chdir(tmp_path)
     result = runner.invoke(app)
 
@@ -247,7 +242,6 @@ def test_app_no_vulnerabilities_relative_no_specified_path(
 def test_app_failed_vulnerability_request(
     temp_uv_lock_file: Path, missing_vulnerability_response: HTTPXMock
 ) -> None:
-    """Test check_dependencies with a single dependency and no vulnerabilities."""
     result = runner.invoke(app, [str(temp_uv_lock_file)])
 
     assert result.exit_code == 0
@@ -260,7 +254,6 @@ def test_app_failed_vulnerability_request(
 def test_app_package_not_found(
     temp_uv_lock_file: Path, package_version_not_found_response: HTTPXMock
 ) -> None:
-    """Test check_dependencies with a single dependency and no vulnerabilities."""
     result = runner.invoke(app, [str(temp_uv_lock_file)])
 
     assert result.exit_code == 0
@@ -289,7 +282,6 @@ def test_check_dependencies_with_vulnerability(
 def test_app_with_arg_ignored_vulnerability(
     temp_uv_lock_file: Path, one_vulnerability_response: HTTPXMock
 ) -> None:
-    """Test check_dependencies with a single dependency and no vulnerabilities."""
     result = runner.invoke(app, [str(temp_uv_lock_file), "--ignore", "VULN-123"])
 
     assert result.exit_code == 0
@@ -298,12 +290,29 @@ def test_app_with_arg_ignored_vulnerability(
     assert "All dependencies appear safe!" in result.output
 
 
+def test_check_dependencies_with_vulnerability_pyproject_toml_argument_override(
+    temp_uv_lock_file: Path,
+    temp_pyproject_toml_file_ignored_vulnerability: Path,
+    one_vulnerability_response: HTTPXMock,
+) -> None:
+    """Test check_dependencies with a single dependency and a single vulnerability."""
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--ignore", "VULN-NOT-HERE"])
+
+    assert result.exit_code == 1
+    assert "Vulnerabilities detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "Vulnerable: 1 dependency" in result.output
+    assert "example-package" in result.output
+    assert "VULN-123" in result.output
+    assert "A critical vulnerability in" in result.output
+    assert "example-package." in result.output
+
+
 def test_app_with_uv_secure_toml_ignored_vulnerability(
     temp_uv_lock_file: Path,
     temp_uv_secure_toml_file_ignored_vulnerability: Path,
     one_vulnerability_response: HTTPXMock,
 ) -> None:
-    """Test check_dependencies with a single dependency and no vulnerabilities."""
     result = runner.invoke(
         app,
         [
@@ -324,7 +333,6 @@ def test_app_with_pyproject_toml_ignored_vulnerability(
     temp_pyproject_toml_file_ignored_vulnerability: Path,
     one_vulnerability_response: HTTPXMock,
 ) -> None:
-    """Test check_dependencies with a single dependency and no vulnerabilities."""
     result = runner.invoke(
         app,
         [
@@ -343,7 +351,6 @@ def test_app_with_pyproject_toml_ignored_vulnerability(
 def test_app_multiple_lock_files_no_vulnerabilities(
     temp_uv_lock_file: Path, temp_nested_uv_lock_file: Path, httpx_mock: HTTPXMock
 ) -> None:
-    """Test check_dependencies with a single dependency and no vulnerabilities."""
     httpx_mock.add_response(
         url="https://pypi.org/pypi/example-package/1.0.0/json",
         json={"vulnerabilities": []},
@@ -368,7 +375,6 @@ def test_app_multiple_lock_files_one_vulnerabilities(
     no_vulnerabilities_response: HTTPXMock,
     one_vulnerability_response_v2: HTTPXMock,
 ) -> None:
-    """Test check_dependencies with a single dependency and no vulnerabilities."""
     result = runner.invoke(app, [str(temp_uv_lock_file), str(temp_nested_uv_lock_file)])
     assert result.exit_code == 1
     assert result.output.count("No vulnerabilities detected!") == 1
@@ -437,7 +443,6 @@ def test_app_multiple_lock_files_one_vulnerabilities_ignored_nested_pyproject_to
     no_vulnerabilities_response: HTTPXMock,
     one_vulnerability_response_v2: HTTPXMock,
 ) -> None:
-    """Test check_dependencies with a single dependency and no vulnerabilities."""
     result = runner.invoke(app, [str(temp_uv_lock_file), str(temp_nested_uv_lock_file)])
     assert result.exit_code == 1
     assert result.output.count("No vulnerabilities detected!") == 1

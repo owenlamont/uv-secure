@@ -128,9 +128,11 @@ directory though - which would be a bit weird - I may make this a warning or err
 future).
 
 Like Ruff configuration files aren't hierarchically combined, just the nearest / highest
-precedence configuration is used. If you do specify configuration options directly using
-the --ignore option or pass a specific configuration file those take precedence and
-hierarchical configuration file discovery is disabled.
+precedence configuration is used. If you set a specific configuration file that will
+take precedence and hierarchical configuration file discovery is disabled. If you do
+specify a configuration options directly, e.g. pass the  --ignore option that will
+overwrite the ignore_vulnerabilities setting of all found or manually specified
+configuration files.
 
 ## Pre-commit Usage
 
