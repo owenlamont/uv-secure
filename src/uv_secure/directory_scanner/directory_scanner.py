@@ -1,4 +1,4 @@
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from typing import Union
 
 from anyio import Path
@@ -23,15 +23,17 @@ async def _find_files(
     return {filename: task.value for filename, task in tasks.items()}
 
 
-async def _get_root_dir(file_paths: Iterable[Path]) -> Path:
+async def _resolve_paths(file_paths: Sequence[Path]) -> list[Path]:
     async with create_task_group() as tg:
         tasks = [tg.soonify(path.resolve)() for path in file_paths]
+    return [task.value for task in tasks]
 
-    resolved_paths = [task.value for task in tasks]
-    if len(resolved_paths) == 1:
-        return resolved_paths[0].parent
 
-    split_paths = [list(rp.parts) for rp in resolved_paths]
+def _get_root_dir(file_paths: Sequence[Path]) -> Path:
+    if len(file_paths) == 1:
+        return file_paths[0].parent
+
+    split_paths = [list(rp.parts) for rp in file_paths]
     min_length = min(len(parts) for parts in split_paths)
     common_prefix_len = 0
 
@@ -61,16 +63,17 @@ async def get_lock_to_config_map(
         A dictionary mapping uv.lock files to their nearest Configuration
     """
     if type(file_paths) is Path:
-        root_dir = file_paths
+        root_dir = await file_paths.resolve()
         config_and_lock_files = await _find_files(
             root_dir, ["pyproject.toml", "uv-secure.toml", ".uv-secure.toml", "uv.lock"]
         )
     else:
-        root_dir = await _get_root_dir(file_paths)
+        resolved_paths = await _resolve_paths(file_paths)
+        root_dir = _get_root_dir(resolved_paths)
         config_and_lock_files = await _find_files(
             root_dir, ["pyproject.toml", "uv-secure.toml", ".uv-secure.toml"]
         )
-        config_and_lock_files["uv.lock"] = file_paths
+        config_and_lock_files["uv.lock"] = resolved_paths
 
     config_file_paths = (
         config_and_lock_files["pyproject.toml"]

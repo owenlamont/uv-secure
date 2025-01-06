@@ -12,8 +12,7 @@ else:
 
 
 class Configuration(BaseModel):
-    model_config = {"frozen": True}
-    ignore_vulnerabilities: tuple[str, ...] = Field(default_factory=tuple)
+    ignore_vulnerabilities: set[str] = Field(default_factory=set)
 
 
 def config_cli_arg_factory(ignore: Optional[str] = None) -> Configuration:
@@ -27,9 +26,9 @@ def config_cli_arg_factory(ignore: Optional[str] = None) -> Configuration:
         uv-secure configuration object
     """
     ignore_vulnerabilities = (
-        tuple(vuln_id.strip() for vuln_id in ignore.split(",") if vuln_id.strip())
+        {vuln_id.strip() for vuln_id in ignore.split(",") if vuln_id.strip()}
         if ignore is not None
-        else tuple()  # noqa: C408
+        else set()
     )
     return Configuration(ignore_vulnerabilities=ignore_vulnerabilities)
 

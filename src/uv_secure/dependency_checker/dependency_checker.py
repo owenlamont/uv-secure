@@ -128,10 +128,7 @@ async def check_lock_files(
         lock_to_config_map = await get_lock_to_config_map(APath(file_paths[0]))
         file_paths = tuple(lock_to_config_map.keys())
     else:
-        if ignore is not None:
-            config = config_cli_arg_factory(ignore)
-            lock_to_config_map = {APath(file): config for file in file_paths}
-        elif config_path is not None:
+        if config_path is not None:
             possible_config = await config_file_factory(APath(config_path))
             config = possible_config if possible_config is not None else Configuration()
             lock_to_config_map = {APath(file): config for file in file_paths}
@@ -146,6 +143,15 @@ async def check_lock_files(
                 "project root directory or a sequence of uv.lock file paths"
             )
             return RunStatus.RUNTIME_ERROR
+
+    if ignore is not None:
+        override_config = config_cli_arg_factory(ignore)
+        lock_to_config_map = {
+            lock_file: config.model_copy(
+                update=override_config.model_dump(exclude_none=True)
+            )
+            for lock_file, config in lock_to_config_map.items()
+        }
 
     status_output_tasks = [
         check_dependencies(APath(uv_lock_path), lock_to_config_map[APath(uv_lock_path)])
