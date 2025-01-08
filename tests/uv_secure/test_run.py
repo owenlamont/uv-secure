@@ -150,6 +150,77 @@ def one_vulnerability_response(httpx_mock: HTTPXMock) -> HTTPXMock:
 
 
 @pytest.fixture
+def temp_uv_lock_file_jinja2(tmp_path: Path) -> Path:
+    """Fixture to create a temporary uv.lock file with a single jinja2 dependency."""
+    uv_lock_path = tmp_path / "uv.lock"
+    uv_lock_data = """
+    [[package]]
+    name = "jinja2"
+    version = "3.1.4"
+    source = { registry = "https://pypi.org/simple" }
+    """
+    uv_lock_path.write_text(uv_lock_data)
+    return uv_lock_path
+
+
+@pytest.fixture
+def jinja2_two_longer_vulnerability_responses(httpx_mock: HTTPXMock) -> HTTPXMock:
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/jinja2/3.1.4/json",
+        json={
+            "vulnerabilities": [
+                {
+                    "aliases": ["CVE-2024-56326"],
+                    "details": (
+                        "An oversight in how the Jinja sandboxed environment detects "
+                        "calls to `str.format` allows an attacker that controls the "
+                        "content of a template to execute arbitrary Python code.\n\nTo "
+                        "exploit the vulnerability, an attacker needs to control the "
+                        "content of a template. Whether that is the case depends on "
+                        "the type of application using Jinja. This vulnerability "
+                        "impacts users of applications which execute untrusted "
+                        "templates.\n\nJinja's sandbox does catch calls to "
+                        "`str.format` and ensures they don't escape the sandbox. "
+                        "However, it's possible to store a reference to a malicious "
+                        "string's `format` method, then pass that to a filter that "
+                        "calls it. No such filters are built-in to Jinja, but could be "
+                        "present through custom filters in an application. After the "
+                        "fix, such indirect calls are also handled by the sandbox."
+                    ),
+                    "fixed_in": ["3.1.5"],
+                    "id": "GHSA-q2x7-8rv6-6q7h",
+                    "link": "https://osv.dev/vulnerability/GHSA-q2x7-8rv6-6q7h",
+                    "source": "osv",
+                    "summary": None,
+                    "withdrawn": None,
+                },
+                {
+                    "aliases": ["CVE-2024-56201"],
+                    "details": (
+                        "A bug in the Jinja compiler allows an attacker that controls "
+                        "both the content and filename of a template to execute "
+                        "arbitrary Python code, regardless of if Jinja's sandbox is "
+                        "used.\n\nTo exploit the vulnerability, an attacker needs to "
+                        "control both the filename and the contents of a template. "
+                        "Whether that is the case depends on the type of application "
+                        "using Jinja. This vulnerability impacts users of applications "
+                        "which execute untrusted templates where the template author "
+                        "can also choose the template filename."
+                    ),
+                    "fixed_in": ["3.1.5"],
+                    "id": "GHSA-gmj6-6f8f-6699",
+                    "link": "https://osv.dev/vulnerability/GHSA-gmj6-6f8f-6699",
+                    "source": "osv",
+                    "summary": None,
+                    "withdrawn": None,
+                },
+            ]
+        },
+    )
+    return httpx_mock
+
+
+@pytest.fixture
 def one_vulnerability_response_v2(httpx_mock: HTTPXMock) -> HTTPXMock:
     httpx_mock.add_response(
         url="https://pypi.org/pypi/example-package/2.0.0/json",
@@ -273,10 +344,27 @@ def test_check_dependencies_with_vulnerability(
     assert "Vulnerabilities detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "Vulnerable: 1 dependency" in result.output
-    assert "example-package" in result.output
+    assert "example-package │" in result.output
     assert "VULN-123" in result.output
-    assert "A critical vulnerability in" in result.output
+    assert "A critical" in result.output
+    assert "vulnerability in" in result.output
     assert "example-package." in result.output
+
+
+def test_check_dependencies_with_two_longer_vulnerabilities(
+    temp_uv_lock_file_jinja2: Path, jinja2_two_longer_vulnerability_responses: HTTPXMock
+) -> None:
+    """Test check_dependencies with a single dependency and a single vulnerability."""
+    result = runner.invoke(app, [str(temp_uv_lock_file_jinja2)])
+
+    assert result.exit_code == 1
+    assert "Vulnerabilities detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "Vulnerable: 1 dependency" in result.output
+    assert "jinja2" in result.output
+    assert "3.1.4" in result.output
+    assert "GHSA-q2x7-8rv6-6q7h" in result.output
+    assert "GHSA-gmj6-6f8f-6699" in result.output
 
 
 def test_app_with_arg_ignored_vulnerability(
@@ -302,9 +390,10 @@ def test_check_dependencies_with_vulnerability_pyproject_toml_argument_override(
     assert "Vulnerabilities detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "Vulnerable: 1 dependency" in result.output
-    assert "example-package" in result.output
+    assert "example-package │" in result.output
     assert "VULN-123" in result.output
-    assert "A critical vulnerability in" in result.output
+    assert "A critical" in result.output
+    assert "vulnerability in" in result.output
     assert "example-package." in result.output
 
 
