@@ -70,12 +70,16 @@ async def check_dependencies(
         table = Table(
             title="Vulnerable Dependencies",
             show_header=True,
+            row_styles=["none", "dim"],
             header_style="bold magenta",
+            expand=True,
         )
-        table.add_column("Package", style="dim", width=20)
-        table.add_column("Version", style="dim", width=10)
-        table.add_column("Vulnerability ID", style="bold cyan", width=25)
-        table.add_column("Details", width=40)
+        table.add_column("Package", min_width=8, max_width=40)
+        table.add_column("Version", min_width=10, max_width=20)
+        table.add_column(
+            "Vulnerability ID", style="bold cyan", min_width=20, max_width=24
+        )
+        table.add_column("Details", min_width=8)
 
         for dep, vulnerabilities in vulnerabilities_found:
             for vuln in vulnerabilities:
