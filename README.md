@@ -4,20 +4,20 @@ Scan your uv.lock file for dependencies with known vulnerabilities.
 
 ## Scope and Limitations
 
-This tool will scan PyPi dependencies listed in your uv.lock file and check for known
-vulnerabilities listed against those packages and versions in the PyPi json API. Since
-it is making network requests for each PyPi package this can be a relatively slow tool
-to run, and it will only work in test environments with access to the PyPi API.
-Currently only packages sourced from PyPi are tested - there's no support for custom
-packages or packages stored in private PyPi servers. See roadmap below for my plans for
-future enhancements.
+This tool will scan PyPi dependencies listed in your uv.lock files (or uv generated
+requirements.txt files) and check for known vulnerabilities listed against those
+packages and versions in the PyPi json API. Since it is making network requests for each
+PyPi package this can be a relatively slow tool to run, and it will only work in test
+environments with access to the PyPi API. Currently only packages sourced from PyPi are
+tested - there's no support for custom packages or packages stored in private PyPi
+servers. See roadmap below for my plans for future enhancements.
 
 I don't intend uv-secure to ever create virtual environments or do dependency
 resolution - the plan is to leave that all to uv since it does that so well and just
-target lock files (and potentially fully pinned and dependency resolved requirements.txt
-files). If you want a tool that does dependency resolution on requirements.txt files for
-first order and unpinned dependencies I recommend using [pip-audit](https://pypi.org/project/pip-audit/)
-instead.
+target lock files and fully pinned and dependency resolved requirements.txt files). If
+you want a tool that does dependency resolution on requirements.txt files for first
+order and unpinned dependencies I recommend using
+[pip-audit](https://pypi.org/project/pip-audit/) instead.
 
 ## Disclaimer
 
@@ -52,15 +52,16 @@ After installation, you can run uv-secure --help to see the options.
 ```text
 >> uv run src/uv_secure/run.py --help
 
- Usage: run.py [OPTIONS] [UV_LOCK_PATHS]...
+ Usage: run.py [OPTIONS] [FILE_PATHS]...
 
  Parse uv.lock files, check vulnerabilities, and display summary.
 
 ╭─ Arguments ──────────────────────────────────────────────────────────────────────────╮
-│   uv_lock_paths      [UV_LOCK_PATHS]...  Paths to the uv.lock files or a single      │
-│                                          project root level directory (defaults to   │
-│                                          working directory if not set)               │
-│                                          [default: None]                             │
+│   file_paths      [FILE_PATHS]...  Paths to the uv.lock or uv generated              │
+│                                    requirements.txt files or a single project root   │
+│                                    level directory (defaults to working directory if │
+│                                    not set)                                          │
+│                                    [default: None]                                   │
 ╰──────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ────────────────────────────────────────────────────────────────────────────╮
 │ --ignore              -i      TEXT  Comma-separated list of vulnerability IDs to     │
@@ -141,7 +142,7 @@ uv-secure can be run as a pre-commit hook by adding this configuration to your
 
 ```yaml
   - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.3.0
+    rev: 0.4.0
     hooks:
       - id: uv-secure
 ```
@@ -154,21 +155,17 @@ pre-commit autoupdate
 
 Or manually check the latest release and update the _rev_ value accordingly.
 
-The uv-secure pre-commit at present assumes the uv.lock file is in the root directory
-from where pre-commit is run.
-
 ## Roadmap
 
 Below are some ideas (in no particular order) I have for improving uv-secure:
 
 - Package for conda on conda-forge
+- Create contributor guide and coding standards doc
 - Add rate limiting on how hard the PyPi json API is hit to query package
   vulnerabilities (this hasn't been a problem yet, but I suspect may be for uv.lock
   files with many dependencies)
 - Explore some local caching for recording known vulnerabilities for specific package
   versions to speed up re-runs
-- Support parsing uv generated requirements.txt files (assume full dependency tree and
-  pinned package versions)
 - Add support for other lock file formats beyond uv.lock
 - Consider adding support for scanning dependencies from the current venv
 - Add a severity threshold option for reporting vulnerabilities against
