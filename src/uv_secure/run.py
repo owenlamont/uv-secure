@@ -24,11 +24,11 @@ def version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
-_uv_lock_path_args = typer.Argument(
+_file_path_args = typer.Argument(
     None,
     help=(
-        "Paths to the uv.lock files or a single project root level directory (defaults "
-        "to working directory if not set)"
+        "Paths to the uv.lock or uv generated requirements.txt files or a single "
+        "project root level directory (defaults to working directory if not set)"
     ),
 )
 
@@ -60,13 +60,13 @@ _config_option = typer.Option(
 
 @app.command()
 def main(
-    uv_lock_paths: Optional[list[Path]] = _uv_lock_path_args,
+    file_paths: Optional[list[Path]] = _file_path_args,
     ignore: Optional[str] = _ignore_option,
     config_path: Optional[Path] = _config_option,
     version: bool = _version_option,
 ) -> None:
     """Parse uv.lock files, check vulnerabilities, and display summary."""
-    run_status = run(check_lock_files(uv_lock_paths, ignore, config_path))
+    run_status = run(check_lock_files(file_paths, ignore, config_path))
     if run_status == RunStatus.VULNERABILITIES_FOUND:
         raise typer.Exit(code=1)
     if run_status == RunStatus.RUNTIME_ERROR:

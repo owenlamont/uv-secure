@@ -55,7 +55,7 @@ repos:
           # --write-changes (Don't use this to stop typos making auto-corrections)
         ]
   - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.3.1
+    rev: 0.3.2
     hooks:
       - id: uv-secure
   - repo: https://github.com/adrienverge/yamllint.git

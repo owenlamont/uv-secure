@@ -3,4 +3,4 @@
   description: "Run 'uv-secure' to check uv.lock dependencies for known vulnerabilities"
   entry: uv-secure
   language: python
-  files: (^|[/\\])uv\.lock$
+  files: (^|.*/)(uv\.lock|requirements\.txt)$
