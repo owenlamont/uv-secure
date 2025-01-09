@@ -16,7 +16,7 @@ from uv_secure.configuration import (
     config_file_factory,
     Configuration,
 )
-from uv_secure.directory_scanner import get_lock_to_config_map
+from uv_secure.directory_scanner import get_dependency_file_to_config_map
 from uv_secure.package_info import (
     download_vulnerabilities,
     parse_requirements_txt_file,
@@ -145,7 +145,9 @@ async def check_lock_files(
 
     console = Console()
     if len(file_paths) == 1 and file_paths[0].is_dir():
-        lock_to_config_map = await get_lock_to_config_map(APath(file_paths[0]))
+        lock_to_config_map = await get_dependency_file_to_config_map(
+            APath(file_paths[0])
+        )
         file_paths = tuple(lock_to_config_map.keys())
     else:
         if config_path is not None:
@@ -156,7 +158,7 @@ async def check_lock_files(
             file_path.name in {"requirements.txt", "uv.lock"}
             for file_path in file_paths
         ):
-            lock_to_config_map = await get_lock_to_config_map(
+            lock_to_config_map = await get_dependency_file_to_config_map(
                 [APath(file_path) for file_path in file_paths]
             )
             file_paths = tuple(lock_to_config_map.keys())
