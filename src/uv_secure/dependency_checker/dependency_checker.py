@@ -46,12 +46,8 @@ async def check_dependencies(
 
     if dependency_file_path.name == "uv.lock":
         dependencies = await parse_uv_lock_file(dependency_file_path)
-    elif dependency_file_path.name == "requirements.txt":
+    else:  # Assume dependency_file_path.name == "requirements.txt"
         dependencies = await parse_requirements_txt_file(dependency_file_path)
-    else:
-        raise NotImplementedError(
-            f"Unsupported dependency file {dependency_file_path.name}"
-        )
     console_outputs.append(
         f"[bold cyan]Checking {dependency_file_path} dependencies for vulnerabilities"
         "...[/]"
