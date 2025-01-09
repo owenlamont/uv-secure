@@ -319,6 +319,20 @@ def test_app_no_vulnerabilities_requirements_txt(
     assert "All dependencies appear safe!" in result.output
 
 
+def test_app_no_vulnerabilities_requirements_txt_no_specified_path(
+    tmp_path: Path,
+    temp_uv_requirements_txt_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+) -> None:
+    os.chdir(tmp_path)
+    result = runner.invoke(app)
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
+
+
 def test_app_no_vulnerabilities_relative_lock_file_path(
     tmp_path: Path, temp_uv_lock_file: Path, no_vulnerabilities_response: HTTPXMock
 ) -> None:

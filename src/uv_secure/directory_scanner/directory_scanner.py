@@ -48,7 +48,7 @@ def _get_root_dir(file_paths: Sequence[Path]) -> Path:
     return Path(*common_parts)
 
 
-async def get_lock_to_config_map(
+async def get_dependency_file_to_config_map(
     file_paths: Union[Path, list[Path]],
 ) -> dict[Path, Configuration]:
     """Get map of uv.lock files to their configurations.
@@ -65,7 +65,14 @@ async def get_lock_to_config_map(
     if type(file_paths) is Path:
         root_dir = await file_paths.resolve()
         config_and_lock_files = await _find_files(
-            root_dir, ["pyproject.toml", "uv-secure.toml", ".uv-secure.toml", "uv.lock"]
+            root_dir,
+            [
+                "pyproject.toml",
+                "uv-secure.toml",
+                ".uv-secure.toml",
+                "uv.lock",
+                "requirements.txt",
+            ],
         )
     else:
         resolved_paths = await _resolve_paths(file_paths)
@@ -73,7 +80,12 @@ async def get_lock_to_config_map(
         config_and_lock_files = await _find_files(
             root_dir, ["pyproject.toml", "uv-secure.toml", ".uv-secure.toml"]
         )
-        config_and_lock_files["uv.lock"] = resolved_paths
+        config_and_lock_files["uv.lock"] = [
+            path for path in resolved_paths if path.name == "uv.lock"
+        ]
+        config_and_lock_files["requirements.txt"] = [
+            path for path in resolved_paths if path.name == "requirements.txt"
+        ]
 
     config_file_paths = (
         config_and_lock_files["pyproject.toml"]
@@ -90,11 +102,13 @@ async def get_lock_to_config_map(
         p.parent: c for p, c in zip(config_file_paths, configs) if c is not None
     }
 
-    lock_file_paths = config_and_lock_files.get("uv.lock", [])
-    lock_to_config_map: dict[Path, Configuration] = {}
+    dependency_file_paths = config_and_lock_files.get(
+        "uv.lock", []
+    ) + config_and_lock_files.get("requirements.txt", [])
+    dependency_file_to_config_map: dict[Path, Configuration] = {}
     default_config = Configuration()
-    for lock_file in lock_file_paths:
-        current_dir = lock_file.parent
+    for dependency_file in dependency_file_paths:
+        current_dir = dependency_file.parent
         while True:
             found_config = path_config_map.get(current_dir)
             if found_config is not None or current_dir == root_dir:
@@ -103,5 +117,5 @@ async def get_lock_to_config_map(
 
         if found_config is None:
             found_config = default_config
-        lock_to_config_map[lock_file] = found_config
-    return lock_to_config_map
+        dependency_file_to_config_map[dependency_file] = found_config
+    return dependency_file_to_config_map
