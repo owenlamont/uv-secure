@@ -21,12 +21,6 @@ repos:
         exclude: '\.ipynb$'
       - id: mixed-line-ending
         args: [--fix=lf]
-  - repo: https://github.com/PyCQA/bandit
-    rev: 1.8.0
-    hooks:
-        - id: bandit
-          args: [ "-c", "pyproject.toml" ]
-          additional_dependencies: [ "bandit[toml]" ]
   - repo: https://github.com/igorshubovych/markdownlint-cli
     rev: v0.43.0
     hooks:
@@ -39,7 +33,7 @@ repos:
         additional_dependencies:
           - pydantic
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.8.6
+    rev: v0.9.1
     hooks:
       - id: ruff
         args: [ --fix, --exit-non-zero-on-fix ]
@@ -47,7 +41,7 @@ repos:
       - id: ruff-format
         types_or: [python, pyi, jupyter]
   - repo: https://github.com/crate-ci/typos
-    rev: v1.29.4
+    rev: dictgen-v0.3.1
     hooks:
       - id: typos
         args: [
@@ -55,7 +49,7 @@ repos:
           # --write-changes (Don't use this to stop typos making auto-corrections)
         ]
   - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.4.0
+    rev: 0.4.1
     hooks:
       - id: uv-secure
   - repo: https://github.com/adrienverge/yamllint.git

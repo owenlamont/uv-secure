@@ -53,9 +53,6 @@ Releases = "https://github.com/owenlamont/uv-secure/releases"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.bandit]
-exclude_dirs = ["tests"]
-
 [tool.coverage.paths]
 source = [
   "src",
@@ -133,6 +130,7 @@ select = [
     "PD",
     "PT",
     "Q",
+    "S",
     "RET",
     "RUF",
     "SIM",
@@ -141,8 +139,6 @@ select = [
 ignore = [
     "D100", # Missing docstring in public module
     "D101", # Missing docstring in public class
-    "D102", # Missing docstring in public method
-    "D103", # Missing docstring in public function
     "D104", # Missing docstring in public package
     "D105", # Missing docstring in magic method
     "D106", # Missing docstring in public nested class
@@ -160,6 +156,8 @@ ignore = [
     "E203", # Whitespace before ':' (fights ruff format)
     "ISC001", # Implicitly concatenated string literals on one line
 ]
+
+per-file-ignores = { "tests/**" = ["D102", "D103", "S101"] }
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]

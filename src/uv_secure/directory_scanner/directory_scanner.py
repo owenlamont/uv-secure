@@ -7,7 +7,7 @@ from asyncer import create_task_group
 from uv_secure.configuration import config_file_factory, Configuration
 
 
-async def search_file(directory: Path, filename: str) -> list[Path]:
+async def _search_file(directory: Path, filename: str) -> list[Path]:
     return [file_path async for file_path in directory.glob(f"**/{filename}")]
 
 
@@ -16,7 +16,7 @@ async def _find_files(
 ) -> dict[str, list[Path]]:
     async with create_task_group() as tg:
         tasks = {
-            filename: tg.soonify(search_file)(directory, filename)
+            filename: tg.soonify(_search_file)(directory, filename)
             for filename in filenames
         }
 

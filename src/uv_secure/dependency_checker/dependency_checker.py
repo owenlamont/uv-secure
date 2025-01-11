@@ -48,6 +48,10 @@ async def check_dependencies(
         dependencies = await parse_uv_lock_file(dependency_file_path)
     else:  # Assume dependency_file_path.name == "requirements.txt"
         dependencies = await parse_requirements_txt_file(dependency_file_path)
+
+    if len(dependencies) == 0:
+        return 0, console_outputs
+
     console_outputs.append(
         f"[bold cyan]Checking {dependency_file_path} dependencies for vulnerabilities"
         "...[/]"
@@ -64,7 +68,8 @@ async def check_dependencies(
         filtered_vulnerabilities = [
             vuln
             for vuln in vulnerabilities
-            if vuln.id not in config.ignore_vulnerabilities
+            if config.ignore_vulnerabilities is None
+            or vuln.id not in config.ignore_vulnerabilities
         ]
         if filtered_vulnerabilities:
             vulnerable_count += 1
@@ -95,7 +100,11 @@ async def check_dependencies(
         table.add_column(
             "Vulnerability ID", style="bold cyan", min_width=20, max_width=24
         )
-        table.add_column("Details", min_width=8)
+        table.add_column("Fix Versions", min_width=10, max_width=20)
+        if config.aliases:
+            table.add_column("Aliases", min_width=20, max_width=24)
+        if config.desc:
+            table.add_column("Details", min_width=8)
 
         for dep, vulnerabilities in vulnerabilities_found:
             for vuln in vulnerabilities:
@@ -104,7 +113,17 @@ async def check_dependencies(
                     if vuln.link
                     else Text(vuln.id)
                 )
-                table.add_row(dep.name, dep.version, vuln_id_hyperlink, vuln.details)
+                renderables = [
+                    dep.name,
+                    dep.version,
+                    vuln_id_hyperlink,
+                    ", ".join(vuln.fixed_in) if vuln.fixed_in else "",
+                ]
+                if config.aliases:
+                    renderables.append(", ".join(vuln.aliases) if vuln.aliases else "")
+                if config.desc:
+                    renderables.append(vuln.details)
+                table.add_row(*renderables)
 
         console_outputs.append(table)
         return 1, console_outputs  # Exit with failure status
@@ -127,6 +146,8 @@ class RunStatus(Enum):
 
 async def check_lock_files(
     file_paths: Optional[Sequence[Path]],
+    aliases: Optional[bool],
+    desc: Optional[bool],
     ignore: Optional[str],
     config_path: Optional[Path],
 ) -> RunStatus:
@@ -134,6 +155,8 @@ async def check_lock_files(
 
     Args:
         file_paths: paths to files or directory to process
+        aliases: flag whether to show vulnerability aliases
+        desc: flag whether to show vulnerability descriptions
         ignore_ids: Vulnerabilities IDs to ignore
 
     Returns
@@ -170,8 +193,8 @@ async def check_lock_files(
             )
             return RunStatus.RUNTIME_ERROR
 
-    if ignore is not None:
-        override_config = config_cli_arg_factory(ignore)
+    if any((aliases, desc, ignore)):
+        override_config = config_cli_arg_factory(aliases, desc, ignore)
         lock_to_config_map = {
             lock_file: config.model_copy(
                 update=override_config.model_dump(exclude_none=True)

@@ -2,7 +2,7 @@ import sys
 from typing import Optional
 
 from anyio import Path
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 if sys.version_info >= (3, 11):
@@ -12,10 +12,14 @@ else:
 
 
 class Configuration(BaseModel):
-    ignore_vulnerabilities: set[str] = Field(default_factory=set)
+    aliases: Optional[bool] = None
+    desc: Optional[bool] = None
+    ignore_vulnerabilities: Optional[set[str]] = None
 
 
-def config_cli_arg_factory(ignore: Optional[str] = None) -> Configuration:
+def config_cli_arg_factory(
+    aliases: Optional[bool], desc: Optional[bool], ignore: Optional[str]
+) -> Configuration:
     """Factory to create a uv-secure configuration from its command line arguments
 
     Args:
@@ -28,9 +32,11 @@ def config_cli_arg_factory(ignore: Optional[str] = None) -> Configuration:
     ignore_vulnerabilities = (
         {vuln_id.strip() for vuln_id in ignore.split(",") if vuln_id.strip()}
         if ignore is not None
-        else set()
+        else None
     )
-    return Configuration(ignore_vulnerabilities=ignore_vulnerabilities)
+    return Configuration(
+        aliases=aliases, desc=desc, ignore_vulnerabilities=ignore_vulnerabilities
+    )
 
 
 async def config_file_factory(config_file: Path) -> Optional[Configuration]:
