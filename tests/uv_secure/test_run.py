@@ -153,6 +153,7 @@ def one_vulnerability_response(httpx_mock: HTTPXMock) -> HTTPXMock:
         json={
             "vulnerabilities": [
                 {
+                    "aliases": ["CVE-2024-12345"],
                     "id": "VULN-123",
                     "details": "A critical vulnerability in example-package.",
                     "fixed_in": ["1.0.1"],
