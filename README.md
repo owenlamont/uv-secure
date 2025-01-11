@@ -64,6 +64,10 @@ After installation, you can run uv-secure --help to see the options.
 │                                    [default: None]                                   │
 ╰──────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ────────────────────────────────────────────────────────────────────────────╮
+│ --aliases                           Flag whether to include vulnerability aliases in │
+│                                     the vulnerabilities table                        │
+│ --desc                              Flag whether to include vulnerability detailed   │
+│                                     description in the vulnerabilities table         │
 │ --ignore              -i      TEXT  Comma-separated list of vulnerability IDs to     │
 │                                     ignore, e.g. VULN-123,VULN-456                   │
 │                                     [default: None]                                  │
@@ -97,6 +101,8 @@ uv-secure can read configuration from a toml file specified with the config opti
 
 ```toml
 ignore_vulnerabilities = ["VULN-123"]
+aliases = true
+desc = true
 ```
 
 ### pyproject.toml
@@ -104,6 +110,8 @@ ignore_vulnerabilities = ["VULN-123"]
 ```toml
 [tool.uv-secure]
 ignore_vulnerabilities = ["VULN-123"]
+aliases = true
+desc = true
 ```
 
 ### Configuration discovery
@@ -170,9 +178,8 @@ Below are some ideas (in no particular order) I have for improving uv-secure:
 - Consider adding support for scanning dependencies from the current venv
 - Add a severity threshold option for reporting vulnerabilities against
 - Add an autofix option for updating package versions with known vulnerabilities if
-  is a more recent fixed version
+  there is a more recent fixed version
 - Investigate supporting private PyPi repos
-- Add support for different output formats as pip-audit does
 - Add translations to support languages beyond English (not sure of the merits of this
   given most vulnerability reports appear to be only in English but happy to take
   feedback on this)
@@ -212,6 +219,7 @@ doesn't require you to create (and pay for) an account with any service.
 
 Please raise issues for any bugs you discover with uv-secure. If practical and not too
 sensitive sharing the problem uv.lock file would help me reproduce and fix these issues.
+
 I welcome PRs for minor fixes and documentation tweaks. If you'd like to make more
 substantial contributions please reach out by email / social media / or raise an
 improvement issue to discuss first to make sure our plans are aligned before creating

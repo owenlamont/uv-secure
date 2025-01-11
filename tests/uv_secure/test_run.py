@@ -1,6 +1,8 @@
+from collections.abc import Generator
 import os
 from pathlib import Path
 from textwrap import dedent
+from typing import Callable
 
 from httpx import Request, RequestError
 import pytest
@@ -60,6 +62,17 @@ def temp_uv_secure_toml_file_ignored_vulnerability(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def temp_uv_secure_toml_file_all_columns_enabled(tmp_path: Path) -> Path:
+    uv_secure_toml_path = tmp_path / "uv-secure.toml"
+    uv_lock_data = """
+        aliases = true
+        desc = true
+    """
+    uv_secure_toml_path.write_text(dedent(uv_lock_data).strip())
+    return uv_secure_toml_path
+
+
+@pytest.fixture
 def temp_dot_uv_secure_toml_file(tmp_path: Path) -> Path:
     uv_secure_toml_path = tmp_path / ".uv-secure.toml"
     uv_lock_data = ""
@@ -80,31 +93,43 @@ def temp_nested_uv_secure_toml_file_ignored_vulnerability(tmp_path: Path) -> Pat
 
 @pytest.fixture
 def temp_pyproject_toml_file(tmp_path: Path) -> Path:
-    uv_secure_toml_path = tmp_path / "pyproject.toml"
+    pyproject_toml_path = tmp_path / "pyproject.toml"
     uv_lock_data = """
     [tool.uv-secure]
     """
-    uv_secure_toml_path.write_text(dedent(uv_lock_data).strip())
-    return uv_secure_toml_path
+    pyproject_toml_path.write_text(dedent(uv_lock_data).strip())
+    return pyproject_toml_path
+
+
+@pytest.fixture
+def temp_pyproject_toml_file_extra_columns_enabled(tmp_path: Path) -> Path:
+    pyproject_toml_path = tmp_path / "pyproject.toml"
+    uv_lock_data = """
+    [tool.uv-secure]
+    aliases = true
+    desc = true
+    """
+    pyproject_toml_path.write_text(dedent(uv_lock_data).strip())
+    return pyproject_toml_path
 
 
 @pytest.fixture
 def temp_pyproject_toml_file_ignored_vulnerability(tmp_path: Path) -> Path:
-    uv_secure_toml_path = tmp_path / "pyproject.toml"
+    pyproject_toml_path = tmp_path / "pyproject.toml"
     uv_lock_data = """
     [tool.uv-secure]
     ignore_vulnerabilities = ["VULN-123"]
     """
-    uv_secure_toml_path.write_text(dedent(uv_lock_data).strip())
-    return uv_secure_toml_path
+    pyproject_toml_path.write_text(dedent(uv_lock_data).strip())
+    return pyproject_toml_path
 
 
 @pytest.fixture
 def temp_nested_pyproject_toml_file_no_config(tmp_path: Path) -> Path:
-    uv_secure_toml_path = tmp_path / "nested_project" / "pyproject.toml"
+    pyproject_toml_path = tmp_path / "nested_project" / "pyproject.toml"
     uv_lock_data = ""
-    uv_secure_toml_path.write_text(uv_lock_data)
-    return uv_secure_toml_path
+    pyproject_toml_path.write_text(uv_lock_data)
+    return pyproject_toml_path
 
 
 @pytest.fixture
@@ -273,6 +298,22 @@ def missing_vulnerability_response(httpx_mock: HTTPXMock) -> HTTPXMock:
     return httpx_mock
 
 
+@pytest.fixture(scope="session", autouse=True)
+def wide_console() -> Generator:
+    mp = pytest.MonkeyPatch()
+    mp.setenv("COLUMNS", "200")
+    yield mp
+    mp.undo()
+
+
+@pytest.fixture
+def set_console_width(monkeypatch: pytest.MonkeyPatch) -> Callable[[int], None]:
+    def _set_width(width: int) -> None:
+        monkeypatch.setenv("COLUMNS", str(width))
+
+    return _set_width
+
+
 def test_app_version() -> None:
     result = runner.invoke(app, "--version")
     assert result.exit_code == 0
@@ -382,21 +423,51 @@ def test_app_package_not_found(
     assert "All dependencies appear safe!" in result.output
 
 
+@pytest.mark.parametrize(
+    "extra_cli_args",
+    [
+        pytest.param([], id="Default arguments"),
+        pytest.param(["--aliases"], id="Add Aliases column"),
+        pytest.param(["--desc"], id="Add details column"),
+        pytest.param(["--aliases", "--desc"], id="Add details column"),
+    ],
+)
 def test_check_dependencies_with_vulnerability(
-    temp_uv_lock_file: Path, one_vulnerability_response: HTTPXMock
+    extra_cli_args: list[str],
+    temp_uv_lock_file: Path,
+    one_vulnerability_response: HTTPXMock,
 ) -> None:
     """Test check_dependencies with a single dependency and a single vulnerability."""
-    result = runner.invoke(app, [str(temp_uv_lock_file)])
+    result = runner.invoke(app, [str(temp_uv_lock_file), *extra_cli_args])
 
     assert result.exit_code == 1
     assert "Vulnerabilities detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "Vulnerable: 1 dependency" in result.output
-    assert "example-package │" in result.output
+    assert "example-package" in result.output
+    assert "1.0.0" in result.output
     assert "VULN-123" in result.output
-    assert "A critical" in result.output
-    assert "vulnerability in" in result.output
-    assert "example-package." in result.output
+    assert "1.0.1" in result.output
+    if "--aliases" in extra_cli_args:
+        assert "Aliases" in result.output
+        assert "CVE-2024-12345" in result.output
+    if "--desc" in extra_cli_args:
+        assert "Details" in result.output
+        assert "A critical vulnerability in example-package.  " in result.output
+
+
+def test_check_dependencies_with_vulnerability_narrow_console_vulnerability_ids_visible(
+    temp_uv_lock_file_jinja2: Path,
+    jinja2_two_longer_vulnerability_responses: HTTPXMock,
+    set_console_width: Callable[[int], None],
+) -> None:
+    """Test check_dependencies with a single dependency and a single vulnerability."""
+    set_console_width(80)
+    result = runner.invoke(app, [str(temp_uv_lock_file_jinja2), "--aliases", "--desc"])
+
+    assert result.exit_code == 1
+    assert "GHSA-q2x7-8rv6-6q7h" in result.output
+    assert "GHSA-gmj6-6f8f-6699" in result.output
 
 
 def test_check_dependencies_with_two_longer_vulnerabilities(
@@ -409,8 +480,9 @@ def test_check_dependencies_with_two_longer_vulnerabilities(
     assert "Vulnerabilities detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "Vulnerable: 1 dependency" in result.output
-    assert "jinja2" in result.output
-    assert "3.1.4" in result.output
+    assert result.output.count("jinja2") == 2
+    assert result.output.count("3.1.4") == 2
+    assert result.output.count("3.1.5") == 2
     assert "GHSA-q2x7-8rv6-6q7h" in result.output
     assert "GHSA-gmj6-6f8f-6699" in result.output
 
@@ -426,23 +498,72 @@ def test_app_with_arg_ignored_vulnerability(
     assert "All dependencies appear safe!" in result.output
 
 
-def test_check_dependencies_with_vulnerability_pyproject_toml_argument_override(
+def test_check_dependencies_with_vulnerability_pyproject_all_columns_configured(
     temp_uv_lock_file: Path,
-    temp_pyproject_toml_file_ignored_vulnerability: Path,
+    temp_pyproject_toml_file_extra_columns_enabled: Path,
     one_vulnerability_response: HTTPXMock,
 ) -> None:
     """Test check_dependencies with a single dependency and a single vulnerability."""
-    result = runner.invoke(app, [str(temp_uv_lock_file), "--ignore", "VULN-NOT-HERE"])
+    result = runner.invoke(app, [str(temp_uv_lock_file)])
 
     assert result.exit_code == 1
     assert "Vulnerabilities detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "Vulnerable: 1 dependency" in result.output
-    assert "example-package │" in result.output
+    assert "example-package" in result.output
+    assert "1.0.0" in result.output
     assert "VULN-123" in result.output
-    assert "A critical" in result.output
-    assert "vulnerability in" in result.output
-    assert "example-package." in result.output
+    assert "1.0.1" in result.output
+    assert "Aliases" in result.output
+    assert "CVE-2024-12345" in result.output
+    assert "Details" in result.output
+    assert "A critical vulnerability in example-package.  " in result.output
+
+
+def test_check_dependencies_with_vulnerability_uv_secure_all_columns_configured(
+    temp_uv_lock_file: Path,
+    temp_uv_secure_toml_file_all_columns_enabled: Path,
+    one_vulnerability_response: HTTPXMock,
+) -> None:
+    """Test check_dependencies with a single dependency and a single vulnerability."""
+    result = runner.invoke(app, [str(temp_uv_lock_file)])
+
+    assert result.exit_code == 1
+    assert "Vulnerabilities detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "Vulnerable: 1 dependency" in result.output
+    assert "example-package" in result.output
+    assert "1.0.0" in result.output
+    assert "VULN-123" in result.output
+    assert "1.0.1" in result.output
+    assert "Aliases" in result.output
+    assert "CVE-2024-12345" in result.output
+    assert "Details" in result.output
+    assert "A critical vulnerability in example-package.  " in result.output
+
+
+def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_override(
+    temp_uv_lock_file: Path,
+    temp_pyproject_toml_file_ignored_vulnerability: Path,
+    one_vulnerability_response: HTTPXMock,
+) -> None:
+    """Test check_dependencies with a single dependency and a single vulnerability."""
+    result = runner.invoke(
+        app,
+        [str(temp_uv_lock_file), "--ignore", "VULN-NOT-HERE", "--aliases", "--desc"],
+    )
+
+    assert "Vulnerabilities detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "Vulnerable: 1 dependency" in result.output
+    assert "example-package" in result.output
+    assert "1.0.0" in result.output
+    assert "VULN-123" in result.output
+    assert "1.0.1" in result.output
+    assert "Aliases" in result.output
+    assert "CVE-2024-12345" in result.output
+    assert "Details" in result.output
+    assert "A critical vulnerability in example-package.  " in result.output
 
 
 def test_app_with_uv_secure_toml_ignored_vulnerability(

@@ -100,7 +100,7 @@ async def check_dependencies(
         table.add_column(
             "Vulnerability ID", style="bold cyan", min_width=20, max_width=24
         )
-        table.add_column("Fix Versions", min_width=14, max_width=20)
+        table.add_column("Fix Versions", min_width=10, max_width=20)
         if config.aliases:
             table.add_column("Aliases", min_width=20, max_width=24)
         if config.desc:
