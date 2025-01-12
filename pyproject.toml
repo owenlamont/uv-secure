@@ -118,6 +118,7 @@ line-ending = "lf"
 # See https://docs.astral.sh/ruff/rules/
 select = [
     "A",
+    "ASYNC",
     "B",
     "C4",
     "D",

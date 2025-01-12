@@ -50,7 +50,7 @@ environment.
 After installation, you can run uv-secure --help to see the options.
 
 ```text
->> uv run src/uv_secure/run.py --help
+>> uv-secure --help
 
  Usage: run.py [OPTIONS] [FILE_PATHS]...
 
@@ -150,7 +150,7 @@ uv-secure can be run as a pre-commit hook by adding this configuration to your
 
 ```yaml
   - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.4.0
+    rev: 0.5.0
     hooks:
       - id: uv-secure
 ```
@@ -175,6 +175,7 @@ Below are some ideas (in no particular order) I have for improving uv-secure:
 - Explore some local caching for recording known vulnerabilities for specific package
   versions to speed up re-runs
 - Add support for other lock file formats beyond uv.lock
+- Support some of the other output file formats pip-audit does
 - Consider adding support for scanning dependencies from the current venv
 - Add a severity threshold option for reporting vulnerabilities against
 - Add an autofix option for updating package versions with known vulnerabilities if
