@@ -164,7 +164,7 @@ async def check_lock_files(
         True if vulnerabilities were found, False otherwise.
     """
     if not file_paths:
-        file_paths = (Path("."),)
+        file_paths = (Path(),)
 
     console = Console()
     if len(file_paths) == 1 and file_paths[0].is_dir():
