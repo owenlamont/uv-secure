@@ -120,13 +120,32 @@ async def check_dependencies(
                     ", ".join(vuln.fixed_in) if vuln.fixed_in else "",
                 ]
                 if config.aliases:
-                    renderables.append(", ".join(vuln.aliases) if vuln.aliases else "")
+                    alias_links = []
+                    for alias in vuln.aliases or []:
+                        hyperlink = None
+                        if alias.startswith("CVE-"):
+                            hyperlink = f"https://cve.mitre.org/cgi-bin/cvename.cgi?name={alias}"
+                        elif alias.startswith("GHSA-"):
+                            hyperlink = f"https://github.com/advisories/{alias}"
+                        elif alias.startswith("PYSEC-"):
+                            hyperlink = f"https://github.com/pypa/advisory-database/blob/main/vulns/{dep.name}/{alias}.yaml"
+                        elif alias.startswith("OSV-"):
+                            hyperlink = f"https://osv.dev/vulnerability/{alias}"
+                        if hyperlink:
+                            alias_links.append(
+                                Text.assemble((alias, f"link {hyperlink}"))
+                            )
+                        else:
+                            alias_links.append(Text(alias))
+                    renderables.append(
+                        Text(", ").join(alias_links) if alias_links else Text("")
+                    )
                 if config.desc:
                     renderables.append(vuln.details)
                 table.add_row(*renderables)
 
         console_outputs.append(table)
-        return 1, console_outputs  # Exit with failure status
+        return 1, console_outputs
 
     console_outputs.append(
         Panel.fit(
@@ -135,7 +154,7 @@ async def check_dependencies(
             f"All dependencies appear safe!"
         )
     )
-    return 0, console_outputs  # Exit successfully
+    return 0, console_outputs
 
 
 class RunStatus(Enum):
