@@ -3,6 +3,7 @@ from pathlib import Path
 from anyio import Path as APath
 import pytest
 from pytest_httpx import HTTPXMock
+from rich.table import Table
 from rich.text import Text
 
 from uv_secure.configuration import Configuration
@@ -23,7 +24,7 @@ from uv_secure.dependency_checker import check_dependencies
             "https://github.com/pypa/advisory-database/blob/main/vulns/example-package/PYSEC-12345.yaml",
         ),
         ("OSV-12345", "https://osv.dev/vulnerability/OSV-12345"),
-        ("Unrecognised-alias-12345", "Unrecognised-alias-12345"),
+        ("Unrecognised-alias-12345", None),
     ],
 )
 async def test_check_dependencies_alias_hyperlinks(
@@ -46,18 +47,21 @@ async def test_check_dependencies_alias_hyperlinks(
         },
     )
 
-    # Call `check_dependencies` directly
     status, renderables = await check_dependencies(
         APath(temp_uv_lock_file), Configuration(aliases=True)
     )
 
-    # Assertions
     assert status == 1
     for renderable in renderables:
-        if isinstance(renderable, Text):
-            # Check for the alias and its hyperlink metadata
-            assert alias in str(renderable)
-            hyperlink_spans = [
-                span for span in renderable._spans if expected_hyperlink in span.meta
-            ]
-            assert hyperlink_spans, f"Hyperlink for {alias} not found"
+        if not isinstance(renderable, Table):
+            continue
+        for column in renderable.columns:
+            if column.header != "Aliases":
+                continue
+            cells = list(column.cells)
+            assert len(cells) == 1
+            cell = cells[0]
+            assert isinstance(cell, Text)
+            assert alias in cell.plain
+            if expected_hyperlink is not None:
+                assert expected_hyperlink in cell.markup

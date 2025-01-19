@@ -219,7 +219,11 @@ uv sync.
 With PyCharm debugging relies on pip and setuptools being installed which aren't
 installed by default, so I request PyCharm _Install packaging tool_ in the
 _Python Interpreter_ settings (I may just add these in future are dev dependencies to
-reduce the friction if this causes others too much pain).
+reduce the friction if this causes others too much pain). I have also encountered some
+test failures on Windows if you use winloop with setuptools and pip - so you probably do
+want  to switch to the asyncio eventloop if installing those (I'm hoping to continue
+using winloop, but it's a relatively young project and has some rough edges - I may drop
+it as a dependency on Windows if it causes to many issues).
 
 #### Debugging Async Code
 
