@@ -185,6 +185,64 @@ Below are some ideas (in no particular order) I have for improving uv-secure:
   given most vulnerability reports appear to be only in English but happy to take
   feedback on this)
 
+## Running in Development
+
+Running uv-secure as a developer is pretty straight-forward if you have uv installed.
+Just check out the repo and from a terminal in the repo root directory run:
+
+```shell
+uv sync --dev
+```
+
+To create and sync the virtual environment.
+
+You can run the tests with:
+
+```shell
+uv run pytest
+```
+
+Or run the package entry module directly with:
+
+```shell
+uv run src/uv_secure/run.py . --aliases
+```
+
+### Debugging
+
+If you want to run and debug uv-secure in an IDE like PyCharm or VSCode select the
+virtual environment in the local .venv directory uv would have created after calling
+uv sync.
+
+#### PyCharm Warning
+
+With PyCharm debugging relies on pip and setuptools being installed which aren't
+installed by default, so I request PyCharm _Install packaging tool_ in the
+_Python Interpreter_ settings (I may just add these in future are dev dependencies to
+reduce the friction if this causes others too much pain).
+
+#### Debugging Async Code
+
+Given uv-secure is often IO bound waiting on API responses or file reads I've tried to
+make it as asynchronous as I can. uv-secure also uses uvloop and winloop which should be
+more performant than the vanilla asyncio event loop - but they don't play nice with
+Python debuggers. The hacky way at present to use asyncio event loop when debugging is
+uncommenting the run import in run.py:
+
+```python
+if sys.platform in ("win32", "cygwin", "cli"):
+    from winloop import run
+else:
+    from uvloop import run
+# from asyncio import run  # uncomment for local dev and debugging
+```
+
+I definitely want to come up with a nicer scheme in the future. Either make the import
+depend on an environment variable to set local development, or perhaps make uvloop and
+winloop extra dependencies with asyncio event loop being the fallback so you can choose
+not to include them (I need to research best/common practise here some more and pick
+something).
+
 ## Related Work and Motivation
 
 I created this package as I wanted a dependency vulnerability scanner, but I wasn't
