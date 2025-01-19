@@ -35,6 +35,7 @@ dependencies = [
     "httpx>=0.28.1",
     "inflect>=7.4.0",
     "pydantic>=2.10.3",
+    "pytest-asyncio>=0.25.2",
     "rich>=13.9.4",
     'tomli; python_version < "3.11"',
     "typer>=0.15.1",
@@ -97,8 +98,10 @@ init_typed = true
 warn_required_dynamic_aliases = true
 
 [tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
 filterwarnings = [
     "error",
+    "ignore::ResourceWarning" # Disabling as I think pytest-httpx is somehow causing
 ]
 testpaths = ["tests"]
 
