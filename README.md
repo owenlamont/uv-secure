@@ -288,5 +288,5 @@ substantial contributions please reach out by email / social media / or raise an
 improvement issue to discuss first to make sure our plans are aligned before creating
 any large / time-expensive PRs.
 
-See the [contributing guide](CONTRIBUTING.md) for more details on contributing to
-uv-secure
+See the [contributing guide](https://github.com/owenlamont/uv-secure/blob/main/CONTRIBUTING.md)
+for more details on contributing to uv-secure
