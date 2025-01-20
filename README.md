@@ -287,3 +287,6 @@ I welcome PRs for minor fixes and documentation tweaks. If you'd like to make mo
 substantial contributions please reach out by email / social media / or raise an
 improvement issue to discuss first to make sure our plans are aligned before creating
 any large / time-expensive PRs.
+
+See the [contributing guide](CONTRIBUTING.md) for more details on contributing to
+uv-secure
