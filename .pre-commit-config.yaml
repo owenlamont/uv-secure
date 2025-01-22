@@ -56,3 +56,8 @@ repos:
     rev: v1.35.1
     hooks:
       - id: yamllint
+  - repo: https://github.com/woodruffw/zizmor-pre-commit
+    rev: v1.2.2
+    hooks:
+    - id: zizmor
+      args: [ --min-severity, low, --min-confidence, medium]

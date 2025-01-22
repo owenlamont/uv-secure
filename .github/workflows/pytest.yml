@@ -66,6 +66,7 @@ jobs:
           echo '' >> comment_body.md
           echo '```' >> comment_body.md
       - name: Find Coverage Report Comment
+        if: github.event.pull_request.head.repo.full_name == github.repository
         id: find-comment
         uses: peter-evans/find-comment@v3
         with:
@@ -73,6 +74,7 @@ jobs:
           comment-author: github-actions[bot]
           body-includes: '### Coverage Report'
       - name: Create or Update Coverage Comment
+        if: github.event.pull_request.head.repo.full_name == github.repository
         uses: peter-evans/create-or-update-comment@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -80,3 +82,5 @@ jobs:
           body-path: comment_body.md
           comment-id: ${{ steps.find-comment.outputs.comment-id }}
           edit-mode: replace
+      - name: Display Coverage Report in Logs
+        run: cat comment_body.md
