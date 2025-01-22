@@ -11,8 +11,8 @@ they don't see multiple contributors.
 
 - Follow the [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html)
   for all code contributions.
-- Use **type hinting** consistently throughout the codebase (I'm a huge fan of strong
-  tying and runtime typehinting - i.e. Pydantic style)...
+- Use **type hinting** consistently throughout the codebase (I'm a huge fan of strong-typing
+- and runtime typehinting - i.e. Pydantic style)...
 - Use pre-commit to run linters and type checkers on all changes.
 - MyPy (run by pre-commit) runs the type checking - it is prone to some false positives
   so use comments to disable checks if all else fails (but don't resort to unnecessary
