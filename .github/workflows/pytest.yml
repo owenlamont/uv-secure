@@ -83,8 +83,4 @@ jobs:
           comment-id: ${{ steps.find-comment.outputs.comment-id }}
           edit-mode: replace
       - name: Display Coverage Report in Logs
-        run: |
-          echo "### Coverage Report"
-          echo "-------------------"
-          cat comment_body.md
-          echo "-------------------"
+        run: cat comment_body.md
