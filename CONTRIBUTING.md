@@ -11,8 +11,8 @@ they don't see multiple contributors.
 
 - Follow the [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html)
   for all code contributions.
-- Use **type hinting** consistently throughout the codebase (I'm a huge fan of strong-typing
-- and runtime typehinting - i.e. Pydantic style)...
+- Use **type hinting** consistently throughout the codebase (I'm a huge fan of
+  strong-typing and runtime typehinting - i.e. Pydantic style)...
 - Use pre-commit to run linters and type checkers on all changes.
 - MyPy (run by pre-commit) runs the type checking - it is prone to some false positives
   so use comments to disable checks if all else fails (but don't resort to unnecessary
@@ -21,27 +21,31 @@ they don't see multiple contributors.
 ## Testing
 
 - **Aim to maintain 100% test coverage** Ensure all changes are covered with appropriate
-  unit or integration tests. Not there is some platform / Python version specific logic
+  unit or integration tests. Note there is some platform / Python version specific logic
   so you'll only see full test coverage in CI which merges coverage across those
   dimensions.
 - Prefer integration tests for checking CLI input all the way through to CLI output.
 - Use [pytest](https://pytest.org/) as the testing framework.
 - To run tests, execute:
 
-  ```bash
+  ```shell
   uv run pytest
   ```
 
 - Use the `tests` directory for organizing test cases. The file and folder structure of
-  the tests should match the src folder to the extent that there are test modules that
-  map to specific src modules.
+  the tests directory should match the src folder to the extent that there are test
+  modules that map to specific src modules.
+- The test module for a src module should have the same name as the src module except
+  the test module will have a `test_` prefix. I want to use this scheme to make it easy
+  to find the tests for any given logic.
 
 ## Development Environment
 
-- I aim to support all the currently supported stable versions (3.9 through to 3.13).
+- I aim to support all the currently supported stable versions of Python (3.9 through to
+  3.13).
 - Install dependencies and development tools using [uv](https://docs.astral.sh/uv/):
 
-  ```bash
+  ```shell
   uv sync --dev
   ```
 
@@ -56,7 +60,7 @@ they don't see multiple contributors.
 
 - Create a descriptive branch for your changes:
 
-     ```bash
+     ```shell
      git checkout -b feature/short-description
      ```
 
@@ -69,7 +73,7 @@ they don't see multiple contributors.
 
 - Run all tests and ensure high coverage:
 
-     ```bash
+     ```shell
      uv run pytest
      ```
 
@@ -78,14 +82,14 @@ they don't see multiple contributors.
 - If you don't already have pre-commit installed, you only need to run this command
   once:
 
-     ```bash
+     ```shell
      uv tool install pre-commit
      ```
 
 - After checking out the repository for the first time, set up the pre-commit hooks
   by running:
 
-     ```bash
+     ```shell
      pre-commit install
      ```
 
@@ -94,7 +98,7 @@ they don't see multiple contributors.
 
 Developers can also force pre-commit to run on all files at any time by running:
 
-```bash
+```shell
 pre-commit run --all-files
 ```
 
@@ -104,7 +108,7 @@ This ensures consistency across the entire codebase and still executes quite fas
 
 - Push your branch to your fork:
 
-     ```bash
+     ```shell
      git push origin feature/short-description
      ```
 
