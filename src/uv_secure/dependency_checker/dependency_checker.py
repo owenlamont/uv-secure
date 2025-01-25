@@ -25,18 +25,14 @@ from uv_secure.package_info import (
 )
 
 
-DEFAULT_HTTPX_CACHE_TTL = 24.0 * 60.0 * 60.0  # Default cache time to 1 day
-
-
 async def check_dependencies(
-    dependency_file_path: APath, config: Configuration, storage: AsyncFileStorage
+    dependency_file_path: APath, config: Configuration
 ) -> tuple[int, Iterable[ConsoleRenderable]]:
     """Checks dependencies for vulnerabilities and summarizes the results
 
     Args:
         dependency_file_path: uv.lock file or requirements.txt file path
         config: uv-secure configuration object
-        storage: hishel storage configuration of httpx caching
 
     Returns:
         tuple with status code and output for console to render
@@ -48,6 +44,14 @@ async def check_dependencies(
             f"[bold red]Error:[/] File {dependency_file_path} does not exist."
         )
         return 2, console_outputs
+
+    # I found antivirus programs (specifically Windows Defender) can almost fully
+    # negate the benefits of using a file cache if you don't exclude the virus checker
+    # from checking the cache dir given it is frequently read from
+    storage = AsyncFileStorage(
+        base_path=config.cache_settings.cache_path,
+        ttl=config.cache_settings.ttl_seconds,
+    )
 
     if dependency_file_path.name == "uv.lock":
         dependencies = await parse_uv_lock_file(dependency_file_path)
@@ -226,17 +230,9 @@ async def check_lock_files(
             for lock_file, config in lock_to_config_map.items()
         }
 
-    # I found anti-virus programs (specifically Windows Defender) can almost fully
-    # negate the benefits of using a file cache if you don't exclude the virus checker
-    # from checking the cache dir given it is frequently read from / written to
-    storage = AsyncFileStorage(
-        base_path=Path.home() / ".cache/uv-secure", ttl=DEFAULT_HTTPX_CACHE_TTL
-    )
     status_output_tasks = [
         check_dependencies(
-            APath(dependency_file_path),
-            lock_to_config_map[APath(dependency_file_path)],
-            storage,
+            APath(dependency_file_path), lock_to_config_map[APath(dependency_file_path)]
         )
         for dependency_file_path in file_paths
     ]

@@ -1,7 +1,6 @@
 from pathlib import Path
 
 from anyio import Path as APath
-from hishel import AsyncFileStorage
 import pytest
 from pytest_httpx import HTTPXMock
 from rich.table import Table
@@ -49,9 +48,7 @@ async def test_check_dependencies_alias_hyperlinks(
     )
 
     status, renderables = await check_dependencies(
-        APath(temp_uv_lock_file),
-        Configuration(aliases=True),
-        AsyncFileStorage(base_path=Path.home() / ".cache/uv-secure"),
+        APath(temp_uv_lock_file), Configuration(aliases=True)
     )
 
     assert status == 1

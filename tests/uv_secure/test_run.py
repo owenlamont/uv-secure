@@ -59,6 +59,21 @@ def temp_uv_secure_toml_file_all_columns_enabled(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def temp_uv_secure_toml_file_custom_caching(tmp_path: Path) -> Path:
+    uv_secure_toml_path = tmp_path / "uv-secure.toml"
+    uv_lock_data = f"""
+        aliases = true
+        desc = true
+
+        [cache_settings]
+        cache_path = "{tmp_path / ".uv-secure"}"
+        ttl_seconds = 60.0
+    """
+    uv_secure_toml_path.write_text(dedent(uv_lock_data).strip())
+    return uv_secure_toml_path
+
+
+@pytest.fixture
 def temp_dot_uv_secure_toml_file(tmp_path: Path) -> Path:
     uv_secure_toml_path = tmp_path / ".uv-secure.toml"
     uv_lock_data = ""
@@ -511,7 +526,6 @@ def test_check_dependencies_with_vulnerability_uv_secure_all_columns_configured(
     temp_uv_secure_toml_file_all_columns_enabled: Path,
     one_vulnerability_response: HTTPXMock,
 ) -> None:
-    """Test check_dependencies with a single dependency and a single vulnerability."""
     result = runner.invoke(app, [str(temp_uv_lock_file)])
 
     assert result.exit_code == 1
@@ -528,12 +542,23 @@ def test_check_dependencies_with_vulnerability_uv_secure_all_columns_configured(
     assert "A critical vulnerability in example-package.  " in result.output
 
 
+def test_check_dependencies_with_custom_caching(
+    temp_uv_lock_file: Path,
+    temp_uv_secure_toml_file_custom_caching: Path,
+    no_vulnerabilities_response: HTTPXMock,
+) -> None:
+    result = runner.invoke(app, [str(temp_uv_lock_file)])
+    assert result.exit_code == 0
+    assert "No vulnerabilities detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
+
+
 def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_override(
     temp_uv_lock_file: Path,
     temp_pyproject_toml_file_ignored_vulnerability: Path,
     one_vulnerability_response: HTTPXMock,
 ) -> None:
-    """Test check_dependencies with a single dependency and a single vulnerability."""
     result = runner.invoke(
         app,
         [str(temp_uv_lock_file), "--ignore", "VULN-NOT-HERE", "--aliases", "--desc"],

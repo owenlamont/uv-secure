@@ -2,19 +2,14 @@ import sys
 from typing import Optional
 
 from anyio import Path
-from pydantic import BaseModel
+
+from uv_secure.configuration.configuration import Configuration
 
 
 if sys.version_info >= (3, 11):
     import tomllib as toml
 else:
     import tomli as toml
-
-
-class Configuration(BaseModel):
-    aliases: Optional[bool] = None
-    desc: Optional[bool] = None
-    ignore_vulnerabilities: Optional[set[str]] = None
 
 
 def config_cli_arg_factory(
