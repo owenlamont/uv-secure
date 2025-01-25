@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from anyio import Path as APath
+from hishel import AsyncFileStorage
 import inflect
 from rich.console import Console, ConsoleRenderable
 from rich.panel import Panel
@@ -24,14 +25,18 @@ from uv_secure.package_info import (
 )
 
 
+DEFAULT_HTTPX_CACHE_TTL = 24.0 * 60.0 * 60.0  # Default cache time to 1 day
+
+
 async def check_dependencies(
-    dependency_file_path: APath, config: Configuration
+    dependency_file_path: APath, config: Configuration, storage: AsyncFileStorage
 ) -> tuple[int, Iterable[ConsoleRenderable]]:
     """Checks dependencies for vulnerabilities and summarizes the results
 
     Args:
         dependency_file_path: uv.lock file or requirements.txt file path
         config: uv-secure configuration object
+        storage: hishel storage configuration of httpx caching
 
     Returns:
         tuple with status code and output for console to render
@@ -57,7 +62,7 @@ async def check_dependencies(
         "...[/]"
     )
 
-    results = await download_vulnerabilities(dependencies)
+    results = await download_vulnerabilities(dependencies, storage)
 
     total_dependencies = len(results)
     vulnerable_count = 0
@@ -221,9 +226,17 @@ async def check_lock_files(
             for lock_file, config in lock_to_config_map.items()
         }
 
+    # I found anti-virus programs (specifically Windows Defender) can almost fully
+    # negate the benefits of using a file cache if you don't exclude the virus checker
+    # from checking the cache dir given it is frequently read from / written to
+    storage = AsyncFileStorage(
+        base_path=Path.home() / ".cache/uv-secure", ttl=DEFAULT_HTTPX_CACHE_TTL
+    )
     status_output_tasks = [
         check_dependencies(
-            APath(dependency_file_path), lock_to_config_map[APath(dependency_file_path)]
+            APath(dependency_file_path),
+            lock_to_config_map[APath(dependency_file_path)],
+            storage,
         )
         for dependency_file_path in file_paths
     ]
