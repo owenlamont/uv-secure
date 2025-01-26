@@ -16,6 +16,7 @@ from uv_secure.configuration import (
     config_cli_arg_factory,
     config_file_factory,
     Configuration,
+    override_config,
 )
 from uv_secure.directory_scanner import get_dependency_file_to_config_map
 from uv_secure.package_info import (
@@ -66,7 +67,9 @@ async def check_dependencies(
         "...[/]"
     )
 
-    results = await download_vulnerabilities(dependencies, storage)
+    results = await download_vulnerabilities(
+        dependencies, storage, config.cache_settings.disable_cache
+    )
 
     total_dependencies = len(results)
     vulnerable_count = 0
@@ -176,6 +179,7 @@ async def check_lock_files(
     file_paths: Optional[Sequence[Path]],
     aliases: Optional[bool],
     desc: Optional[bool],
+    disable_cache: Optional[bool],
     ignore: Optional[str],
     config_path: Optional[Path],
 ) -> RunStatus:
@@ -222,11 +226,9 @@ async def check_lock_files(
             return RunStatus.RUNTIME_ERROR
 
     if any((aliases, desc, ignore)):
-        override_config = config_cli_arg_factory(aliases, desc, ignore)
+        cli_config = config_cli_arg_factory(aliases, desc, disable_cache, ignore)
         lock_to_config_map = {
-            lock_file: config.model_copy(
-                update=override_config.model_dump(exclude_none=True)
-            )
+            lock_file: override_config(config, cli_config)
             for lock_file, config in lock_to_config_map.items()
         }
 

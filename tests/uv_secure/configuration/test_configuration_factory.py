@@ -39,7 +39,36 @@ from uv_secure.configuration import CacheSettings, config_file_factory, Configur
                     cache_path=Path("/dummy/.uv-secure"), ttl_seconds=60.0
                 )
             ),
-            id="Enable aliases and description",
+            id="Custom cache settings",
+        ),
+        pytest.param(
+            "pyproject.toml",
+            """
+            [tool.uv-secure]
+            aliases = true
+            desc = true
+            [tool.uv-secure.cache_settings]
+            cache_path = "/dummy/.uv-secure"
+            ttl_seconds = 60.0
+            """,
+            Configuration(
+                aliases=True,
+                desc=True,
+                cache_settings=CacheSettings(
+                    cache_path=Path("/dummy/.uv-secure"), ttl_seconds=60.0
+                ),
+            ),
+            id="pyproject.toml aliases, description, and cache_settings",
+        ),
+        pytest.param(
+            "pyproject.toml",
+            """
+            [tool.some_tool]
+            some_option = true
+            some_other_option = true
+            """,
+            None,
+            id="pyproject.toml no uv-secure",
         ),
     ],
 )

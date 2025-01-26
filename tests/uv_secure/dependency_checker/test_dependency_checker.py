@@ -14,17 +14,25 @@ from uv_secure.dependency_checker import check_dependencies
 @pytest.mark.parametrize(
     ("alias", "expected_hyperlink"),
     [
-        (
+        pytest.param(
             "CVE-2024-12345",
             "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2024-12345",
+            id="CVE lias",
         ),
-        ("GHSA-q2x7-8rv6-6q7h", "https://github.com/advisories/GHSA-q2x7-8rv6-6q7h"),
-        (
+        pytest.param(
+            "GHSA-q2x7-8rv6-6q7h",
+            "https://github.com/advisories/GHSA-q2x7-8rv6-6q7h",
+            id="GHSA alias",
+        ),
+        pytest.param(
             "PYSEC-12345",
             "https://github.com/pypa/advisory-database/blob/main/vulns/example-package/PYSEC-12345.yaml",
+            id="PYSEC alias",
         ),
-        ("OSV-12345", "https://osv.dev/vulnerability/OSV-12345"),
-        ("Unrecognised-alias-12345", None),
+        pytest.param(
+            "OSV-12345", "https://osv.dev/vulnerability/OSV-12345", id="OSV alias"
+        ),
+        pytest.param("Unrecognised-alias-12345", None, id="Unrecognised alias"),
     ],
 )
 async def test_check_dependencies_alias_hyperlinks(

@@ -66,7 +66,7 @@ def temp_uv_secure_toml_file_custom_caching(tmp_path: Path) -> Path:
         desc = true
 
         [cache_settings]
-        cache_path = "{tmp_path / ".uv-secure"}"
+        cache_path = "{(tmp_path / ".uv-secure").as_posix()}"
         ttl_seconds = 60.0
     """
     uv_secure_toml_path.write_text(dedent(uv_lock_data).strip())
@@ -343,7 +343,7 @@ def test_non_uv_requirements_txt_file(temp_non_uv_requirements_txt_file: Path) -
 def test_app_no_vulnerabilities(
     temp_uv_lock_file: Path, no_vulnerabilities_response: HTTPXMock
 ) -> None:
-    result = runner.invoke(app, [str(temp_uv_lock_file)])
+    result = runner.invoke(app, [str(temp_uv_lock_file)], "--disable-cache")
 
     assert result.exit_code == 0
     assert "No vulnerabilities detected!" in result.output
@@ -354,7 +354,7 @@ def test_app_no_vulnerabilities(
 def test_app_no_vulnerabilities_requirements_txt(
     temp_uv_requirements_txt_file: Path, no_vulnerabilities_response: HTTPXMock
 ) -> None:
-    result = runner.invoke(app, [str(temp_uv_requirements_txt_file)])
+    result = runner.invoke(app, [str(temp_uv_requirements_txt_file)], "--disable-cache")
 
     assert result.exit_code == 0
     assert "No vulnerabilities detected!" in result.output
@@ -368,7 +368,7 @@ def test_app_no_vulnerabilities_requirements_txt_no_specified_path(
     no_vulnerabilities_response: HTTPXMock,
 ) -> None:
     os.chdir(tmp_path)
-    result = runner.invoke(app)
+    result = runner.invoke(app, "--disable-cache")
 
     assert result.exit_code == 0
     assert "No vulnerabilities detected!" in result.output
@@ -380,7 +380,7 @@ def test_app_no_vulnerabilities_relative_lock_file_path(
     tmp_path: Path, temp_uv_lock_file: Path, no_vulnerabilities_response: HTTPXMock
 ) -> None:
     os.chdir(tmp_path)
-    result = runner.invoke(app, ["uv.lock"])
+    result = runner.invoke(app, ["uv.lock"], "--disable-cache")
 
     assert result.exit_code == 0
     assert "No vulnerabilities detected!" in result.output
@@ -392,7 +392,7 @@ def test_app_no_vulnerabilities_relative_no_specified_path(
     tmp_path: Path, temp_uv_lock_file: Path, no_vulnerabilities_response: HTTPXMock
 ) -> None:
     os.chdir(tmp_path)
-    result = runner.invoke(app)
+    result = runner.invoke(app, "--disable-cache")
 
     assert result.exit_code == 0
     assert "No vulnerabilities detected!" in result.output
@@ -403,7 +403,7 @@ def test_app_no_vulnerabilities_relative_no_specified_path(
 def test_app_failed_vulnerability_request(
     temp_uv_lock_file: Path, missing_vulnerability_response: HTTPXMock
 ) -> None:
-    result = runner.invoke(app, [str(temp_uv_lock_file)])
+    result = runner.invoke(app, [str(temp_uv_lock_file)], "--disable-cache")
 
     assert result.exit_code == 0
     assert "Error fetching example-package==1.0.0: Request failed" in result.output
@@ -415,7 +415,7 @@ def test_app_failed_vulnerability_request(
 def test_app_package_not_found(
     temp_uv_lock_file: Path, package_version_not_found_response: HTTPXMock
 ) -> None:
-    result = runner.invoke(app, [str(temp_uv_lock_file)])
+    result = runner.invoke(app, [str(temp_uv_lock_file)], "--disable-cache")
 
     assert result.exit_code == 0
     assert "Warning: Could not fetch data for example-package==1.0.0" in result.output
@@ -439,7 +439,9 @@ def test_check_dependencies_with_vulnerability(
     one_vulnerability_response: HTTPXMock,
 ) -> None:
     """Test check_dependencies with a single dependency and a single vulnerability."""
-    result = runner.invoke(app, [str(temp_uv_lock_file), *extra_cli_args])
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), *extra_cli_args], "--disable-cache"
+    )
 
     assert result.exit_code == 1
     assert "Vulnerabilities detected!" in result.output
@@ -464,7 +466,9 @@ def test_check_dependencies_with_vulnerability_narrow_console_vulnerability_ids_
 ) -> None:
     """Test check_dependencies with a single dependency and a single vulnerability."""
     set_console_width(80)
-    result = runner.invoke(app, [str(temp_uv_lock_file_jinja2), "--aliases", "--desc"])
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file_jinja2), "--aliases", "--desc"], "--disable-cache"
+    )
 
     assert result.exit_code == 1
     assert "GHSA-q2x7-8rv6-6q7h" in result.output
@@ -475,7 +479,7 @@ def test_check_dependencies_with_two_longer_vulnerabilities(
     temp_uv_lock_file_jinja2: Path, jinja2_two_longer_vulnerability_responses: HTTPXMock
 ) -> None:
     """Test check_dependencies with a single dependency and a single vulnerability."""
-    result = runner.invoke(app, [str(temp_uv_lock_file_jinja2)])
+    result = runner.invoke(app, [str(temp_uv_lock_file_jinja2)], "--disable-cache")
 
     assert result.exit_code == 1
     assert "Vulnerabilities detected!" in result.output
@@ -491,7 +495,9 @@ def test_check_dependencies_with_two_longer_vulnerabilities(
 def test_app_with_arg_ignored_vulnerability(
     temp_uv_lock_file: Path, one_vulnerability_response: HTTPXMock
 ) -> None:
-    result = runner.invoke(app, [str(temp_uv_lock_file), "--ignore", "VULN-123"])
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--ignore", "VULN-123"], "--disable-cache"
+    )
 
     assert result.exit_code == 0
     assert "No vulnerabilities detected!" in result.output
@@ -505,7 +511,7 @@ def test_check_dependencies_with_vulnerability_pyproject_all_columns_configured(
     one_vulnerability_response: HTTPXMock,
 ) -> None:
     """Test check_dependencies with a single dependency and a single vulnerability."""
-    result = runner.invoke(app, [str(temp_uv_lock_file)])
+    result = runner.invoke(app, [str(temp_uv_lock_file)], "--disable-cache")
 
     assert result.exit_code == 1
     assert "Vulnerabilities detected!" in result.output
@@ -526,7 +532,7 @@ def test_check_dependencies_with_vulnerability_uv_secure_all_columns_configured(
     temp_uv_secure_toml_file_all_columns_enabled: Path,
     one_vulnerability_response: HTTPXMock,
 ) -> None:
-    result = runner.invoke(app, [str(temp_uv_lock_file)])
+    result = runner.invoke(app, [str(temp_uv_lock_file)], "--disable-cache")
 
     assert result.exit_code == 1
     assert "Vulnerabilities detected!" in result.output
@@ -547,7 +553,7 @@ def test_check_dependencies_with_custom_caching(
     temp_uv_secure_toml_file_custom_caching: Path,
     no_vulnerabilities_response: HTTPXMock,
 ) -> None:
-    result = runner.invoke(app, [str(temp_uv_lock_file)])
+    result = runner.invoke(app, [str(temp_uv_lock_file)], "--disable-cache")
     assert result.exit_code == 0
     assert "No vulnerabilities detected!" in result.output
     assert "Checked: 1 dependency" in result.output
@@ -562,6 +568,7 @@ def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_overr
     result = runner.invoke(
         app,
         [str(temp_uv_lock_file), "--ignore", "VULN-NOT-HERE", "--aliases", "--desc"],
+        "--disable-cache",
     )
 
     assert "Vulnerabilities detected!" in result.output
@@ -589,6 +596,7 @@ def test_app_with_uv_secure_toml_ignored_vulnerability(
             "--config",
             temp_uv_secure_toml_file_ignored_vulnerability,
         ],
+        "--disable-cache",
     )
 
     assert result.exit_code == 0
@@ -609,6 +617,7 @@ def test_app_with_pyproject_toml_ignored_vulnerability(
             "--config",
             temp_pyproject_toml_file_ignored_vulnerability,
         ],
+        "--disable-cache",
     )
 
     assert result.exit_code == 0
@@ -629,7 +638,9 @@ def test_app_multiple_lock_files_no_vulnerabilities(
         json={"vulnerabilities": []},
     )
 
-    result = runner.invoke(app, [str(temp_uv_lock_file), str(temp_nested_uv_lock_file)])
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), str(temp_nested_uv_lock_file)], "--disable-cache"
+    )
 
     assert result.exit_code == 0
     assert result.output.count("No vulnerabilities detected!") == 2
@@ -644,7 +655,9 @@ def test_app_multiple_lock_files_one_vulnerabilities(
     no_vulnerabilities_response: HTTPXMock,
     one_vulnerability_response_v2: HTTPXMock,
 ) -> None:
-    result = runner.invoke(app, [str(temp_uv_lock_file), str(temp_nested_uv_lock_file)])
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), str(temp_nested_uv_lock_file)], "--disable-cache"
+    )
     assert result.exit_code == 1
     assert result.output.count("No vulnerabilities detected!") == 1
     assert result.output.count("Vulnerabilities detected!") == 1
@@ -659,7 +672,7 @@ def test_app_multiple_lock_files_one_nested_ignored_vulnerability(
     no_vulnerabilities_response: HTTPXMock,
     one_vulnerability_response_v2: HTTPXMock,
 ) -> None:
-    result = runner.invoke(app, [str(tmp_path)])
+    result = runner.invoke(app, [str(tmp_path)], "--disable-cache")
 
     assert result.exit_code == 0
     assert result.output.count("No vulnerabilities detected!") == 2
@@ -676,7 +689,7 @@ def test_app_multiple_lock_files_no_root_config_one_nested_ignored_vulnerability
     no_vulnerabilities_response: HTTPXMock,
     one_vulnerability_response_v2: HTTPXMock,
 ) -> None:
-    result = runner.invoke(app, [str(tmp_path)])
+    result = runner.invoke(app, [str(tmp_path)], "--disable-cache")
 
     assert result.exit_code == 0
     assert result.output.count("No vulnerabilities detected!") == 2
@@ -694,7 +707,9 @@ def test_app_multiple_lock_files_one_nested_ignored_vulnerability_pass_lock_file
     one_vulnerability_response_v2: HTTPXMock,
 ) -> None:
     result = runner.invoke(
-        app, [str(temp_uv_lock_file), str(temp_double_nested_uv_lock_file)]
+        app,
+        [str(temp_uv_lock_file), str(temp_double_nested_uv_lock_file)],
+        "--disable-cache",
     )
 
     assert result.exit_code == 0
@@ -712,7 +727,9 @@ def test_app_multiple_lock_files_one_vulnerabilities_ignored_nested_pyproject_to
     no_vulnerabilities_response: HTTPXMock,
     one_vulnerability_response_v2: HTTPXMock,
 ) -> None:
-    result = runner.invoke(app, [str(temp_uv_lock_file), str(temp_nested_uv_lock_file)])
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), str(temp_nested_uv_lock_file)], "--disable-cache"
+    )
     assert result.exit_code == 1
     assert result.output.count("No vulnerabilities detected!") == 1
     assert result.output.count("Vulnerabilities detected!") == 1
