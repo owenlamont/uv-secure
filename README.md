@@ -45,6 +45,30 @@ pipx install uv-secure
 you can optionally install uv-secure as a development dependency in a virtual
 environment.
 
+## Optional Dependencies
+
+uv-secure uses highly asynchronous code to request multiple API responses or file opens
+concurrently. You can install uvloop on Linux/Mac or winloop on Windows to speed up the
+asynchronous event loop (at the expense of debuggability if you want to develop
+uv-secure yourself). Also note, winloop is a relatively young package and may give you
+some stability issues on particular versions of Python
+
+If you want to install the optional dependency with uv do it like this:
+
+```shell
+uv tool install uv-secure --with uvloop
+```
+
+or with pipx like this:
+
+```powershell
+pipx install uv-secure
+pipx inject uv-secure winloop
+```
+
+uv-secure will automatically use uvloop or winloop if it finds them in the same
+environment as itself.
+
 ## Usage
 
 After installation, you can run uv-secure --help to see the options.
@@ -255,31 +279,16 @@ installed by default, so I request PyCharm _Install packaging tool_ in the
 _Python Interpreter_ settings (I may just add these in future are dev dependencies to
 reduce the friction if this causes others too much pain). I have also encountered some
 test failures on Windows if you use winloop with setuptools and pip - so you probably do
-want  to switch to the asyncio eventloop if installing those (I'm hoping to continue
-using winloop, but it's a relatively young project and has some rough edges - I may drop
-it as a dependency on Windows if it causes to many issues).
+want to remove winloop if debugging in that environment if you added it.
 
 #### Debugging Async Code
 
 Given uv-secure is often IO bound waiting on API responses or file reads I've tried to
-make it as asynchronous as I can. uv-secure also uses uvloop and winloop which should be
-more performant than the vanilla asyncio event loop - but they don't play nice with
-Python debuggers. The hacky way at present to use asyncio event loop when debugging is
-uncommenting the run import in run.py:
-
-```python
-if sys.platform in ("win32", "cygwin", "cli"):
-    from winloop import run
-else:
-    from uvloop import run
-# from asyncio import run  # uncomment for local dev and debugging
-```
-
-I definitely want to come up with a nicer scheme in the future. Either make the import
-depend on an environment variable to set local development, or perhaps make uvloop and
-winloop extra dependencies with asyncio event loop being the fallback so you can choose
-not to include them (I need to research best/common practise here some more and pick
-something).
+make it as asynchronous as I can. uv-secure also uses uvloop and winloop if installed
+which should be more performant than the vanilla asyncio event loop - but they don't
+play nice with Python debuggers. If you intend to do debugging I suggest leaving them
+out of the virtual environment. By default, winloop or uvloop won't be installed the
+repo venv unless you explicitly add them.
 
 ## Related Work and Motivation
 

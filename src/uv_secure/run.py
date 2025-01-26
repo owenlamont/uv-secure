@@ -8,13 +8,6 @@ from uv_secure.__version__ import __version__
 from uv_secure.dependency_checker import check_lock_files, RunStatus
 
 
-if sys.platform in ("win32", "cygwin", "cli"):
-    from winloop import run
-else:
-    from uvloop import run
-# from asyncio import run  # uncomment for local dev and debugging
-
-
 app = typer.Typer()
 
 
@@ -55,7 +48,6 @@ _disable_cache_option = typer.Option(
     help="Flag whether to disable caching for vulnerability http requests",
 )
 
-
 _ignore_option = typer.Option(
     None,
     "--ignore",
@@ -92,6 +84,16 @@ def main(
     version: bool = _version_option,
 ) -> None:
     """Parse uv.lock files, check vulnerabilities, and display summary."""
+
+    # Use uvloop or winloop if present
+    try:
+        if sys.platform in {"win32", "cygwin", "cli"}:
+            from winloop import run
+        else:
+            from uvloop import run
+    except ImportError:
+        from asyncio import run
+
     run_status = run(
         check_lock_files(file_paths, aliases, desc, disable_cache, ignore, config_path)
     )
