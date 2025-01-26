@@ -2,7 +2,8 @@ import sys
 from typing import Optional
 
 from anyio import Path
-from pydantic import BaseModel
+
+from uv_secure.configuration.configuration import Configuration, OverrideConfiguration
 
 
 if sys.version_info >= (3, 11):
@@ -11,31 +12,35 @@ else:
     import tomli as toml
 
 
-class Configuration(BaseModel):
-    aliases: Optional[bool] = None
-    desc: Optional[bool] = None
-    ignore_vulnerabilities: Optional[set[str]] = None
-
-
 def config_cli_arg_factory(
-    aliases: Optional[bool], desc: Optional[bool], ignore: Optional[str]
-) -> Configuration:
+    aliases: Optional[bool],
+    desc: Optional[bool],
+    disable_cache: Optional[bool],
+    ignore: Optional[str],
+) -> OverrideConfiguration:
     """Factory to create a uv-secure configuration from its command line arguments
 
     Args:
+        aliases: Flag whether to show vulnerability aliases in results
+        desc: Flag whether to show vulnerability descriptions in results
+        disable_cache: Flag whether to disable cache
         ignore: comma separated string of vulnerability ids to ignore
 
     Returns
     -------
-        uv-secure configuration object
+        uv-secure override configuration object
     """
     ignore_vulnerabilities = (
         {vuln_id.strip() for vuln_id in ignore.split(",") if vuln_id.strip()}
         if ignore is not None
         else None
     )
-    return Configuration(
-        aliases=aliases, desc=desc, ignore_vulnerabilities=ignore_vulnerabilities
+
+    return OverrideConfiguration(
+        aliases=aliases,
+        desc=desc,
+        disable_cache=disable_cache,
+        ignore_vulnerabilities=ignore_vulnerabilities,
     )
 
 

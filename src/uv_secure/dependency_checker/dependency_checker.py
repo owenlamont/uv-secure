@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from anyio import Path as APath
+from hishel import AsyncFileStorage
 import inflect
 from rich.console import Console, ConsoleRenderable
 from rich.panel import Panel
@@ -15,6 +16,7 @@ from uv_secure.configuration import (
     config_cli_arg_factory,
     config_file_factory,
     Configuration,
+    override_config,
 )
 from uv_secure.directory_scanner import get_dependency_file_to_config_map
 from uv_secure.package_info import (
@@ -44,6 +46,14 @@ async def check_dependencies(
         )
         return 2, console_outputs
 
+    # I found antivirus programs (specifically Windows Defender) can almost fully
+    # negate the benefits of using a file cache if you don't exclude the virus checker
+    # from checking the cache dir given it is frequently read from
+    storage = AsyncFileStorage(
+        base_path=config.cache_settings.cache_path,
+        ttl=config.cache_settings.ttl_seconds,
+    )
+
     if dependency_file_path.name == "uv.lock":
         dependencies = await parse_uv_lock_file(dependency_file_path)
     else:  # Assume dependency_file_path.name == "requirements.txt"
@@ -57,7 +67,9 @@ async def check_dependencies(
         "...[/]"
     )
 
-    results = await download_vulnerabilities(dependencies)
+    results = await download_vulnerabilities(
+        dependencies, storage, config.cache_settings.disable_cache
+    )
 
     total_dependencies = len(results)
     vulnerable_count = 0
@@ -167,6 +179,7 @@ async def check_lock_files(
     file_paths: Optional[Sequence[Path]],
     aliases: Optional[bool],
     desc: Optional[bool],
+    disable_cache: Optional[bool],
     ignore: Optional[str],
     config_path: Optional[Path],
 ) -> RunStatus:
@@ -213,11 +226,9 @@ async def check_lock_files(
             return RunStatus.RUNTIME_ERROR
 
     if any((aliases, desc, ignore)):
-        override_config = config_cli_arg_factory(aliases, desc, ignore)
+        cli_config = config_cli_arg_factory(aliases, desc, disable_cache, ignore)
         lock_to_config_map = {
-            lock_file: config.model_copy(
-                update=override_config.model_dump(exclude_none=True)
-            )
+            lock_file: override_config(config, cli_config)
             for lock_file, config in lock_to_config_map.items()
         }
 

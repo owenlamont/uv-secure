@@ -45,6 +45,30 @@ pipx install uv-secure
 you can optionally install uv-secure as a development dependency in a virtual
 environment.
 
+## Optional Dependencies
+
+uv-secure uses highly asynchronous code to request multiple API responses or file opens
+concurrently. You can install uvloop on Linux/Mac or winloop on Windows to speed up the
+asynchronous event loop (at the expense of debuggability if you want to develop
+uv-secure yourself). Also note, winloop is a relatively young package and may give you
+some stability issues on particular versions of Python
+
+If you want to install the optional dependency with uv do it like this:
+
+```shell
+uv tool install uv-secure --with uvloop
+```
+
+or with pipx like this:
+
+```powershell
+pipx install uv-secure
+pipx inject uv-secure winloop
+```
+
+uv-secure will automatically use uvloop or winloop if it finds them in the same
+environment as itself.
+
 ## Usage
 
 After installation, you can run uv-secure --help to see the options.
@@ -68,6 +92,8 @@ After installation, you can run uv-secure --help to see the options.
 │                                     the vulnerabilities table                        │
 │ --desc                              Flag whether to include vulnerability detailed   │
 │                                     description in the vulnerabilities table         │
+│ --disable-cache                     Flag whether to disable caching for              │
+│                                     vulnerability http requests                      │
 │ --ignore              -i      TEXT  Comma-separated list of vulnerability IDs to     │
 │                                     ignore, e.g. VULN-123,VULN-456                   │
 │                                     [default: None]                                  │
@@ -101,8 +127,13 @@ uv-secure can read configuration from a toml file specified with the config opti
 
 ```toml
 ignore_vulnerabilities = ["VULN-123"]
-aliases = true
-desc = true
+aliases = true # Defaults to false
+desc = true # Defaults to false
+
+[cache_settings]
+cache_path = "~/.uv-secure" # Defaults to ~/.cache/uv-secure if not set
+ttl_seconds = 60.0 # Defaults to one day (86400 seconds) if not set
+disable_cache = false # Defaults to false if not set
 ```
 
 ### pyproject.toml
@@ -110,9 +141,38 @@ desc = true
 ```toml
 [tool.uv-secure]
 ignore_vulnerabilities = ["VULN-123"]
-aliases = true
-desc = true
+aliases = true # Defaults to false
+desc = true # Defaults to false
+
+[tool.uv-secure.cache_settings]
+cache_path = "~/.uv-secure" # Defaults to ~/.cache/uv-secure if not set
+ttl_seconds = 60.0 # Defaults to one day (86400 seconds) if not set
+disable_cache = false # Defaults to false if not set
 ```
+
+### File Caching
+
+File caching is enabled by default to speed up subsequent runs of uv-secure. By default,
+cache results are saved to:
+
+```shell
+~/.cache/uv-secure
+```
+
+or on Windows
+
+```powershell
+%USERPROFILE%\.cache\uv-secure
+```
+
+This can be configured to another location if you wish.
+
+#### Cache Performance on Windows
+
+I'm unsure about other operating systems, but I found on Windows unless I excluded the
+cache directory from the _Virus & threat protection settings_ the file caching only made
+a minimal performance improvement on subsequent runs (whereas it can speed up subsequent
+runs over 50% if you add the cache directory as an exclusion).
 
 ### Configuration discovery
 
@@ -123,7 +183,7 @@ uv-secure tries to follow
 [Ruff's configuration file discovery strategy](https://docs.astral.sh/ruff/configuration/#config-file-discovery)
 
 Similar to Ruff, pyproject.toml files that don't contain uv-secure configuration are
-ignored. Currently if multiple uv-secure configuration files are defined in the same
+ignored. Currently, if multiple uv-secure configuration files are defined in the same
 directory upstream from a uv.lock file the configurations are used in this precedence
 order:
 
@@ -150,7 +210,7 @@ uv-secure can be run as a pre-commit hook by adding this configuration to your
 
 ```yaml
   - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.6.0
+    rev: 0.7.0
     hooks:
       - id: uv-secure
 ```
@@ -167,13 +227,11 @@ Or manually check the latest release and update the _rev_ value accordingly.
 
 Below are some ideas (in no particular order) I have for improving uv-secure:
 
+- Add package metadata checks, i.e. age of most recent release threshold
 - Package for conda on conda-forge
-- Create contributor guide and coding standards doc
 - Add rate limiting on how hard the PyPi json API is hit to query package
   vulnerabilities (this hasn't been a problem yet, but I suspect may be for uv.lock
   files with many dependencies)
-- Explore some local caching for recording known vulnerabilities for specific package
-  versions to speed up re-runs
 - Add support for other lock file formats beyond uv.lock
 - Support some of the other output file formats pip-audit does
 - Consider adding support for scanning dependencies from the current venv
@@ -221,31 +279,16 @@ installed by default, so I request PyCharm _Install packaging tool_ in the
 _Python Interpreter_ settings (I may just add these in future are dev dependencies to
 reduce the friction if this causes others too much pain). I have also encountered some
 test failures on Windows if you use winloop with setuptools and pip - so you probably do
-want  to switch to the asyncio eventloop if installing those (I'm hoping to continue
-using winloop, but it's a relatively young project and has some rough edges - I may drop
-it as a dependency on Windows if it causes to many issues).
+want to remove winloop if debugging in that environment if you added it.
 
 #### Debugging Async Code
 
 Given uv-secure is often IO bound waiting on API responses or file reads I've tried to
-make it as asynchronous as I can. uv-secure also uses uvloop and winloop which should be
-more performant than the vanilla asyncio event loop - but they don't play nice with
-Python debuggers. The hacky way at present to use asyncio event loop when debugging is
-uncommenting the run import in run.py:
-
-```python
-if sys.platform in ("win32", "cygwin", "cli"):
-    from winloop import run
-else:
-    from uvloop import run
-# from asyncio import run  # uncomment for local dev and debugging
-```
-
-I definitely want to come up with a nicer scheme in the future. Either make the import
-depend on an environment variable to set local development, or perhaps make uvloop and
-winloop extra dependencies with asyncio event loop being the fallback so you can choose
-not to include them (I need to research best/common practise here some more and pick
-something).
+make it as asynchronous as I can. uv-secure also uses uvloop and winloop if installed
+which should be more performant than the vanilla asyncio event loop - but they don't
+play nice with Python debuggers. If you intend to do debugging I suggest leaving them
+out of the virtual environment. By default, winloop or uvloop won't be installed the
+repo venv unless you explicitly add them.
 
 ## Related Work and Motivation
 

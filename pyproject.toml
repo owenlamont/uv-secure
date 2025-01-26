@@ -32,15 +32,13 @@ classifiers = [
 dependencies = [
     "anyio>=4.7.0",
     "asyncer>=0.0.8",
+    "hishel>=0.1.1",
     "httpx>=0.28.1",
     "inflect>=7.4.0",
     "pydantic>=2.10.3",
-    "pytest-asyncio>=0.25.2",
     "rich>=13.9.4",
     'tomli; python_version < "3.11"',
     "typer>=0.15.1",
-    "uvloop>=0.21.0 ; sys_platform != 'win32'",
-    "winloop>=0.1.7 ; sys_platform == 'win32'",
 ]
 
 [project.scripts]
@@ -98,7 +96,7 @@ init_typed = true
 warn_required_dynamic_aliases = true
 
 [tool.pytest.ini_options]
-asyncio_default_fixture_loop_scope = "function"
+asyncio_default_fixture_loop_scope = "session"
 filterwarnings = [
     "error",
     "ignore::ResourceWarning" # Disabling as I think pytest-httpx is somehow causing
@@ -200,6 +198,7 @@ convention = "google"
 dev = [
     "coverage>=7.6.9",
     "pytest>=8.3.4",
+    "pytest-asyncio>=0.25.2",
     "pytest-cov>=6.0.0",
     "pytest-httpx>=0.35.0",
     "pytest-mock>=3.14.0",
