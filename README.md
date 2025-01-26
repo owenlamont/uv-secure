@@ -126,6 +126,30 @@ ttl_seconds = 60.0 # Defaults to one day (86400 seconds) if not set
 disable_cache = false # Defaults to true if not set
 ```
 
+### File Caching
+
+File caching is enabled by default to speed up subsequent runs of uv-secure. By default,
+cache results are saved to:
+
+```shell
+~/.cache/uv-secure
+```
+
+or on Windows
+
+```powershell
+%USERPROFILE%\.cache\uv-secure
+```
+
+This can be configured to another location if you wish.
+
+#### Cache Performance on Windows
+
+I'm unsure about other operating systems, but I found on Windows unless I excluded the
+cache directory from the _Virus & threat protection settings_ the file caching only made
+a minimal performance improvement on subsequent runs (whereas it can speed up subsequent
+runs over 50% if you add the cache directory as an exclusion).
+
 ### Configuration discovery
 
 If the ignore and config options are left unset uv-secure will search for configuration
@@ -135,7 +159,7 @@ uv-secure tries to follow
 [Ruff's configuration file discovery strategy](https://docs.astral.sh/ruff/configuration/#config-file-discovery)
 
 Similar to Ruff, pyproject.toml files that don't contain uv-secure configuration are
-ignored. Currently if multiple uv-secure configuration files are defined in the same
+ignored. Currently, if multiple uv-secure configuration files are defined in the same
 directory upstream from a uv.lock file the configurations are used in this precedence
 order:
 
@@ -162,7 +186,7 @@ uv-secure can be run as a pre-commit hook by adding this configuration to your
 
 ```yaml
   - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.6.0
+    rev: 0.7.0
     hooks:
       - id: uv-secure
 ```
