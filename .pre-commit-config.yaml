@@ -22,11 +22,11 @@ repos:
       - id: mixed-line-ending
         args: [--fix=lf]
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.23.1
+    rev: v8.23.2
     hooks:
       - id: gitleaks
   - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.43.0
+    rev: v0.44.0
     hooks:
       - id: markdownlint
         args: [--fix]
@@ -53,7 +53,7 @@ repos:
           # --write-changes (Don't use this to stop typos making auto-corrections)
         ]
   - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.6.0
+    rev: 0.7.0
     hooks:
       - id: uv-secure
   - repo: https://github.com/adrienverge/yamllint.git

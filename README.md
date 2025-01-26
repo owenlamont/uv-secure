@@ -210,7 +210,7 @@ uv-secure can be run as a pre-commit hook by adding this configuration to your
 
 ```yaml
   - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.7.0
+    rev: 0.7.1
     hooks:
       - id: uv-secure
 ```
@@ -227,7 +227,7 @@ Or manually check the latest release and update the _rev_ value accordingly.
 
 Below are some ideas (in no particular order) I have for improving uv-secure:
 
-- Add package metadata checks, i.e. age of most recent release threshold
+- Add package metadata checks, e.g. age of most recent release threshold
 - Package for conda on conda-forge
 - Add rate limiting on how hard the PyPi json API is hit to query package
   vulnerabilities (this hasn't been a problem yet, but I suspect may be for uv.lock

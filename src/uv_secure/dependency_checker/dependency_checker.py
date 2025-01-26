@@ -225,7 +225,7 @@ async def check_lock_files(
             )
             return RunStatus.RUNTIME_ERROR
 
-    if any((aliases, desc, ignore)):
+    if any((aliases, desc, ignore, disable_cache)):
         cli_config = config_cli_arg_factory(aliases, desc, disable_cache, ignore)
         lock_to_config_map = {
             lock_file: override_config(config, cli_config)
