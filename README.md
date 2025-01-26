@@ -68,6 +68,8 @@ After installation, you can run uv-secure --help to see the options.
 │                                     the vulnerabilities table                        │
 │ --desc                              Flag whether to include vulnerability detailed   │
 │                                     description in the vulnerabilities table         │
+│ --disable-cache                     Flag whether to disable caching for              │
+│                                     vulnerability http requests                      │
 │ --ignore              -i      TEXT  Comma-separated list of vulnerability IDs to     │
 │                                     ignore, e.g. VULN-123,VULN-456                   │
 │                                     [default: None]                                  │
@@ -101,8 +103,13 @@ uv-secure can read configuration from a toml file specified with the config opti
 
 ```toml
 ignore_vulnerabilities = ["VULN-123"]
-aliases = true
-desc = true
+aliases = true # Defaults to false
+desc = true # Defaults to false
+
+[cache_settings]
+cache_path = "~/.uv-secure" # Defaults to ~/.cache/uv-secure if not set
+ttl_seconds = 60.0 # Defaults to one day (86400 seconds) if not set
+disable_cache = false # Defaults to true if not set
 ```
 
 ### pyproject.toml
@@ -110,8 +117,13 @@ desc = true
 ```toml
 [tool.uv-secure]
 ignore_vulnerabilities = ["VULN-123"]
-aliases = true
-desc = true
+aliases = true # Defaults to false
+desc = true # Defaults to false
+
+[tool.uv-secure.cache_settings]
+cache_path = "~/.uv-secure" # Defaults to ~/.cache/uv-secure if not set
+ttl_seconds = 60.0 # Defaults to one day (86400 seconds) if not set
+disable_cache = false # Defaults to true if not set
 ```
 
 ### Configuration discovery
@@ -167,13 +179,11 @@ Or manually check the latest release and update the _rev_ value accordingly.
 
 Below are some ideas (in no particular order) I have for improving uv-secure:
 
+- Add package metadata checks, i.e. age of most recent release threshold
 - Package for conda on conda-forge
-- Create contributor guide and coding standards doc
 - Add rate limiting on how hard the PyPi json API is hit to query package
   vulnerabilities (this hasn't been a problem yet, but I suspect may be for uv.lock
   files with many dependencies)
-- Explore some local caching for recording known vulnerabilities for specific package
-  versions to speed up re-runs
 - Add support for other lock file formats beyond uv.lock
 - Support some of the other output file formats pip-audit does
 - Consider adding support for scanning dependencies from the current venv
