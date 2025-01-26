@@ -133,7 +133,7 @@ desc = true # Defaults to false
 [cache_settings]
 cache_path = "~/.uv-secure" # Defaults to ~/.cache/uv-secure if not set
 ttl_seconds = 60.0 # Defaults to one day (86400 seconds) if not set
-disable_cache = false # Defaults to true if not set
+disable_cache = false # Defaults to false if not set
 ```
 
 ### pyproject.toml
@@ -147,7 +147,7 @@ desc = true # Defaults to false
 [tool.uv-secure.cache_settings]
 cache_path = "~/.uv-secure" # Defaults to ~/.cache/uv-secure if not set
 ttl_seconds = 60.0 # Defaults to one day (86400 seconds) if not set
-disable_cache = false # Defaults to true if not set
+disable_cache = false # Defaults to false if not set
 ```
 
 ### File Caching
