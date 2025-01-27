@@ -24,6 +24,67 @@ from uv_secure.package_info import (
     parse_requirements_txt_file,
     parse_uv_lock_file,
 )
+from uv_secure.package_info.dependency_file_parser import Dependency
+from uv_secure.package_info.vulnerability_downloader import Vulnerability
+
+
+def _render_vulnerability_table(
+    config: Configuration,
+    dependency_vulnerabilities: Iterable[tuple[Dependency, Iterable[Vulnerability]]],
+) -> Table:
+    table = Table(
+        title="Vulnerable Dependencies",
+        show_header=True,
+        row_styles=["none", "dim"],
+        header_style="bold magenta",
+        expand=True,
+    )
+    table.add_column("Package", min_width=8, max_width=40)
+    table.add_column("Version", min_width=10, max_width=20)
+    table.add_column("Vulnerability ID", style="bold cyan", min_width=20, max_width=24)
+    table.add_column("Fix Versions", min_width=10, max_width=20)
+    if config.aliases:
+        table.add_column("Aliases", min_width=20, max_width=24)
+    if config.desc:
+        table.add_column("Details", min_width=8)
+    for dep, vulnerabilities in dependency_vulnerabilities:
+        for vuln in vulnerabilities:
+            vuln_id_hyperlink = (
+                Text.assemble((vuln.id, f"link {vuln.link}"))
+                if vuln.link
+                else Text(vuln.id)
+            )
+            renderables = [
+                dep.name,
+                dep.version,
+                vuln_id_hyperlink,
+                ", ".join(vuln.fixed_in) if vuln.fixed_in else "",
+            ]
+            if config.aliases:
+                alias_links = []
+                for alias in vuln.aliases or []:
+                    hyperlink = None
+                    if alias.startswith("CVE-"):
+                        hyperlink = (
+                            f"https://cve.mitre.org/cgi-bin/cvename.cgi?name={alias}"
+                        )
+                    elif alias.startswith("GHSA-"):
+                        hyperlink = f"https://github.com/advisories/{alias}"
+                    elif alias.startswith("PYSEC-"):
+                        hyperlink = f"https://github.com/pypa/advisory-database/blob/main/vulns/{dep.name}/{alias}.yaml"
+                    elif alias.startswith("OSV-"):
+                        hyperlink = f"https://osv.dev/vulnerability/{alias}"
+                    if hyperlink:
+                        alias_links.append(Text.assemble((alias, f"link {hyperlink}")))
+                    else:
+                        alias_links.append(Text(alias))
+                renderables.append(
+                    Text(", ").join(alias_links) if alias_links else Text("")
+                )
+            if config.desc:
+                renderables.append(vuln.details)
+            table.add_row(*renderables)
+    return table
 
 
 async def check_dependencies(
@@ -100,61 +161,7 @@ async def check_dependencies(
             )
         )
 
-        table = Table(
-            title="Vulnerable Dependencies",
-            show_header=True,
-            row_styles=["none", "dim"],
-            header_style="bold magenta",
-            expand=True,
-        )
-        table.add_column("Package", min_width=8, max_width=40)
-        table.add_column("Version", min_width=10, max_width=20)
-        table.add_column(
-            "Vulnerability ID", style="bold cyan", min_width=20, max_width=24
-        )
-        table.add_column("Fix Versions", min_width=10, max_width=20)
-        if config.aliases:
-            table.add_column("Aliases", min_width=20, max_width=24)
-        if config.desc:
-            table.add_column("Details", min_width=8)
-
-        for dep, vulnerabilities in vulnerabilities_found:
-            for vuln in vulnerabilities:
-                vuln_id_hyperlink = (
-                    Text.assemble((vuln.id, f"link {vuln.link}"))
-                    if vuln.link
-                    else Text(vuln.id)
-                )
-                renderables = [
-                    dep.name,
-                    dep.version,
-                    vuln_id_hyperlink,
-                    ", ".join(vuln.fixed_in) if vuln.fixed_in else "",
-                ]
-                if config.aliases:
-                    alias_links = []
-                    for alias in vuln.aliases or []:
-                        hyperlink = None
-                        if alias.startswith("CVE-"):
-                            hyperlink = f"https://cve.mitre.org/cgi-bin/cvename.cgi?name={alias}"
-                        elif alias.startswith("GHSA-"):
-                            hyperlink = f"https://github.com/advisories/{alias}"
-                        elif alias.startswith("PYSEC-"):
-                            hyperlink = f"https://github.com/pypa/advisory-database/blob/main/vulns/{dep.name}/{alias}.yaml"
-                        elif alias.startswith("OSV-"):
-                            hyperlink = f"https://osv.dev/vulnerability/{alias}"
-                        if hyperlink:
-                            alias_links.append(
-                                Text.assemble((alias, f"link {hyperlink}"))
-                            )
-                        else:
-                            alias_links.append(Text(alias))
-                    renderables.append(
-                        Text(", ").join(alias_links) if alias_links else Text("")
-                    )
-                if config.desc:
-                    renderables.append(vuln.details)
-                table.add_row(*renderables)
+        table = _render_vulnerability_table(config, vulnerabilities_found)
 
         console_outputs.append(table)
         return 1, console_outputs
