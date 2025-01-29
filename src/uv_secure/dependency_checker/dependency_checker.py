@@ -20,17 +20,15 @@ from uv_secure.configuration import (
 )
 from uv_secure.directory_scanner import get_dependency_file_to_config_map
 from uv_secure.package_info import (
-    download_vulnerabilities,
+    download_packages,
+    Package,
     parse_requirements_txt_file,
     parse_uv_lock_file,
 )
-from uv_secure.package_info.dependency_file_parser import Dependency
-from uv_secure.package_info.vulnerability_downloader import Vulnerability
 
 
 def _render_vulnerability_table(
-    config: Configuration,
-    dependency_vulnerabilities: Iterable[tuple[Dependency, Iterable[Vulnerability]]],
+    config: Configuration, vulnerable_packages: Iterable[Package]
 ) -> Table:
     table = Table(
         title="Vulnerable Dependencies",
@@ -47,16 +45,16 @@ def _render_vulnerability_table(
         table.add_column("Aliases", min_width=20, max_width=24)
     if config.desc:
         table.add_column("Details", min_width=8)
-    for dep, vulnerabilities in dependency_vulnerabilities:
-        for vuln in vulnerabilities:
+    for package in vulnerable_packages:
+        for vuln in package.vulnerabilities:
             vuln_id_hyperlink = (
                 Text.assemble((vuln.id, f"link {vuln.link}"))
                 if vuln.link
                 else Text(vuln.id)
             )
             renderables = [
-                dep.name,
-                dep.version,
+                package.info.name,
+                package.info.version,
                 vuln_id_hyperlink,
                 ", ".join(vuln.fixed_in) if vuln.fixed_in else "",
             ]
@@ -71,7 +69,7 @@ def _render_vulnerability_table(
                     elif alias.startswith("GHSA-"):
                         hyperlink = f"https://github.com/advisories/{alias}"
                     elif alias.startswith("PYSEC-"):
-                        hyperlink = f"https://github.com/pypa/advisory-database/blob/main/vulns/{dep.name}/{alias}.yaml"
+                        hyperlink = f"https://github.com/pypa/advisory-database/blob/main/vulns/{package.info.name}/{alias}.yaml"
                     elif alias.startswith("OSV-"):
                         hyperlink = f"https://osv.dev/vulnerability/{alias}"
                     if hyperlink:
@@ -125,32 +123,38 @@ async def check_dependencies(
 
     console_outputs.append(
         f"[bold cyan]Checking {dependency_file_path} dependencies for vulnerabilities"
-        "...[/]"
+        "...[/]\n"
     )
 
-    results = await download_vulnerabilities(
+    packages = await download_packages(
         dependencies, storage, config.cache_settings.disable_cache
     )
 
-    total_dependencies = len(results)
+    total_dependencies = len(packages)
     vulnerable_count = 0
-    vulnerabilities_found = []
+    vulnerable_packages = []
 
-    for dep, vulnerabilities in results:
+    for idx, package in enumerate(packages):
+        if isinstance(package, BaseException):
+            console_outputs.append(
+                f"[bold red]Error:[/] {dependencies[idx]} raised exception: {package}"
+            )
+            continue
+
         # Filter out ignored vulnerabilities
-        filtered_vulnerabilities = [
+        package.vulnerabilities = [
             vuln
-            for vuln in vulnerabilities
+            for vuln in package.vulnerabilities
             if config.ignore_vulnerabilities is None
             or vuln.id not in config.ignore_vulnerabilities
         ]
-        if filtered_vulnerabilities:
-            vulnerable_count += 1
-            vulnerabilities_found.append((dep, filtered_vulnerabilities))
+        if len(package.vulnerabilities) > 0:
+            vulnerable_count += len(package.vulnerabilities)
+            vulnerable_packages.append(package)
 
     inf = inflect.engine()
     total_plural = inf.plural("dependency", total_dependencies)
-    vulnerable_plural = inf.plural("dependency", vulnerable_count)
+    vulnerable_plural = inf.plural("vulnerability", vulnerable_count)
 
     if vulnerable_count > 0:
         console_outputs.append(
@@ -161,7 +165,7 @@ async def check_dependencies(
             )
         )
 
-        table = _render_vulnerability_table(config, vulnerabilities_found)
+        table = _render_vulnerability_table(config, vulnerable_packages)
 
         console_outputs.append(table)
         return 1, console_outputs

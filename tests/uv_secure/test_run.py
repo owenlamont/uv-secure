@@ -167,7 +167,26 @@ def temp_double_nested_uv_lock_file(tmp_path: Path) -> Path:
 def no_vulnerabilities_response(httpx_mock: HTTPXMock) -> HTTPXMock:
     httpx_mock.add_response(
         url="https://pypi.org/pypi/example-package/1.0.0/json",
-        json={"vulnerabilities": []},
+        json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "A minimal package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "A minimal package example",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
+            "vulnerabilities": [],
+        },
     )
     return httpx_mock
 
@@ -177,6 +196,23 @@ def one_vulnerability_response(httpx_mock: HTTPXMock) -> HTTPXMock:
     httpx_mock.add_response(
         url="https://pypi.org/pypi/example-package/1.0.0/json",
         json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "A minimal package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "A minimal package example",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
             "vulnerabilities": [
                 {
                     "aliases": ["CVE-2024-12345"],
@@ -185,7 +221,7 @@ def one_vulnerability_response(httpx_mock: HTTPXMock) -> HTTPXMock:
                     "fixed_in": ["1.0.1"],
                     "link": "https://example.com/vuln-123",
                 }
-            ]
+            ],
         },
     )
     return httpx_mock
@@ -210,6 +246,23 @@ def jinja2_two_longer_vulnerability_responses(httpx_mock: HTTPXMock) -> HTTPXMoc
     httpx_mock.add_response(
         url="https://pypi.org/pypi/jinja2/3.1.4/json",
         json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "Jinja2 templating",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "jinja2",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/jinja2/3.1.4/",
+                "requires_python": ">=3.9",
+                "summary": "Jinja templating",
+                "version": "3.1.4",
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
             "vulnerabilities": [
                 {
                     "aliases": ["CVE-2024-56326"],
@@ -256,7 +309,7 @@ def jinja2_two_longer_vulnerability_responses(httpx_mock: HTTPXMock) -> HTTPXMoc
                     "summary": None,
                     "withdrawn": None,
                 },
-            ]
+            ],
         },
     )
     return httpx_mock
@@ -267,6 +320,23 @@ def one_vulnerability_response_v2(httpx_mock: HTTPXMock) -> HTTPXMock:
     httpx_mock.add_response(
         url="https://pypi.org/pypi/example-package/2.0.0/json",
         json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "A minimal package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/2.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "A minimal package example",
+                "version": "2.0.0",
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
             "vulnerabilities": [
                 {
                     "id": "VULN-123",
@@ -274,7 +344,7 @@ def one_vulnerability_response_v2(httpx_mock: HTTPXMock) -> HTTPXMock:
                     "fixed_in": ["2.0.1"],
                     "link": "https://example.com/vuln-123",
                 }
-            ]
+            ],
         },
     )
     return httpx_mock
@@ -406,7 +476,9 @@ def test_app_failed_vulnerability_request(
     result = runner.invoke(app, [str(temp_uv_lock_file)], "--disable-cache")
 
     assert result.exit_code == 0
-    assert "Error fetching example-package==1.0.0: Request failed" in result.output
+    assert (
+        "Error: name='example-package' version='1.0.0' raised exception: Request failed"
+    ) in result.output
     assert "No vulnerabilities detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "All dependencies appear safe!" in result.output
@@ -418,7 +490,11 @@ def test_app_package_not_found(
     result = runner.invoke(app, [str(temp_uv_lock_file)], "--disable-cache")
 
     assert result.exit_code == 0
-    assert "Warning: Could not fetch data for example-package==1.0.0" in result.output
+    assert (
+        "Error: name='example-package' version='1.0.0' raised exception: Client "
+        "error '404 Not Found' for url "
+        "'https://pypi.org/pypi/example-package/1.0.0/json'"
+    ) in result.output
     assert "No vulnerabilities detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "All dependencies appear safe!" in result.output
@@ -446,7 +522,7 @@ def test_check_dependencies_with_vulnerability(
     assert result.exit_code == 1
     assert "Vulnerabilities detected!" in result.output
     assert "Checked: 1 dependency" in result.output
-    assert "Vulnerable: 1 dependency" in result.output
+    assert "Vulnerable: 1 vulnerability" in result.output
     assert "example-package" in result.output
     assert "1.0.0" in result.output
     assert "VULN-123" in result.output
@@ -484,7 +560,7 @@ def test_check_dependencies_with_two_longer_vulnerabilities(
     assert result.exit_code == 1
     assert "Vulnerabilities detected!" in result.output
     assert "Checked: 1 dependency" in result.output
-    assert "Vulnerable: 1 dependency" in result.output
+    assert "Vulnerable: 2 vulnerabilities" in result.output
     assert result.output.count("jinja2") == 2
     assert result.output.count("3.1.4") == 2
     assert result.output.count("3.1.5") == 2
@@ -516,7 +592,7 @@ def test_check_dependencies_with_vulnerability_pyproject_all_columns_configured(
     assert result.exit_code == 1
     assert "Vulnerabilities detected!" in result.output
     assert "Checked: 1 dependency" in result.output
-    assert "Vulnerable: 1 dependency" in result.output
+    assert "Vulnerable: 1 vulnerability" in result.output
     assert "example-package" in result.output
     assert "1.0.0" in result.output
     assert "VULN-123" in result.output
@@ -537,7 +613,7 @@ def test_check_dependencies_with_vulnerability_uv_secure_all_columns_configured(
     assert result.exit_code == 1
     assert "Vulnerabilities detected!" in result.output
     assert "Checked: 1 dependency" in result.output
-    assert "Vulnerable: 1 dependency" in result.output
+    assert "Vulnerable: 1 vulnerability" in result.output
     assert "example-package" in result.output
     assert "1.0.0" in result.output
     assert "VULN-123" in result.output
@@ -573,7 +649,7 @@ def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_overr
 
     assert "Vulnerabilities detected!" in result.output
     assert "Checked: 1 dependency" in result.output
-    assert "Vulnerable: 1 dependency" in result.output
+    assert "Vulnerable: 1 vulnerability" in result.output
     assert "example-package" in result.output
     assert "1.0.0" in result.output
     assert "VULN-123" in result.output

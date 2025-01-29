@@ -35,7 +35,7 @@ dependencies = [
     "hishel>=0.1.1",
     "httpx>=0.28.1",
     "inflect>=7.4.0",
-    "pydantic>=2.10.3",
+    "pydantic[email]>=2.10.3",
     "rich>=13.9.4",
     'tomli; python_version < "3.11"',
     "typer>=0.15.1",
@@ -197,9 +197,11 @@ convention = "google"
 [dependency-groups]
 dev = [
     "coverage>=7.6.9",
+    "pip>=25.0",
     "pytest>=8.3.4",
     "pytest-asyncio>=0.25.2",
     "pytest-cov>=6.0.0",
     "pytest-httpx>=0.35.0",
     "pytest-mock>=3.14.0",
+    "setuptools>=75.8.0",
 ]
