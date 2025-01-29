@@ -3,7 +3,7 @@ import re
 from typing import Optional, Union
 
 from hishel import AsyncCacheClient, AsyncFileStorage
-from pydantic import BaseModel, EmailStr, HttpUrl
+from pydantic import BaseModel
 
 from uv_secure.package_info.dependency_file_parser import Dependency
 
@@ -16,32 +16,32 @@ class Downloads(BaseModel):
 
 class Info(BaseModel):
     author: Optional[str] = None
-    author_email: str
-    bugtrack_url: Optional[HttpUrl] = None
+    author_email: Optional[str] = None
+    bugtrack_url: Optional[str] = None
     classifiers: list[str]
     description: str
-    description_content_type: str
-    docs_url: Optional[HttpUrl] = None
-    download_url: Optional[HttpUrl] = None
+    description_content_type: Optional[str] = None
+    docs_url: Optional[str] = None
+    download_url: Optional[str] = None
     downloads: Downloads
-    dynamic: Optional[str] = None
-    home_page: Optional[HttpUrl] = None
+    dynamic: Optional[Union[list[str], str]] = None
+    home_page: Optional[str] = None
     keywords: Optional[Union[str, list[str]]] = None
     license: Optional[str] = None
     license_expression: Optional[str] = None
     license_files: Optional[list[str]] = None
     maintainer: Optional[str] = None
-    maintainer_email: Optional[EmailStr] = None
+    maintainer_email: Optional[str] = None
     name: str
-    package_url: Optional[HttpUrl] = None
+    package_url: Optional[str] = None
     platform: Optional[str] = None
-    project_url: Optional[HttpUrl] = None
-    project_urls: dict[str, HttpUrl]
-    provides_extra: list[str]
+    project_url: Optional[str] = None
+    project_urls: Optional[dict[str, str]] = None
+    provides_extra: Optional[list[str]] = None
     release_url: str
     requires_dist: Optional[list[str]] = None
-    requires_python: str
-    summary: str
+    requires_python: Optional[str] = None
+    summary: Optional[str] = None
     version: str
     yanked: bool
     yanked_reason: Optional[str] = None
@@ -54,7 +54,7 @@ class Digests(BaseModel):
 
 
 class Url(BaseModel):
-    comment_text: str
+    comment_text: Optional[str] = None
     digests: Digests
     downloads: int
     filename: str
@@ -62,7 +62,7 @@ class Url(BaseModel):
     md5_digest: str
     packagetype: str
     python_version: str
-    requires_python: str
+    requires_python: Optional[str] = None
     size: int
     upload_time: str
     upload_time_iso_8601: str
@@ -104,7 +104,12 @@ async def _download_package(
         url, extensions={"cache_disabled": True} if disable_cache else None
     )
     response.raise_for_status()
-    return PackageInfo(**response.json())
+    try:
+        info = PackageInfo(**response.json())
+    except Exception as exc:
+        print(exc)
+        raise exc
+    return info
 
 
 async def download_packages(
