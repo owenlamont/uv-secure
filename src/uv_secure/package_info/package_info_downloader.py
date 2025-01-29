@@ -82,7 +82,7 @@ class Vulnerability(BaseModel):
     withdrawn: Optional[str] = None
 
 
-class Package(BaseModel):
+class PackageInfo(BaseModel):
     info: Info
     last_serial: int
     urls: list[Url]
@@ -96,7 +96,7 @@ def _canonicalize_name(name: str) -> str:
 
 async def _download_package(
     client: AsyncCacheClient, dependency: Dependency, disable_cache: bool
-) -> Package:
+) -> PackageInfo:
     """Queries the PyPi JSON API for vulnerabilities of a given dependency."""
     canonical_name = _canonicalize_name(dependency.name)
     url = f"https://pypi.org/pypi/{canonical_name}/{dependency.version}/json"
@@ -104,12 +104,12 @@ async def _download_package(
         url, extensions={"cache_disabled": True} if disable_cache else None
     )
     response.raise_for_status()
-    return Package(**response.json())
+    return PackageInfo(**response.json())
 
 
 async def download_packages(
     dependencies: list[Dependency], storage: AsyncFileStorage, disable_cache: bool
-) -> list[Union[Package, BaseException]]:
+) -> list[Union[PackageInfo, BaseException]]:
     """Fetch vulnerabilities for all dependencies concurrently."""
     async with AsyncCacheClient(timeout=10, storage=storage) as client:
         tasks = [_download_package(client, dep, disable_cache) for dep in dependencies]

@@ -21,14 +21,14 @@ from uv_secure.configuration import (
 from uv_secure.directory_scanner import get_dependency_file_to_config_map
 from uv_secure.package_info import (
     download_packages,
-    Package,
+    PackageInfo,
     parse_requirements_txt_file,
     parse_uv_lock_file,
 )
 
 
 def _render_vulnerability_table(
-    config: Configuration, vulnerable_packages: Iterable[Package]
+    config: Configuration, vulnerable_packages: Iterable[PackageInfo]
 ) -> Table:
     table = Table(
         title="Vulnerable Dependencies",
