@@ -1,6 +1,8 @@
 import asyncio
+from datetime import datetime, timedelta
 import re
 from typing import Optional, Union
+from zoneinfo import ZoneInfo
 
 from hishel import AsyncCacheClient, AsyncFileStorage
 from pydantic import BaseModel
@@ -64,8 +66,8 @@ class Url(BaseModel):
     python_version: str
     requires_python: Optional[str] = None
     size: int
-    upload_time: str
-    upload_time_iso_8601: str
+    upload_time: datetime
+    upload_time_iso_8601: datetime
     url: str
     yanked: bool
     yanked_reason: Optional[str] = None
@@ -87,6 +89,29 @@ class PackageInfo(BaseModel):
     last_serial: int
     urls: list[Url]
     vulnerabilities: list[Vulnerability]
+
+    @property
+    def age(self) -> Optional[timedelta]:
+        """Return age of the package"""
+        release_date = min(
+            (url.upload_time_iso_8601 for url in self.urls), default=None
+        )
+        if release_date is None:
+            return None
+        return datetime.now(tz=ZoneInfo("UTC")) - release_date
+
+    @property
+    def yanked(self) -> bool:
+        """Return whether the package is yanked"""
+        return any(url.yanked for url in self.urls)
+
+    @property
+    def yanked_reason(self) -> Optional[str]:
+        """Return reason for yanked"""
+        for url in self.urls:
+            if url.yanked_reason:
+                return url.yanked_reason
+        return None
 
 
 def _canonicalize_name(name: str) -> str:

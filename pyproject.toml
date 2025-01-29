@@ -34,11 +34,13 @@ dependencies = [
     "asyncer>=0.0.8",
     "hishel>=0.1.1",
     "httpx>=0.28.1",
+    "humanize>=4.11.0",
     "inflect>=7.4.0",
     "pydantic[email]>=2.10.3",
     "rich>=13.9.4",
-    'tomli; python_version < "3.11"',
+    "tomli; python_version < '3.11'",
     "typer>=0.15.1",
+    "tzdata>=2025.1; sys_platform == 'win32'",
 ]
 
 [project.scripts]

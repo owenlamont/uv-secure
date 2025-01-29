@@ -228,6 +228,66 @@ def one_vulnerability_response(httpx_mock: HTTPXMock) -> HTTPXMock:
 
 
 @pytest.fixture
+def old_yanked_package_response(httpx_mock: HTTPXMock) -> HTTPXMock:
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "A minimal package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "A minimal package example",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [
+                {
+                    "comment_text": "",
+                    "digests": {
+                        "blake2b_256": (
+                            "0bf785273299ab57117850cc0a936c64151171fac4da49bc6fba0dad98"
+                            "4a7c5f"
+                        ),
+                        "md5": "8626f021f29631950dfad7b4c6435fc4",
+                        "sha256": (
+                            "8a3df80e2b2378aef598a83c1392efd47967afec4242021a0b06b4c7cb"
+                            "c61a92"
+                        ),
+                    },
+                    "downloads": -1,
+                    "filename": "example-package-1.0.0-py3-none-any.whl",
+                    "has_sig": False,
+                    "md5_digest": "8626f021f29631950dfad7b4c6435fc4",
+                    "packagetype": "bdist_wheel",
+                    "python_version": "py3",
+                    "requires_python": ">=3.7",
+                    "size": 15662,
+                    "upload_time": "2021-01-19T23:44:28",
+                    "upload_time_iso_8601": "2021-01-19T23:44:28.833863Z",
+                    "url": (
+                        "https://files.pythonhosted.org/packages/0b/f7/"
+                        "85273299ab57117850cc0a936c64151171fac4da49bc6fba0dad984a7c5f/"
+                        "example-package-1.0.0-py3-none-any.whl"
+                    ),
+                    "yanked": True,
+                    "yanked_reason": "Broken API",
+                }
+            ],
+            "vulnerabilities": [],
+        },
+    )
+    return httpx_mock
+
+
+@pytest.fixture
 def temp_uv_lock_file_jinja2(tmp_path: Path) -> Path:
     """Fixture to create a temporary uv.lock file with a single jinja2 dependency."""
     uv_lock_path = tmp_path / "uv.lock"
@@ -393,13 +453,13 @@ def test_app_version() -> None:
 
 def test_bad_file_name() -> None:
     result = runner.invoke(app, "i_dont_exist.txt")
-    assert result.exit_code == 2
+    assert result.exit_code == 3
     assert "Error" in result.output
 
 
 def test_missing_file(tmp_path: Path) -> None:
     result = runner.invoke(app, [str(tmp_path / "uv.lock")])
-    assert result.exit_code == 2
+    assert result.exit_code == 3
     assert "Error" in result.output
 
 
@@ -470,6 +530,23 @@ def test_app_no_vulnerabilities_relative_no_specified_path(
     assert "All dependencies appear safe!" in result.output
 
 
+def test_app_maintenance_issues_cli_args(
+    temp_uv_lock_file: Path, old_yanked_package_response: HTTPXMock
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            "--forbid-yanked",
+            "--max-age-days",
+            "1000",
+            "--disable-cache",
+        ],
+    )
+
+    assert result.exit_code == 1
+
+
 def test_app_failed_vulnerability_request(
     temp_uv_lock_file: Path, missing_vulnerability_response: HTTPXMock
 ) -> None:
@@ -519,7 +596,7 @@ def test_check_dependencies_with_vulnerability(
         app, [str(temp_uv_lock_file), *extra_cli_args, "--disable-cache"]
     )
 
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "Vulnerabilities detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "Vulnerable: 1 vulnerability" in result.output
@@ -546,7 +623,7 @@ def test_check_dependencies_with_vulnerability_narrow_console_vulnerability_ids_
         app, [str(temp_uv_lock_file_jinja2), "--aliases", "--desc", "--disable-cache"]
     )
 
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "GHSA-q2x7-8rv6-6q7h" in result.output
     assert "GHSA-gmj6-6f8f-6699" in result.output
 
@@ -557,7 +634,7 @@ def test_check_dependencies_with_two_longer_vulnerabilities(
     """Test check_dependencies with a single dependency and a single vulnerability."""
     result = runner.invoke(app, [str(temp_uv_lock_file_jinja2), "--disable-cache"])
 
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "Vulnerabilities detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "Vulnerable: 2 vulnerabilities" in result.output
@@ -589,7 +666,7 @@ def test_check_dependencies_with_vulnerability_pyproject_all_columns_configured(
     """Test check_dependencies with a single dependency and a single vulnerability."""
     result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
 
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "Vulnerabilities detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "Vulnerable: 1 vulnerability" in result.output
@@ -610,7 +687,7 @@ def test_check_dependencies_with_vulnerability_uv_secure_all_columns_configured(
 ) -> None:
     result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
 
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "Vulnerabilities detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "Vulnerable: 1 vulnerability" in result.output
@@ -734,7 +811,7 @@ def test_app_multiple_lock_files_one_vulnerabilities(
     result = runner.invoke(
         app, [str(temp_uv_lock_file), str(temp_nested_uv_lock_file), "--disable-cache"]
     )
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert result.output.count("No vulnerabilities detected!") == 1
     assert result.output.count("Vulnerabilities detected!") == 1
 
@@ -806,6 +883,6 @@ def test_app_multiple_lock_files_one_vulnerabilities_ignored_nested_pyproject_to
     result = runner.invoke(
         app, [str(temp_uv_lock_file), str(temp_nested_uv_lock_file), "--disable-cache"]
     )
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert result.output.count("No vulnerabilities detected!") == 1
     assert result.output.count("Vulnerabilities detected!") == 1

@@ -6,6 +6,7 @@ from typing import Optional
 
 from anyio import Path as APath
 from hishel import AsyncFileStorage
+import humanize
 import inflect
 from rich.console import Console, ConsoleRenderable
 from rich.panel import Panel
@@ -85,6 +86,35 @@ def _render_vulnerability_table(
     return table
 
 
+def _render_issue_table(
+    config: Configuration, maintenance_issue_packages: Iterable[PackageInfo]
+) -> Table:
+    table = Table(
+        title="Vulnerable Dependencies",
+        show_header=True,
+        row_styles=["none", "dim"],
+        header_style="bold magenta",
+        expand=True,
+    )
+    table.add_column("Package", min_width=8, max_width=40)
+    table.add_column("Version", min_width=10, max_width=20)
+    table.add_column("Yanked", style="bold cyan", min_width=10, max_width=10)
+    table.add_column("Yanked Reason", min_width=20, max_width=24)
+    table.add_column("Age", min_width=20, max_width=24)
+    for package in maintenance_issue_packages:
+        renderables = [
+            package.info.name,
+            package.info.version,
+            str(package.yanked),
+            package.yanked_reason if package.yanked_reason else "Unknown",
+            humanize.precisedelta(package.age, minimum_unit="days")
+            if package.age
+            else "Unknown",
+        ]
+        table.add_row(*renderables)
+    return table
+
+
 async def check_dependencies(
     dependency_file_path: APath, config: Configuration
 ) -> tuple[int, Iterable[ConsoleRenderable]]:
@@ -103,7 +133,7 @@ async def check_dependencies(
         console_outputs.append(
             f"[bold red]Error:[/] File {dependency_file_path} does not exist."
         )
-        return 2, console_outputs
+        return 3, console_outputs
 
     # I found antivirus programs (specifically Windows Defender) can almost fully
     # negate the benefits of using a file cache if you don't exclude the virus checker
@@ -133,6 +163,7 @@ async def check_dependencies(
     total_dependencies = len(packages)
     vulnerable_count = 0
     vulnerable_packages = []
+    maintenance_issue_packages = []
 
     for idx, package in enumerate(packages):
         if isinstance(package, BaseException):
@@ -152,10 +183,22 @@ async def check_dependencies(
             vulnerable_count += len(package.vulnerabilities)
             vulnerable_packages.append(package)
 
+        found_rejected_yanked_package = (
+            config.maintainability_criteria.forbid_yanked and package.yanked
+        )
+        found_over_age_package = (
+            config.maintainability_criteria.max_dependency_age is not None
+            and package.age is not None
+            and package.age > config.maintainability_criteria.max_dependency_age
+        )
+        if found_rejected_yanked_package or found_over_age_package:
+            maintenance_issue_packages.append(package)
+
     inf = inflect.engine()
     total_plural = inf.plural("dependency", total_dependencies)
     vulnerable_plural = inf.plural("vulnerability", vulnerable_count)
 
+    status = 0
     if vulnerable_count > 0:
         console_outputs.append(
             Panel.fit(
@@ -164,26 +207,40 @@ async def check_dependencies(
                 f"Vulnerable: [bold]{vulnerable_count}[/] {vulnerable_plural}"
             )
         )
-
         table = _render_vulnerability_table(config, vulnerable_packages)
-
         console_outputs.append(table)
-        return 1, console_outputs
+        status = 2
 
-    console_outputs.append(
-        Panel.fit(
-            f"[bold green]No vulnerabilities detected![/]\n"
-            f"Checked: [bold]{total_dependencies}[/] {total_plural}\n"
-            f"All dependencies appear safe!"
+    issue_count = len(maintenance_issue_packages)
+    issue_plural = inf.plural("issue", vulnerable_count)
+    if len(maintenance_issue_packages) > 0:
+        console_outputs.append(
+            Panel.fit(
+                f"[bold yellow]Maintenance Issues detected![/]\n"
+                f"Checked: [bold]{total_dependencies}[/] {total_plural}\n"
+                f"Issues: [bold]{issue_count}[/] {issue_plural}"
+            )
         )
-    )
-    return 0, console_outputs
+        table = _render_issue_table(config, maintenance_issue_packages)
+        console_outputs.append(table)
+        status = max(status, 1)
+
+    if status == 0:
+        console_outputs.append(
+            Panel.fit(
+                f"[bold green]No vulnerabilities detected![/]\n"
+                f"Checked: [bold]{total_dependencies}[/] {total_plural}\n"
+                f"All dependencies appear safe!"
+            )
+        )
+    return status, console_outputs
 
 
 class RunStatus(Enum):
     NO_VULNERABILITIES = (0,)
-    VULNERABILITIES_FOUND = 1
-    RUNTIME_ERROR = 2
+    MAINTENANCE_ISSUES_FOUND = 1
+    VULNERABILITIES_FOUND = 2
+    RUNTIME_ERROR = 3
 
 
 async def check_lock_files(
@@ -191,6 +248,8 @@ async def check_lock_files(
     aliases: Optional[bool],
     desc: Optional[bool],
     disable_cache: Optional[bool],
+    forbid_yanked: Optional[bool],
+    max_dependency_age: Optional[int],
     ignore: Optional[str],
     config_path: Optional[Path],
 ) -> RunStatus:
@@ -200,7 +259,10 @@ async def check_lock_files(
         file_paths: paths to files or directory to process
         aliases: flag whether to show vulnerability aliases
         desc: flag whether to show vulnerability descriptions
-        ignore_ids: Vulnerabilities IDs to ignore
+        disable_cache: flag whether to disable cache
+        forbid_yanked: flag whether to forbid yanked dependencies
+        max_dependency_age: maximum age of dependencies in days
+        ignore: Vulnerabilities IDs to ignore
 
     Returns
     -------
@@ -236,8 +298,19 @@ async def check_lock_files(
             )
             return RunStatus.RUNTIME_ERROR
 
-    if any((aliases, desc, ignore, disable_cache)):
-        cli_config = config_cli_arg_factory(aliases, desc, disable_cache, ignore)
+    if any(
+        (
+            aliases,
+            desc,
+            ignore,
+            disable_cache,
+            forbid_yanked,
+            max_dependency_age is not None,
+        )
+    ):
+        cli_config = config_cli_arg_factory(
+            aliases, desc, disable_cache, forbid_yanked, max_dependency_age, ignore
+        )
         lock_to_config_map = {
             lock_file: override_config(config, cli_config)
             for lock_file, config in lock_to_config_map.items()
@@ -250,16 +323,21 @@ async def check_lock_files(
         for dependency_file_path in file_paths
     ]
     status_outputs = await asyncio.gather(*status_output_tasks)
+    maintenance_issues_found = False
     vulnerabilities_found = False
     runtime_error = False
     for status, console_output in status_outputs:
         console.print(*console_output)
         if status == 1:
-            vulnerabilities_found = True
+            maintenance_issues_found = True
         elif status == 2:
+            vulnerabilities_found = True
+        elif status == 3:
             runtime_error = True
     if runtime_error:
         return RunStatus.RUNTIME_ERROR
     if vulnerabilities_found:
         return RunStatus.VULNERABILITIES_FOUND
+    if maintenance_issues_found:
+        return RunStatus.MAINTENANCE_ISSUES_FOUND
     return RunStatus.NO_VULNERABILITIES

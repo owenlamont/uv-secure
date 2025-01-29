@@ -1,3 +1,4 @@
+from datetime import timedelta
 import sys
 from typing import Optional
 
@@ -16,6 +17,8 @@ def config_cli_arg_factory(
     aliases: Optional[bool],
     desc: Optional[bool],
     disable_cache: Optional[bool],
+    forbid_yanked: Optional[bool],
+    max_dependency_age: Optional[int],
     ignore: Optional[str],
 ) -> OverrideConfiguration:
     """Factory to create a uv-secure configuration from its command line arguments
@@ -24,6 +27,8 @@ def config_cli_arg_factory(
         aliases: Flag whether to show vulnerability aliases in results
         desc: Flag whether to show vulnerability descriptions in results
         disable_cache: Flag whether to disable cache
+        forbid_yanked: flag whether to forbid yanked dependencies
+        max_dependency_age: maximum age of dependencies in days
         ignore: comma separated string of vulnerability ids to ignore
 
     Returns
@@ -40,6 +45,10 @@ def config_cli_arg_factory(
         aliases=aliases,
         desc=desc,
         disable_cache=disable_cache,
+        forbid_yanked=forbid_yanked,
+        max_dependency_age=timedelta(days=max_dependency_age)
+        if max_dependency_age
+        else None,
         ignore_vulnerabilities=ignore_vulnerabilities,
     )
 

@@ -76,7 +76,7 @@ async def test_check_dependencies_alias_hyperlinks(
         APath(temp_uv_lock_file), Configuration(aliases=True)
     )
 
-    assert status == 1
+    assert status == 2
     for renderable in renderables:
         if not isinstance(renderable, Table):
             continue

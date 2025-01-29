@@ -223,6 +223,15 @@ wheels = [
 ]
 
 [[package]]
+name = "humanize"
+version = "4.11.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6a/40/64a912b9330786df25e58127194d4a5a7441f818b400b155e748a270f924/humanize-4.11.0.tar.gz", hash = "sha256:e66f36020a2d5a974c504bd2555cf770621dbdbb6d82f94a6857c0b1ea2608be", size = 80374 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/92/75/4bc3e242ad13f2e6c12e0b0401ab2c5e5c6f0d7da37ec69bc808e24e0ccb/humanize-4.11.0-py3-none-any.whl", hash = "sha256:b53caaec8532bcb2fff70c8826f904c35943f8cecaca29d272d9df38092736c0", size = 128055 },
+]
+
+[[package]]
 name = "idna"
 version = "3.10"
 source = { registry = "https://pypi.org/simple" }
@@ -632,6 +641,15 @@ wheels = [
 ]
 
 [[package]]
+name = "tzdata"
+version = "2025.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/43/0f/fa4723f22942480be4ca9527bbde8d43f6c3f2fe8412f00e7f5f6746bc8b/tzdata-2025.1.tar.gz", hash = "sha256:24894909e88cdb28bd1636c6887801df64cb485bd593f2fd83ef29075a81d694", size = 194950 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0f/dd/84f10e23edd882c6f968c21c2434fe67bd4a528967067515feca9e611e5e/tzdata-2025.1-py2.py3-none-any.whl", hash = "sha256:7e127113816800496f027041c570f50bcd464a020098a3b6b199517772303639", size = 346762 },
+]
+
+[[package]]
 name = "uv-secure"
 source = { editable = "." }
 dependencies = [
@@ -639,11 +657,13 @@ dependencies = [
     { name = "asyncer" },
     { name = "hishel" },
     { name = "httpx" },
+    { name = "humanize" },
     { name = "inflect" },
     { name = "pydantic", extra = ["email"] },
     { name = "rich" },
     { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "typer" },
+    { name = "tzdata", marker = "sys_platform == 'win32'" },
 ]
 
 [package.dev-dependencies]
@@ -664,11 +684,13 @@ requires-dist = [
     { name = "asyncer", specifier = ">=0.0.8" },
     { name = "hishel", specifier = ">=0.1.1" },
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "humanize", specifier = ">=4.11.0" },
     { name = "inflect", specifier = ">=7.4.0" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.10.3" },
     { name = "rich", specifier = ">=13.9.4" },
     { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "typer", specifier = ">=0.15.1" },
+    { name = "tzdata", marker = "sys_platform == 'win32'", specifier = ">=2025.1" },
 ]
 
 [package.metadata.requires-dev]
