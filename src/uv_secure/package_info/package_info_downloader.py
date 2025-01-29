@@ -104,12 +104,7 @@ async def _download_package(
         url, extensions={"cache_disabled": True} if disable_cache else None
     )
     response.raise_for_status()
-    try:
-        info = PackageInfo(**response.json())
-    except Exception as exc:
-        print(exc)
-        raise exc
-    return info
+    return PackageInfo(**response.json())
 
 
 async def download_packages(
