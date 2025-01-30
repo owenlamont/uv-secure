@@ -54,10 +54,34 @@ def _render_vulnerability_table(
                 else Text(vuln.id)
             )
             renderables = [
-                package.info.name,
-                package.info.version,
+                Text.assemble(
+                    (
+                        package.info.name,
+                        f"link https://pypi.org/project/{package.info.name}",
+                    )
+                ),
+                Text.assemble(
+                    (
+                        package.info.version,
+                        f"link https://pypi.org/project/{package.info.name}/"
+                        f"{package.info.version}/",
+                    )
+                ),
                 vuln_id_hyperlink,
-                ", ".join(vuln.fixed_in) if vuln.fixed_in else "",
+                Text(", ").join(
+                    [
+                        Text.assemble(
+                            (
+                                fix_ver,
+                                f"link https://pypi.org/project/{package.info.name}/"
+                                f"{fix_ver}/",
+                            )
+                        )
+                        for fix_ver in vuln.fixed_in
+                    ]
+                )
+                if vuln.fixed_in
+                else Text(""),
             ]
             if config.aliases:
                 alias_links = []
@@ -70,7 +94,10 @@ def _render_vulnerability_table(
                     elif alias.startswith("GHSA-"):
                         hyperlink = f"https://github.com/advisories/{alias}"
                     elif alias.startswith("PYSEC-"):
-                        hyperlink = f"https://github.com/pypa/advisory-database/blob/main/vulns/{package.info.name}/{alias}.yaml"
+                        hyperlink = (
+                            "https://github.com/pypa/advisory-database/blob/main/"
+                            f"vulns/{package.info.name}/{alias}.yaml"
+                        )
                     elif alias.startswith("OSV-"):
                         hyperlink = f"https://osv.dev/vulnerability/{alias}"
                     if hyperlink:
@@ -103,8 +130,19 @@ def _render_issue_table(
     table.add_column("Age", min_width=20, max_width=24)
     for package in maintenance_issue_packages:
         renderables = [
-            package.info.name,
-            package.info.version,
+            Text.assemble(
+                (
+                    package.info.name,
+                    f"link https://pypi.org/project/{package.info.name}",
+                )
+            ),
+            Text.assemble(
+                (
+                    package.info.version,
+                    f"link https://pypi.org/project/{package.info.name}/"
+                    f"{package.info.version}/",
+                )
+            ),
             str(package.info.yanked),
             package.info.yanked_reason if package.info.yanked_reason else "Unknown",
             humanize.precisedelta(package.age, minimum_unit="days")
