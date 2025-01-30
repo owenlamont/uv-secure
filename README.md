@@ -242,8 +242,8 @@ Or manually check the latest release and update the _rev_ value accordingly.
 
 Below are some ideas (in no particular order) I have for improving uv-secure:
 
-- Add package metadata checks, e.g. age of most recent release threshold
 - Package for conda on conda-forge
+- Integrate with GitHub / GitLab / BitBucket for additional maintenance metrics
 - Add rate limiting on how hard the PyPi json API is hit to query package
   vulnerabilities (this hasn't been a problem yet, but I suspect may be for uv.lock
   files with many dependencies)
