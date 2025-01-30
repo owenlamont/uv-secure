@@ -187,9 +187,9 @@ async def check_dependencies(
             config.maintainability_criteria.forbid_yanked and package.info.yanked
         )
         found_over_age_package = (
-            config.maintainability_criteria.max_dependency_age is not None
+            config.maintainability_criteria.max_package_age is not None
             and package.age is not None
-            and package.age > config.maintainability_criteria.max_dependency_age
+            and package.age > config.maintainability_criteria.max_package_age
         )
         if found_rejected_yanked_package or found_over_age_package:
             maintenance_issue_packages.append(package)
@@ -249,7 +249,7 @@ async def check_lock_files(
     desc: Optional[bool],
     disable_cache: Optional[bool],
     forbid_yanked: Optional[bool],
-    max_dependency_age: Optional[int],
+    max_package_age: Optional[int],
     ignore: Optional[str],
     config_path: Optional[Path],
 ) -> RunStatus:
@@ -261,7 +261,7 @@ async def check_lock_files(
         desc: flag whether to show vulnerability descriptions
         disable_cache: flag whether to disable cache
         forbid_yanked: flag whether to forbid yanked dependencies
-        max_dependency_age: maximum age of dependencies in days
+        max_package_age: maximum age of dependencies in days
         ignore: Vulnerabilities IDs to ignore
 
     Returns
@@ -305,11 +305,11 @@ async def check_lock_files(
             ignore,
             disable_cache,
             forbid_yanked,
-            max_dependency_age is not None,
+            max_package_age is not None,
         )
     ):
         cli_config = config_cli_arg_factory(
-            aliases, desc, disable_cache, forbid_yanked, max_dependency_age, ignore
+            aliases, desc, disable_cache, forbid_yanked, max_package_age, ignore
         )
         lock_to_config_map = {
             lock_file: override_config(config, cli_config)

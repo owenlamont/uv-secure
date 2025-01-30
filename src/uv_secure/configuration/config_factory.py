@@ -18,7 +18,7 @@ def config_cli_arg_factory(
     desc: Optional[bool],
     disable_cache: Optional[bool],
     forbid_yanked: Optional[bool],
-    max_dependency_age: Optional[int],
+    max_package_age: Optional[int],
     ignore: Optional[str],
 ) -> OverrideConfiguration:
     """Factory to create a uv-secure configuration from its command line arguments
@@ -28,7 +28,7 @@ def config_cli_arg_factory(
         desc: Flag whether to show vulnerability descriptions in results
         disable_cache: Flag whether to disable cache
         forbid_yanked: flag whether to forbid yanked dependencies
-        max_dependency_age: maximum age of dependencies in days
+        max_package_age: maximum age of dependencies in days
         ignore: comma separated string of vulnerability ids to ignore
 
     Returns
@@ -46,9 +46,7 @@ def config_cli_arg_factory(
         desc=desc,
         disable_cache=disable_cache,
         forbid_yanked=forbid_yanked,
-        max_dependency_age=timedelta(days=max_dependency_age)
-        if max_dependency_age
-        else None,
+        max_package_age=timedelta(days=max_package_age) if max_package_age else None,
         ignore_vulnerabilities=ignore_vulnerabilities,
     )
 

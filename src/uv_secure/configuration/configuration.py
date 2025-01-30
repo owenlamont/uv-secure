@@ -17,7 +17,7 @@ class CacheSettings(BaseModel):
 
 
 class MaintainabilityCriteria(BaseModel):
-    max_dependency_age: Optional[timedelta] = None
+    max_package_age: Optional[timedelta] = None
     forbid_yanked: bool = False
 
 
@@ -34,7 +34,7 @@ class OverrideConfiguration(BaseModel):
     desc: Optional[bool] = None
     ignore_vulnerabilities: Optional[set[str]] = None
     forbid_yanked: Optional[bool] = None
-    max_dependency_age: Optional[timedelta] = None
+    max_package_age: Optional[timedelta] = None
     disable_cache: Optional[bool] = None
 
 
@@ -62,9 +62,9 @@ def override_config(
         new_configuration.maintainability_criteria.forbid_yanked = (
             overrides.forbid_yanked
         )
-    if overrides.max_dependency_age is not None:
-        new_configuration.maintainability_criteria.max_dependency_age = (
-            overrides.max_dependency_age
+    if overrides.max_package_age is not None:
+        new_configuration.maintainability_criteria.max_package_age = (
+            overrides.max_package_age
         )
     if overrides.disable_cache is not None:
         new_configuration.cache_settings.disable_cache = overrides.disable_cache

@@ -54,8 +54,8 @@ _forbid_yanked_option = typer.Option(
     help="Flag whether disallow yanked package versions from being dependencies",
 )
 
-_max_dependency_age_option = typer.Option(
-    None, "--max-age-days", help="Maximum age threshold for dependencies to be in days"
+_max_package_age_option = typer.Option(
+    None, "--max-age-days", help="Maximum age threshold for packages in days"
 )
 
 _ignore_option = typer.Option(
@@ -90,7 +90,7 @@ def main(
     desc: Optional[bool] = _desc_option,
     disable_cache: Optional[bool] = _disable_cache_option,
     forbid_yanked: Optional[bool] = _forbid_yanked_option,
-    max_dependency_age: Optional[int] = _max_dependency_age_option,
+    max_package_age: Optional[int] = _max_package_age_option,
     ignore: Optional[str] = _ignore_option,
     config_path: Optional[Path] = _config_option,
     version: bool = _version_option,
@@ -113,7 +113,7 @@ def main(
             desc,
             disable_cache,
             forbid_yanked,
-            max_dependency_age,
+            max_package_age,
             ignore,
             config_path,
         )
