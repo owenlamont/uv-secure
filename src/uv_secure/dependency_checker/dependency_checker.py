@@ -6,6 +6,7 @@ from typing import Optional
 
 from anyio import Path as APath
 from hishel import AsyncFileStorage
+import humanize
 import inflect
 from rich.console import Console, ConsoleRenderable
 from rich.panel import Panel
@@ -20,10 +21,136 @@ from uv_secure.configuration import (
 )
 from uv_secure.directory_scanner import get_dependency_file_to_config_map
 from uv_secure.package_info import (
-    download_vulnerabilities,
+    download_packages,
+    PackageInfo,
     parse_requirements_txt_file,
     parse_uv_lock_file,
 )
+
+
+def _render_vulnerability_table(
+    config: Configuration, vulnerable_packages: Iterable[PackageInfo]
+) -> Table:
+    table = Table(
+        title="Vulnerable Dependencies",
+        show_header=True,
+        row_styles=["none", "dim"],
+        header_style="bold magenta",
+        expand=True,
+    )
+    table.add_column("Package", min_width=8, max_width=40)
+    table.add_column("Version", min_width=10, max_width=20)
+    table.add_column("Vulnerability ID", style="bold cyan", min_width=20, max_width=24)
+    table.add_column("Fix Versions", min_width=10, max_width=20)
+    if config.aliases:
+        table.add_column("Aliases", min_width=20, max_width=24)
+    if config.desc:
+        table.add_column("Details", min_width=8)
+    for package in vulnerable_packages:
+        for vuln in package.vulnerabilities:
+            vuln_id_hyperlink = (
+                Text.assemble((vuln.id, f"link {vuln.link}"))
+                if vuln.link
+                else Text(vuln.id)
+            )
+            renderables = [
+                Text.assemble(
+                    (
+                        package.info.name,
+                        f"link https://pypi.org/project/{package.info.name}",
+                    )
+                ),
+                Text.assemble(
+                    (
+                        package.info.version,
+                        f"link https://pypi.org/project/{package.info.name}/"
+                        f"{package.info.version}/",
+                    )
+                ),
+                vuln_id_hyperlink,
+                Text(", ").join(
+                    [
+                        Text.assemble(
+                            (
+                                fix_ver,
+                                f"link https://pypi.org/project/{package.info.name}/"
+                                f"{fix_ver}/",
+                            )
+                        )
+                        for fix_ver in vuln.fixed_in
+                    ]
+                )
+                if vuln.fixed_in
+                else Text(""),
+            ]
+            if config.aliases:
+                alias_links = []
+                for alias in vuln.aliases or []:
+                    hyperlink = None
+                    if alias.startswith("CVE-"):
+                        hyperlink = (
+                            f"https://cve.mitre.org/cgi-bin/cvename.cgi?name={alias}"
+                        )
+                    elif alias.startswith("GHSA-"):
+                        hyperlink = f"https://github.com/advisories/{alias}"
+                    elif alias.startswith("PYSEC-"):
+                        hyperlink = (
+                            "https://github.com/pypa/advisory-database/blob/main/"
+                            f"vulns/{package.info.name}/{alias}.yaml"
+                        )
+                    elif alias.startswith("OSV-"):
+                        hyperlink = f"https://osv.dev/vulnerability/{alias}"
+                    if hyperlink:
+                        alias_links.append(Text.assemble((alias, f"link {hyperlink}")))
+                    else:
+                        alias_links.append(Text(alias))
+                renderables.append(
+                    Text(", ").join(alias_links) if alias_links else Text("")
+                )
+            if config.desc:
+                renderables.append(vuln.details)
+            table.add_row(*renderables)
+    return table
+
+
+def _render_issue_table(
+    config: Configuration, maintenance_issue_packages: Iterable[PackageInfo]
+) -> Table:
+    table = Table(
+        title="Maintenance Issues",
+        show_header=True,
+        row_styles=["none", "dim"],
+        header_style="bold magenta",
+        expand=True,
+    )
+    table.add_column("Package", min_width=8, max_width=40)
+    table.add_column("Version", min_width=10, max_width=20)
+    table.add_column("Yanked", style="bold cyan", min_width=10, max_width=10)
+    table.add_column("Yanked Reason", min_width=20, max_width=24)
+    table.add_column("Age", min_width=20, max_width=24)
+    for package in maintenance_issue_packages:
+        renderables = [
+            Text.assemble(
+                (
+                    package.info.name,
+                    f"link https://pypi.org/project/{package.info.name}",
+                )
+            ),
+            Text.assemble(
+                (
+                    package.info.version,
+                    f"link https://pypi.org/project/{package.info.name}/"
+                    f"{package.info.version}/",
+                )
+            ),
+            str(package.info.yanked),
+            package.info.yanked_reason if package.info.yanked_reason else "Unknown",
+            humanize.precisedelta(package.age, minimum_unit="days")
+            if package.age
+            else "Unknown",
+        ]
+        table.add_row(*renderables)
+    return table
 
 
 async def check_dependencies(
@@ -44,7 +171,7 @@ async def check_dependencies(
         console_outputs.append(
             f"[bold red]Error:[/] File {dependency_file_path} does not exist."
         )
-        return 2, console_outputs
+        return 3, console_outputs
 
     # I found antivirus programs (specifically Windows Defender) can almost fully
     # negate the benefits of using a file cache if you don't exclude the virus checker
@@ -64,33 +191,52 @@ async def check_dependencies(
 
     console_outputs.append(
         f"[bold cyan]Checking {dependency_file_path} dependencies for vulnerabilities"
-        "...[/]"
+        "...[/]\n"
     )
 
-    results = await download_vulnerabilities(
+    packages = await download_packages(
         dependencies, storage, config.cache_settings.disable_cache
     )
 
-    total_dependencies = len(results)
+    total_dependencies = len(packages)
     vulnerable_count = 0
-    vulnerabilities_found = []
+    vulnerable_packages = []
+    maintenance_issue_packages = []
 
-    for dep, vulnerabilities in results:
+    for idx, package in enumerate(packages):
+        if isinstance(package, BaseException):
+            console_outputs.append(
+                f"[bold red]Error:[/] {dependencies[idx]} raised exception: {package}"
+            )
+            continue
+
         # Filter out ignored vulnerabilities
-        filtered_vulnerabilities = [
+        package.vulnerabilities = [
             vuln
-            for vuln in vulnerabilities
+            for vuln in package.vulnerabilities
             if config.ignore_vulnerabilities is None
             or vuln.id not in config.ignore_vulnerabilities
         ]
-        if filtered_vulnerabilities:
-            vulnerable_count += 1
-            vulnerabilities_found.append((dep, filtered_vulnerabilities))
+        if len(package.vulnerabilities) > 0:
+            vulnerable_count += len(package.vulnerabilities)
+            vulnerable_packages.append(package)
+
+        found_rejected_yanked_package = (
+            config.maintainability_criteria.forbid_yanked and package.info.yanked
+        )
+        found_over_age_package = (
+            config.maintainability_criteria.max_package_age is not None
+            and package.age is not None
+            and package.age > config.maintainability_criteria.max_package_age
+        )
+        if found_rejected_yanked_package or found_over_age_package:
+            maintenance_issue_packages.append(package)
 
     inf = inflect.engine()
     total_plural = inf.plural("dependency", total_dependencies)
-    vulnerable_plural = inf.plural("dependency", vulnerable_count)
+    vulnerable_plural = inf.plural("vulnerability", vulnerable_count)
 
+    status = 0
     if vulnerable_count > 0:
         console_outputs.append(
             Panel.fit(
@@ -99,80 +245,40 @@ async def check_dependencies(
                 f"Vulnerable: [bold]{vulnerable_count}[/] {vulnerable_plural}"
             )
         )
-
-        table = Table(
-            title="Vulnerable Dependencies",
-            show_header=True,
-            row_styles=["none", "dim"],
-            header_style="bold magenta",
-            expand=True,
-        )
-        table.add_column("Package", min_width=8, max_width=40)
-        table.add_column("Version", min_width=10, max_width=20)
-        table.add_column(
-            "Vulnerability ID", style="bold cyan", min_width=20, max_width=24
-        )
-        table.add_column("Fix Versions", min_width=10, max_width=20)
-        if config.aliases:
-            table.add_column("Aliases", min_width=20, max_width=24)
-        if config.desc:
-            table.add_column("Details", min_width=8)
-
-        for dep, vulnerabilities in vulnerabilities_found:
-            for vuln in vulnerabilities:
-                vuln_id_hyperlink = (
-                    Text.assemble((vuln.id, f"link {vuln.link}"))
-                    if vuln.link
-                    else Text(vuln.id)
-                )
-                renderables = [
-                    dep.name,
-                    dep.version,
-                    vuln_id_hyperlink,
-                    ", ".join(vuln.fixed_in) if vuln.fixed_in else "",
-                ]
-                if config.aliases:
-                    alias_links = []
-                    for alias in vuln.aliases or []:
-                        hyperlink = None
-                        if alias.startswith("CVE-"):
-                            hyperlink = f"https://cve.mitre.org/cgi-bin/cvename.cgi?name={alias}"
-                        elif alias.startswith("GHSA-"):
-                            hyperlink = f"https://github.com/advisories/{alias}"
-                        elif alias.startswith("PYSEC-"):
-                            hyperlink = f"https://github.com/pypa/advisory-database/blob/main/vulns/{dep.name}/{alias}.yaml"
-                        elif alias.startswith("OSV-"):
-                            hyperlink = f"https://osv.dev/vulnerability/{alias}"
-                        if hyperlink:
-                            alias_links.append(
-                                Text.assemble((alias, f"link {hyperlink}"))
-                            )
-                        else:
-                            alias_links.append(Text(alias))
-                    renderables.append(
-                        Text(", ").join(alias_links) if alias_links else Text("")
-                    )
-                if config.desc:
-                    renderables.append(vuln.details)
-                table.add_row(*renderables)
-
+        table = _render_vulnerability_table(config, vulnerable_packages)
         console_outputs.append(table)
-        return 1, console_outputs
+        status = 2
 
-    console_outputs.append(
-        Panel.fit(
-            f"[bold green]No vulnerabilities detected![/]\n"
-            f"Checked: [bold]{total_dependencies}[/] {total_plural}\n"
-            f"All dependencies appear safe!"
+    issue_count = len(maintenance_issue_packages)
+    issue_plural = inf.plural("issue", issue_count)
+    if len(maintenance_issue_packages) > 0:
+        console_outputs.append(
+            Panel.fit(
+                f"[bold yellow]Maintenance Issues detected![/]\n"
+                f"Checked: [bold]{total_dependencies}[/] {total_plural}\n"
+                f"Issues: [bold]{issue_count}[/] {issue_plural}"
+            )
         )
-    )
-    return 0, console_outputs
+        table = _render_issue_table(config, maintenance_issue_packages)
+        console_outputs.append(table)
+        status = max(status, 1)
+
+    if status == 0:
+        console_outputs.append(
+            Panel.fit(
+                f"[bold green]No vulnerabilities detected![/]\n"
+                f"Checked: [bold]{total_dependencies}[/] {total_plural}\n"
+                f"All dependencies appear safe!"
+            )
+        )
+    return status, console_outputs
 
 
 class RunStatus(Enum):
     NO_VULNERABILITIES = (0,)
-    VULNERABILITIES_FOUND = 1
-    RUNTIME_ERROR = 2
+    MAINTENANCE_ISSUES_FOUND = 1
+    VULNERABILITIES_FOUND = 2
+    RUNTIME_ERROR = 3
 
 
 async def check_lock_files(
@@ -180,6 +286,8 @@ async def check_lock_files(
     aliases: Optional[bool],
     desc: Optional[bool],
     disable_cache: Optional[bool],
+    forbid_yanked: Optional[bool],
+    max_package_age: Optional[int],
     ignore: Optional[str],
     config_path: Optional[Path],
 ) -> RunStatus:
@@ -189,7 +297,10 @@ async def check_lock_files(
         file_paths: paths to files or directory to process
         aliases: flag whether to show vulnerability aliases
         desc: flag whether to show vulnerability descriptions
-        ignore_ids: Vulnerabilities IDs to ignore
+        disable_cache: flag whether to disable cache
+        forbid_yanked: flag whether to forbid yanked dependencies
+        max_package_age: maximum age of dependencies in days
+        ignore: Vulnerabilities IDs to ignore
 
     Returns
     -------
@@ -225,8 +336,19 @@ async def check_lock_files(
             )
             return RunStatus.RUNTIME_ERROR
 
-    if any((aliases, desc, ignore, disable_cache)):
-        cli_config = config_cli_arg_factory(aliases, desc, disable_cache, ignore)
+    if any(
+        (
+            aliases,
+            desc,
+            ignore,
+            disable_cache,
+            forbid_yanked,
+            max_package_age is not None,
+        )
+    ):
+        cli_config = config_cli_arg_factory(
+            aliases, desc, disable_cache, forbid_yanked, max_package_age, ignore
+        )
         lock_to_config_map = {
             lock_file: override_config(config, cli_config)
             for lock_file, config in lock_to_config_map.items()
@@ -239,16 +361,21 @@ async def check_lock_files(
         for dependency_file_path in file_paths
     ]
     status_outputs = await asyncio.gather(*status_output_tasks)
+    maintenance_issues_found = False
     vulnerabilities_found = False
     runtime_error = False
     for status, console_output in status_outputs:
         console.print(*console_output)
         if status == 1:
-            vulnerabilities_found = True
+            maintenance_issues_found = True
         elif status == 2:
+            vulnerabilities_found = True
+        elif status == 3:
             runtime_error = True
     if runtime_error:
         return RunStatus.RUNTIME_ERROR
     if vulnerabilities_found:
         return RunStatus.VULNERABILITIES_FOUND
+    if maintenance_issues_found:
+        return RunStatus.MAINTENANCE_ISSUES_FOUND
     return RunStatus.NO_VULNERABILITIES

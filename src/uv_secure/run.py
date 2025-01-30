@@ -48,19 +48,21 @@ _disable_cache_option = typer.Option(
     help="Flag whether to disable caching for vulnerability http requests",
 )
 
+_forbid_yanked_option = typer.Option(
+    None,
+    "--forbid-yanked",
+    help="Flag whether disallow yanked package versions from being dependencies",
+)
+
+_max_package_age_option = typer.Option(
+    None, "--max-age-days", help="Maximum age threshold for packages in days"
+)
+
 _ignore_option = typer.Option(
     None,
     "--ignore",
     "-i",
     help="Comma-separated list of vulnerability IDs to ignore, e.g. VULN-123,VULN-456",
-)
-
-_version_option = typer.Option(
-    None,
-    "--version",
-    callback=_version_callback,
-    is_eager=True,
-    help="Show the application's version",
 )
 
 _config_option = typer.Option(
@@ -72,6 +74,14 @@ _config_option = typer.Option(
     ),
 )
 
+_version_option = typer.Option(
+    None,
+    "--version",
+    callback=_version_callback,
+    is_eager=True,
+    help="Show the application's version",
+)
+
 
 @app.command()
 def main(
@@ -79,6 +89,8 @@ def main(
     aliases: Optional[bool] = _aliases_option,
     desc: Optional[bool] = _desc_option,
     disable_cache: Optional[bool] = _disable_cache_option,
+    forbid_yanked: Optional[bool] = _forbid_yanked_option,
+    max_package_age: Optional[int] = _max_package_age_option,
     ignore: Optional[str] = _ignore_option,
     config_path: Optional[Path] = _config_option,
     version: bool = _version_option,
@@ -95,12 +107,23 @@ def main(
         from asyncio import run
 
     run_status = run(
-        check_lock_files(file_paths, aliases, desc, disable_cache, ignore, config_path)
+        check_lock_files(
+            file_paths,
+            aliases,
+            desc,
+            disable_cache,
+            forbid_yanked,
+            max_package_age,
+            ignore,
+            config_path,
+        )
     )
-    if run_status == RunStatus.VULNERABILITIES_FOUND:
+    if run_status == RunStatus.MAINTENANCE_ISSUES_FOUND:
         raise typer.Exit(code=1)
-    if run_status == RunStatus.RUNTIME_ERROR:
+    if run_status == RunStatus.VULNERABILITIES_FOUND:
         raise typer.Exit(code=2)
+    if run_status == RunStatus.RUNTIME_ERROR:
+        raise typer.Exit(code=3)
 
 
 if __name__ == "__main__":
