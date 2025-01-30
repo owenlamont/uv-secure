@@ -5,7 +5,6 @@ from pydantic import BaseModel
 import typer
 
 
-# Conditional import for toml
 if sys.version_info >= (3, 11):
     import tomllib as toml
 else:

@@ -1,9 +1,12 @@
 from collections.abc import Generator
+from datetime import datetime
 import os
 from pathlib import Path
 from textwrap import dedent
 from typing import Callable
+from zoneinfo import ZoneInfo
 
+from freezegun import freeze_time
 from httpx import Request, RequestError
 import pytest
 from pytest_httpx import HTTPXMock
@@ -53,6 +56,23 @@ def temp_uv_secure_toml_file_all_columns_enabled(tmp_path: Path) -> Path:
     uv_lock_data = """
         aliases = true
         desc = true
+    """
+    uv_secure_toml_path.write_text(dedent(uv_lock_data).strip())
+    return uv_secure_toml_path
+
+
+@pytest.fixture
+def temp_uv_secure_toml_file_all_columns_and_maintenance_issues_enabled(
+    tmp_path: Path,
+) -> Path:
+    uv_secure_toml_path = tmp_path / "uv-secure.toml"
+    uv_lock_data = """
+        aliases = true
+        desc = true
+
+        [maintainability_criteria]
+        max_dependency_age = 1000
+        forbid_yanked = true
     """
     uv_secure_toml_path.write_text(dedent(uv_lock_data).strip())
     return uv_secure_toml_path
@@ -245,7 +265,8 @@ def old_yanked_package_response(httpx_mock: HTTPXMock) -> HTTPXMock:
                 "requires_python": ">=3.9",
                 "summary": "A minimal package example",
                 "version": "1.0.0",
-                "yanked": False,
+                "yanked": True,
+                "yanked_reason": "Broken API",
             },
             "last_serial": 1,
             "urls": [
@@ -282,6 +303,134 @@ def old_yanked_package_response(httpx_mock: HTTPXMock) -> HTTPXMock:
                 }
             ],
             "vulnerabilities": [],
+        },
+    )
+    return httpx_mock
+
+
+@pytest.fixture
+def yanked_package_no_reason_given_response(httpx_mock: HTTPXMock) -> HTTPXMock:
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "A minimal package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "A minimal package example",
+                "version": "1.0.0",
+                "yanked": True,
+            },
+            "last_serial": 1,
+            "urls": [
+                {
+                    "comment_text": "",
+                    "digests": {
+                        "blake2b_256": (
+                            "0bf785273299ab57117850cc0a936c64151171fac4da49bc6fba0dad98"
+                            "4a7c5f"
+                        ),
+                        "md5": "8626f021f29631950dfad7b4c6435fc4",
+                        "sha256": (
+                            "8a3df80e2b2378aef598a83c1392efd47967afec4242021a0b06b4c7cb"
+                            "c61a92"
+                        ),
+                    },
+                    "downloads": -1,
+                    "filename": "example-package-1.0.0-py3-none-any.whl",
+                    "has_sig": False,
+                    "md5_digest": "8626f021f29631950dfad7b4c6435fc4",
+                    "packagetype": "bdist_wheel",
+                    "python_version": "py3",
+                    "requires_python": ">=3.7",
+                    "size": 15662,
+                    "upload_time": "2024-01-19T23:44:28",
+                    "upload_time_iso_8601": "2024-01-19T23:44:28.833863Z",
+                    "url": (
+                        "https://files.pythonhosted.org/packages/0b/f7/"
+                        "85273299ab57117850cc0a936c64151171fac4da49bc6fba0dad984a7c5f/"
+                        "example-package-1.0.0-py3-none-any.whl"
+                    ),
+                    "yanked": True,
+                }
+            ],
+            "vulnerabilities": [],
+        },
+    )
+    return httpx_mock
+
+
+@pytest.fixture
+def old_yanked_package_with_vulnerability_response(httpx_mock: HTTPXMock) -> HTTPXMock:
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "A minimal package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "A minimal package example",
+                "version": "1.0.0",
+                "yanked": True,
+                "yanked_reason": "Broken API",
+            },
+            "last_serial": 1,
+            "urls": [
+                {
+                    "comment_text": "",
+                    "digests": {
+                        "blake2b_256": (
+                            "0bf785273299ab57117850cc0a936c64151171fac4da49bc6fba0dad98"
+                            "4a7c5f"
+                        ),
+                        "md5": "8626f021f29631950dfad7b4c6435fc4",
+                        "sha256": (
+                            "8a3df80e2b2378aef598a83c1392efd47967afec4242021a0b06b4c7cb"
+                            "c61a92"
+                        ),
+                    },
+                    "downloads": -1,
+                    "filename": "example-package-1.0.0-py3-none-any.whl",
+                    "has_sig": False,
+                    "md5_digest": "8626f021f29631950dfad7b4c6435fc4",
+                    "packagetype": "bdist_wheel",
+                    "python_version": "py3",
+                    "requires_python": ">=3.7",
+                    "size": 15662,
+                    "upload_time": "2021-01-19T23:44:28",
+                    "upload_time_iso_8601": "2021-01-19T23:44:28.833863Z",
+                    "url": (
+                        "https://files.pythonhosted.org/packages/0b/f7/"
+                        "85273299ab57117850cc0a936c64151171fac4da49bc6fba0dad984a7c5f/"
+                        "example-package-1.0.0-py3-none-any.whl"
+                    ),
+                    "yanked": True,
+                    "yanked_reason": "Broken API",
+                }
+            ],
+            "vulnerabilities": [
+                {
+                    "aliases": ["CVE-2024-12345"],
+                    "id": "VULN-123",
+                    "details": "A critical vulnerability in example-package.",
+                    "fixed_in": ["1.0.1"],
+                    "link": "https://example.com/vuln-123",
+                }
+            ],
         },
     )
     return httpx_mock
@@ -530,6 +679,7 @@ def test_app_no_vulnerabilities_relative_no_specified_path(
     assert "All dependencies appear safe!" in result.output
 
 
+@freeze_time(datetime(2025, 1, 30, tzinfo=ZoneInfo("UTC")))
 def test_app_maintenance_issues_cli_args(
     temp_uv_lock_file: Path, old_yanked_package_response: HTTPXMock
 ) -> None:
@@ -545,6 +695,27 @@ def test_app_maintenance_issues_cli_args(
     )
 
     assert result.exit_code == 1
+    assert "Maintenance Issues detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "Issues: 1 issue" in result.output
+    assert "Broken API" in result.output
+    assert "4 years and 11.01 days" in result.output
+
+
+@freeze_time(datetime(2025, 1, 30, tzinfo=ZoneInfo("UTC")))
+def test_app_yanked_no_reason_cli_args(
+    temp_uv_lock_file: Path, yanked_package_no_reason_given_response: HTTPXMock
+) -> None:
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--forbid-yanked", "--disable-cache"]
+    )
+
+    assert result.exit_code == 1
+    assert "Maintenance Issues detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "Issues: 1 issue" in result.output
+    assert "Unknown" in result.output
+    assert "1 year and 11.01 days" in result.output
 
 
 def test_app_failed_vulnerability_request(
@@ -584,8 +755,12 @@ def test_app_package_not_found(
         pytest.param(["--aliases"], id="Add Aliases column"),
         pytest.param(["--desc"], id="Add details column"),
         pytest.param(["--aliases", "--desc"], id="Add details column"),
+        pytest.param(
+            ["--forbid-yanked", "--max-age-days", "1000"], id="Maintenance criteria"
+        ),
     ],
 )
+@freeze_time(datetime(2025, 1, 30, tzinfo=ZoneInfo("UTC")))
 def test_check_dependencies_with_vulnerability(
     extra_cli_args: list[str],
     temp_uv_lock_file: Path,
@@ -699,6 +874,33 @@ def test_check_dependencies_with_vulnerability_uv_secure_all_columns_configured(
     assert "CVE-2024-12345" in result.output
     assert "Details" in result.output
     assert "A critical vulnerability in example-package.  " in result.output
+
+
+@freeze_time(datetime(2025, 1, 30, tzinfo=ZoneInfo("UTC")))
+def test_check_dependencies_with_vulnerability_and_maintenance_issues_uv_secure(
+    temp_uv_lock_file: Path,
+    temp_uv_secure_toml_file_all_columns_and_maintenance_issues_enabled: Path,
+    old_yanked_package_with_vulnerability_response: HTTPXMock,
+) -> None:
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 2
+    assert "Vulnerabilities detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "Vulnerable: 1 vulnerability" in result.output
+    assert "example-package" in result.output
+    assert "1.0.0" in result.output
+    assert "VULN-123" in result.output
+    assert "1.0.1" in result.output
+    assert "Aliases" in result.output
+    assert "CVE-2024-12345" in result.output
+    assert "Details" in result.output
+    assert "A critical vulnerability in example-package." in result.output
+    assert "Maintenance Issues detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "Issues: 1 issue" in result.output
+    assert "Broken API" in result.output
+    assert "4 years and 11.01 days" in result.output
 
 
 def test_check_dependencies_with_custom_caching(

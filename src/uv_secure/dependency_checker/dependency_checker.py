@@ -105,8 +105,8 @@ def _render_issue_table(
         renderables = [
             package.info.name,
             package.info.version,
-            str(package.yanked),
-            package.yanked_reason if package.yanked_reason else "Unknown",
+            str(package.info.yanked),
+            package.info.yanked_reason if package.info.yanked_reason else "Unknown",
             humanize.precisedelta(package.age, minimum_unit="days")
             if package.age
             else "Unknown",
@@ -184,7 +184,7 @@ async def check_dependencies(
             vulnerable_packages.append(package)
 
         found_rejected_yanked_package = (
-            config.maintainability_criteria.forbid_yanked and package.yanked
+            config.maintainability_criteria.forbid_yanked and package.info.yanked
         )
         found_over_age_package = (
             config.maintainability_criteria.max_dependency_age is not None
@@ -212,7 +212,7 @@ async def check_dependencies(
         status = 2
 
     issue_count = len(maintenance_issue_packages)
-    issue_plural = inf.plural("issue", vulnerable_count)
+    issue_plural = inf.plural("issue", issue_count)
     if len(maintenance_issue_packages) > 0:
         console_outputs.append(
             Panel.fit(

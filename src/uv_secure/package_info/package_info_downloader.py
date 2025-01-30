@@ -100,19 +100,6 @@ class PackageInfo(BaseModel):
             return None
         return datetime.now(tz=ZoneInfo("UTC")) - release_date
 
-    @property
-    def yanked(self) -> bool:
-        """Return whether the package is yanked"""
-        return any(url.yanked for url in self.urls)
-
-    @property
-    def yanked_reason(self) -> Optional[str]:
-        """Return reason for yanked"""
-        for url in self.urls:
-            if url.yanked_reason:
-                return url.yanked_reason
-        return None
-
 
 def _canonicalize_name(name: str) -> str:
     """Converts a package name to its canonical form for PyPI URLs"""
