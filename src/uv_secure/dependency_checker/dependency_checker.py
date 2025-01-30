@@ -90,7 +90,7 @@ def _render_issue_table(
     config: Configuration, maintenance_issue_packages: Iterable[PackageInfo]
 ) -> Table:
     table = Table(
-        title="Vulnerable Dependencies",
+        title="Maintenance Issues",
         show_header=True,
         row_styles=["none", "dim"],
         header_style="bold magenta",

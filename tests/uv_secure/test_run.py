@@ -698,6 +698,7 @@ def test_app_maintenance_issues_cli_args(
     assert "Maintenance Issues detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "Issues: 1 issue" in result.output
+    assert "Maintenance Issues" in result.output
     assert "Broken API" in result.output
     assert "4 years and 11.01 days" in result.output
 
@@ -714,6 +715,7 @@ def test_app_yanked_no_reason_cli_args(
     assert "Maintenance Issues detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "Issues: 1 issue" in result.output
+    assert "Maintenance Issues" in result.output
     assert "Unknown" in result.output
     assert "1 year and 11.01 days" in result.output
 
@@ -899,6 +901,7 @@ def test_check_dependencies_with_vulnerability_and_maintenance_issues_uv_secure(
     assert "Maintenance Issues detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "Issues: 1 issue" in result.output
+    assert "Maintenance Issues" in result.output
     assert "Broken API" in result.output
     assert "4 years and 11.01 days" in result.output
 
