@@ -88,24 +88,29 @@ After installation, you can run uv-secure --help to see the options.
 │                                    [default: None]                                   │
 ╰──────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ────────────────────────────────────────────────────────────────────────────╮
-│ --aliases                           Flag whether to include vulnerability aliases in │
-│                                     the vulnerabilities table                        │
-│ --desc                              Flag whether to include vulnerability detailed   │
-│                                     description in the vulnerabilities table         │
-│ --disable-cache                     Flag whether to disable caching for              │
-│                                     vulnerability http requests                      │
-│ --ignore              -i      TEXT  Comma-separated list of vulnerability IDs to     │
-│                                     ignore, e.g. VULN-123,VULN-456                   │
-│                                     [default: None]                                  │
-│ --config                      PATH  Optional path to a configuration file            │
-│                                     (uv-secure.toml, .uv-secure.toml, or             │
-│                                     pyproject.toml)                                  │
-│                                     [default: None]                                  │
-│ --version                           Show the application's version                   │
-│ --install-completion                Install completion for the current shell.        │
-│ --show-completion                   Show completion for the current shell, to copy   │
-│                                     it or customize the installation.                │
-│ --help                              Show this message and exit.                      │
+│ --aliases                              Flag whether to include vulnerability aliases │
+│                                        in the vulnerabilities table                  │
+│ --desc                                 Flag whether to include vulnerability         │
+│                                        detailed description in the vulnerabilities   │
+│                                        table                                         │
+│ --disable-cache                        Flag whether to disable caching for           │
+│                                        vulnerability http requests                   │
+│ --forbid-yanked                        Flag whether disallow yanked package versions │
+│                                        from being dependencies                       │
+│ --max-age-days                INTEGER  Maximum age threshold for packages in days    │
+│                                        [default: None]                               │
+│ --ignore              -i      TEXT     Comma-separated list of vulnerability IDs to  │
+│                                        ignore, e.g. VULN-123,VULN-456                │
+│                                        [default: None]                               │
+│ --config                      PATH     Optional path to a configuration file         │
+│                                        (uv-secure.toml, .uv-secure.toml, or          │
+│                                        pyproject.toml)                               │
+│                                        [default: None]                               │
+│ --version                              Show the application's version                │
+│ --install-completion                   Install completion for the current shell.     │
+│ --show-completion                      Show completion for the current shell, to     │
+│                                        copy it or customize the installation.        │
+│ --help                                 Show this message and exit.                   │
 ╰──────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -134,6 +139,11 @@ desc = true # Defaults to false
 cache_path = "~/.uv-secure" # Defaults to ~/.cache/uv-secure if not set
 ttl_seconds = 60.0 # Defaults to one day (86400 seconds) if not set
 disable_cache = false # Defaults to false if not set
+
+[maintainability_criteria]
+# max_package_age takes numeric seconds or an ISO8601 duration string
+max_package_age = "P1000D" # Defaults to None if not set (no age limit)
+forbid_yanked = true # Defaults to false (allow yanked package dependencies) if not set
 ```
 
 ### pyproject.toml
@@ -148,6 +158,11 @@ desc = true # Defaults to false
 cache_path = "~/.uv-secure" # Defaults to ~/.cache/uv-secure if not set
 ttl_seconds = 60.0 # Defaults to one day (86400 seconds) if not set
 disable_cache = false # Defaults to false if not set
+
+[tool.uv-secure.maintainability_criteria]
+# max_package_age takes numeric seconds or an ISO8601 duration string
+max_package_age = "P1000D" # Defaults to None (no max age) if not set
+forbid_yanked = true # Defaults to false (allow yanked package dependencies) if not set
 ```
 
 ### File Caching
@@ -210,7 +225,7 @@ uv-secure can be run as a pre-commit hook by adding this configuration to your
 
 ```yaml
   - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.7.1
+    rev: 0.8.0
     hooks:
       - id: uv-secure
 ```

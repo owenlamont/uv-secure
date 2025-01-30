@@ -71,7 +71,7 @@ def temp_uv_secure_toml_file_all_columns_and_maintenance_issues_enabled(
         desc = true
 
         [maintainability_criteria]
-        max_package_age = 1000
+        max_package_age = "P1000D"
         forbid_yanked = true
     """
     uv_secure_toml_path.write_text(dedent(uv_lock_data).strip())
