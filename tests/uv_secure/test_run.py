@@ -1,10 +1,9 @@
 from collections.abc import Generator
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 from pathlib import Path
 from textwrap import dedent
 from typing import Callable
-from zoneinfo import ZoneInfo
 
 from freezegun import freeze_time
 from httpx import Request, RequestError
@@ -679,7 +678,7 @@ def test_app_no_vulnerabilities_relative_no_specified_path(
     assert "All dependencies appear safe!" in result.output
 
 
-@freeze_time(datetime(2025, 1, 30, tzinfo=ZoneInfo("UTC")))
+@freeze_time(datetime(2025, 1, 30, tzinfo=timezone.utc))
 def test_app_maintenance_issues_cli_args(
     temp_uv_lock_file: Path, old_yanked_package_response: HTTPXMock
 ) -> None:
@@ -703,7 +702,7 @@ def test_app_maintenance_issues_cli_args(
     assert "4 years and 11.01 days" in result.output
 
 
-@freeze_time(datetime(2025, 1, 30, tzinfo=ZoneInfo("UTC")))
+@freeze_time(datetime(2025, 1, 30, tzinfo=timezone.utc))
 def test_app_yanked_no_reason_cli_args(
     temp_uv_lock_file: Path, yanked_package_no_reason_given_response: HTTPXMock
 ) -> None:
@@ -762,7 +761,7 @@ def test_app_package_not_found(
         ),
     ],
 )
-@freeze_time(datetime(2025, 1, 30, tzinfo=ZoneInfo("UTC")))
+@freeze_time(datetime(2025, 1, 30, tzinfo=timezone.utc))
 def test_check_dependencies_with_vulnerability(
     extra_cli_args: list[str],
     temp_uv_lock_file: Path,
@@ -878,7 +877,7 @@ def test_check_dependencies_with_vulnerability_uv_secure_all_columns_configured(
     assert "A critical vulnerability in example-package.  " in result.output
 
 
-@freeze_time(datetime(2025, 1, 30, tzinfo=ZoneInfo("UTC")))
+@freeze_time(datetime(2025, 1, 30, tzinfo=timezone.utc))
 def test_check_dependencies_with_vulnerability_and_maintenance_issues_uv_secure(
     temp_uv_lock_file: Path,
     temp_uv_secure_toml_file_all_columns_and_maintenance_issues_enabled: Path,

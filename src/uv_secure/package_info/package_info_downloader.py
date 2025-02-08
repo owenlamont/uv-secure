@@ -1,8 +1,7 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import re
 from typing import Optional, Union
-from zoneinfo import ZoneInfo
 
 from hishel import AsyncCacheClient, AsyncFileStorage
 from pydantic import BaseModel
@@ -98,7 +97,7 @@ class PackageInfo(BaseModel):
         )
         if release_date is None:
             return None
-        return datetime.now(tz=ZoneInfo("UTC")) - release_date
+        return datetime.now(tz=timezone.utc) - release_date
 
 
 def _canonicalize_name(name: str) -> str:
