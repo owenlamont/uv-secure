@@ -27,8 +27,12 @@ refining the command line arguments and configuration behaviour.
 
 ## Installation
 
-I recommend installing uv-secure as a uv tool or with pipx as it's intended to be used
-as a CLI tool, and it probably only makes sense to have one version installed globally.
+uv-secure is available on [PyPi](https://pypi.org/project/uv-secure/) and
+[conda-forge](https://anaconda.org/conda-forge/uv-secure).
+
+I recommend installing uv-secure as a uv tool, or with pipx, or as a pixi global tool as
+it's intended to be used as a CLI tool, and it probably only makes sense to have one
+version installed globally.
 
 Installing with uv tool as follows:
 
@@ -40,6 +44,12 @@ or with pipx:
 
 ```shell
 pipx install uv-secure
+```
+
+or from conda-forge with pixi:
+
+```shell
+pixi global install uv-secure
 ```
 
 you can optionally install uv-secure as a development dependency in a virtual
