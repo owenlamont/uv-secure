@@ -61,13 +61,13 @@ async def parse_uv_lock_file(file_path: Path) -> list[Dependency]:
             dependencies[package["name"]] = Dependency(
                 name=package["name"], version=package["version"]
             )
-        elif source.get("editable") == "." or source.get("editable") == ".":
+        elif source.get("editable") == "." or source.get("virtual") == ".":
             for dependency in package.get("dependencies", []):
                 first_order_dependencies.add(dependency["name"])
-            for group in source.get("dev-dependencies", {}):
-                for group_dependencies in group.values():
-                    for dependency in group_dependencies:
-                        first_order_dependencies.add(dependency["name"])
+            dev_dependencies = package.get("dev-dependencies", {})
+            for group_dependencies in dev_dependencies.values():
+                for dependency in group_dependencies:
+                    first_order_dependencies.add(dependency["name"])
 
     dependency_list = list(dependencies.values())
     for dependency in dependency_list:

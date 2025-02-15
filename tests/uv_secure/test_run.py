@@ -726,7 +726,8 @@ def test_app_failed_vulnerability_request(
 
     assert result.exit_code == 0
     assert (
-        "Error: name='example-package' version='1.0.0' raised exception: Request failed"
+        "Error: name='example-package' version='1.0.0' first_order=False raised "
+        "exception: Request failed"
     ) in result.output
     assert "No vulnerabilities detected!" in result.output
     assert "Checked: 1 dependency" in result.output
@@ -740,8 +741,8 @@ def test_app_package_not_found(
 
     assert result.exit_code == 0
     assert (
-        "Error: name='example-package' version='1.0.0' raised exception: Client "
-        "error '404 Not Found' for url "
+        "Error: name='example-package' version='1.0.0' first_order=False raised "
+        "exception: Client error '404 Not Found' for url "
         "'https://pypi.org/pypi/example-package/1.0.0/json'"
     ) in result.output
     assert "No vulnerabilities detected!" in result.output
