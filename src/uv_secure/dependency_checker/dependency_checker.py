@@ -215,27 +215,35 @@ async def check_dependencies(
             )
             continue
 
-        # Filter out ignored vulnerabilities
-        package.vulnerabilities = [
-            vuln
-            for vuln in package.vulnerabilities
-            if config.vulnerability_criteria.ignore_vulnerabilities is None
-            or vuln.id not in config.vulnerability_criteria.ignore_vulnerabilities
-        ]
-        if len(package.vulnerabilities) > 0:
-            vulnerable_count += len(package.vulnerabilities)
-            vulnerable_packages.append(package)
+        if (
+            package.direct_dependency
+            or not config.vulnerability_criteria.check_direct_dependencies_only
+        ):
+            # Filter out ignored vulnerabilities
+            package.vulnerabilities = [
+                vuln
+                for vuln in package.vulnerabilities
+                if config.vulnerability_criteria.ignore_vulnerabilities is None
+                or vuln.id not in config.vulnerability_criteria.ignore_vulnerabilities
+            ]
+            if len(package.vulnerabilities) > 0:
+                vulnerable_count += len(package.vulnerabilities)
+                vulnerable_packages.append(package)
 
-        found_rejected_yanked_package = (
-            config.maintainability_criteria.forbid_yanked and package.info.yanked
-        )
-        found_over_age_package = (
-            config.maintainability_criteria.max_package_age is not None
-            and package.age is not None
-            and package.age > config.maintainability_criteria.max_package_age
-        )
-        if found_rejected_yanked_package or found_over_age_package:
-            maintenance_issue_packages.append(package)
+        if (
+            package.direct_dependency
+            or not config.maintainability_criteria.check_direct_dependencies_only
+        ):
+            found_rejected_yanked_package = (
+                config.maintainability_criteria.forbid_yanked and package.info.yanked
+            )
+            found_over_age_package = (
+                config.maintainability_criteria.max_package_age is not None
+                and package.age is not None
+                and package.age > config.maintainability_criteria.max_package_age
+            )
+            if found_rejected_yanked_package or found_over_age_package:
+                maintenance_issue_packages.append(package)
 
     inf = inflect.engine()
     total_plural = inf.plural("dependency", total_dependencies)
@@ -271,7 +279,7 @@ async def check_dependencies(
     if status == 0:
         console_outputs.append(
             Panel.fit(
-                f"[bold green]No vulnerabilities detected![/]\n"
+                f"[bold green]No vulnerabilities or maintenance issues detected![/]\n"
                 f"Checked: [bold]{total_dependencies}[/] {total_plural}\n"
                 f"All dependencies appear safe!"
             )

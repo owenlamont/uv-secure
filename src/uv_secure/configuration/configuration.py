@@ -21,6 +21,7 @@ class MaintainabilityCriteria(BaseModel):
     model_config = ConfigDict(extra="forbid")
     max_package_age: Optional[timedelta] = None
     forbid_yanked: bool = False
+    check_direct_dependencies_only: bool = False
 
 
 class VulnerabilityCriteria(BaseModel):
@@ -28,6 +29,7 @@ class VulnerabilityCriteria(BaseModel):
     aliases: bool = False
     desc: bool = False
     ignore_vulnerabilities: Optional[set[str]] = None
+    check_direct_dependencies_only: bool = False
 
 
 class Configuration(BaseModel):

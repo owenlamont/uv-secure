@@ -88,6 +88,7 @@ class PackageInfo(BaseModel):
     last_serial: int
     urls: list[Url]
     vulnerabilities: list[Vulnerability]
+    direct_dependency: bool = False
 
     @property
     def age(self) -> Optional[timedelta]:
@@ -115,7 +116,7 @@ async def _download_package(
         url, extensions={"cache_disabled": True} if disable_cache else None
     )
     response.raise_for_status()
-    return PackageInfo(**response.json())
+    return PackageInfo(**response.json(), direct_dependency=dependency.direct)
 
 
 async def download_packages(

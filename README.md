@@ -141,14 +141,17 @@ uv-secure can read configuration from a toml file specified with the config opti
 ### uv-secure.toml / .uv-secure.toml
 
 ```toml
+[vulnerability_criteria]
 ignore_vulnerabilities = ["VULN-123"]
 aliases = true # Defaults to false
 desc = true # Defaults to false
+check_direct_dependencies_only = true # Defaults to false (test transitive dependencies)
 
 [cache_settings]
 cache_path = "~/.uv-secure" # Defaults to ~/.cache/uv-secure if not set
 ttl_seconds = 60.0 # Defaults to one day (86400 seconds) if not set
 disable_cache = false # Defaults to false if not set
+check_direct_dependencies_only = true # Defaults to false (test transitive dependencies)
 
 [maintainability_criteria]
 # max_package_age takes numeric seconds or an ISO8601 duration string
@@ -159,10 +162,11 @@ forbid_yanked = true # Defaults to false (allow yanked package dependencies) if 
 ### pyproject.toml
 
 ```toml
-[tool.uv-secure]
+[tool.uv-secure.vulnerability_criteria]
 ignore_vulnerabilities = ["VULN-123"]
 aliases = true # Defaults to false
 desc = true # Defaults to false
+check_direct_dependencies_only = true # Defaults to false (test transitive dependencies)
 
 [tool.uv-secure.cache_settings]
 cache_path = "~/.uv-secure" # Defaults to ~/.cache/uv-secure if not set
@@ -173,6 +177,7 @@ disable_cache = false # Defaults to false if not set
 # max_package_age takes numeric seconds or an ISO8601 duration string
 max_package_age = "P1000D" # Defaults to None (no max age) if not set
 forbid_yanked = true # Defaults to false (allow yanked package dependencies) if not set
+check_direct_dependencies_only = true # Defaults to false (test transitive dependencies)
 ```
 
 ### File Caching
