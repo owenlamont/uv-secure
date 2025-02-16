@@ -3,8 +3,10 @@ import sys
 from typing import Optional
 
 from anyio import Path
+from pydantic import ValidationError
 
 from uv_secure.configuration.configuration import Configuration, OverrideConfiguration
+from uv_secure.configuration.exceptions import UvSecureConfigurationError
 
 
 if sys.version_info >= (3, 11):
@@ -62,9 +64,17 @@ async def config_file_factory(config_file: Path) -> Optional[Configuration]:
     -------
         uv-secure configuration object or None if no configuration was present
     """
-    config_contents = toml.loads(await config_file.read_text())
-    if config_file.name == "pyproject.toml":
-        if "tool" in config_contents and "uv-secure" in config_contents["tool"]:
-            return Configuration(**config_contents["tool"]["uv-secure"])
-        return None
-    return Configuration(**config_contents)
+    try:
+        config_contents = toml.loads(await config_file.read_text())
+        if config_file.name == "pyproject.toml":
+            if "tool" in config_contents and "uv-secure" in config_contents["tool"]:
+                return Configuration(**config_contents["tool"]["uv-secure"])
+            return None
+        return Configuration(**config_contents)
+    except ValidationError as e:
+        raise UvSecureConfigurationError(
+            f"Parsing uv-secure configuration at: {config_file} failed. Check the "
+            "configuration is up to date as documented at: "
+            "https://github.com/owenlamont/uv-secure and check release notes for "
+            "breaking changes."
+        ) from e

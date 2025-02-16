@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import Iterable, Sequence
 from enum import Enum
 from pathlib import Path
+import sys
 from typing import Optional
 
 from anyio import Path as APath
@@ -28,6 +29,10 @@ from uv_secure.package_info import (
 )
 
 
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
+
+
 def _render_vulnerability_table(
     config: Configuration, vulnerable_packages: Iterable[PackageInfo]
 ) -> Table:
@@ -42,9 +47,9 @@ def _render_vulnerability_table(
     table.add_column("Version", min_width=10, max_width=20)
     table.add_column("Vulnerability ID", style="bold cyan", min_width=20, max_width=24)
     table.add_column("Fix Versions", min_width=10, max_width=20)
-    if config.aliases:
+    if config.vulnerability_criteria.aliases:
         table.add_column("Aliases", min_width=20, max_width=24)
-    if config.desc:
+    if config.vulnerability_criteria.desc:
         table.add_column("Details", min_width=8)
     for package in vulnerable_packages:
         for vuln in package.vulnerabilities:
@@ -83,7 +88,7 @@ def _render_vulnerability_table(
                 if vuln.fixed_in
                 else Text(""),
             ]
-            if config.aliases:
+            if config.vulnerability_criteria.aliases:
                 alias_links = []
                 for alias in vuln.aliases or []:
                     hyperlink = None
@@ -107,7 +112,7 @@ def _render_vulnerability_table(
                 renderables.append(
                     Text(", ").join(alias_links) if alias_links else Text("")
                 )
-            if config.desc:
+            if config.vulnerability_criteria.desc:
                 renderables.append(vuln.details)
             table.add_row(*renderables)
     return table
@@ -214,8 +219,8 @@ async def check_dependencies(
         package.vulnerabilities = [
             vuln
             for vuln in package.vulnerabilities
-            if config.ignore_vulnerabilities is None
-            or vuln.id not in config.ignore_vulnerabilities
+            if config.vulnerability_criteria.ignore_vulnerabilities is None
+            or vuln.id not in config.vulnerability_criteria.ignore_vulnerabilities
         ]
         if len(package.vulnerabilities) > 0:
             vulnerable_count += len(package.vulnerabilities)
@@ -310,31 +315,39 @@ async def check_lock_files(
         file_paths = (Path(),)
 
     console = Console()
-    if len(file_paths) == 1 and file_paths[0].is_dir():
-        lock_to_config_map = await get_dependency_file_to_config_map(
-            APath(file_paths[0])
-        )
-        file_paths = tuple(lock_to_config_map.keys())
-    else:
-        if config_path is not None:
-            possible_config = await config_file_factory(APath(config_path))
-            config = possible_config if possible_config is not None else Configuration()
-            lock_to_config_map = {APath(file): config for file in file_paths}
-        elif all(
-            file_path.name in {"requirements.txt", "uv.lock"}
-            for file_path in file_paths
-        ):
+
+    try:
+        if len(file_paths) == 1 and file_paths[0].is_dir():
             lock_to_config_map = await get_dependency_file_to_config_map(
-                [APath(file_path) for file_path in file_paths]
+                APath(file_paths[0])
             )
             file_paths = tuple(lock_to_config_map.keys())
         else:
-            console.print(
-                "[bold red]Error:[/] file_paths must either reference a single "
-                "project root directory or a sequence of uv.lock / requirements.txt "
-                "file paths"
-            )
-            return RunStatus.RUNTIME_ERROR
+            if config_path is not None:
+                possible_config = await config_file_factory(APath(config_path))
+                config = (
+                    possible_config if possible_config is not None else Configuration()
+                )
+                lock_to_config_map = {APath(file): config for file in file_paths}
+            elif all(
+                file_path.name in {"requirements.txt", "uv.lock"}
+                for file_path in file_paths
+            ):
+                lock_to_config_map = await get_dependency_file_to_config_map(
+                    [APath(file_path) for file_path in file_paths]
+                )
+                file_paths = tuple(lock_to_config_map.keys())
+            else:
+                console.print(
+                    "[bold red]Error:[/] file_paths must either reference a single "
+                    "project root directory or a sequence of uv.lock / "
+                    "requirements.txt file paths"
+                )
+                return RunStatus.RUNTIME_ERROR
+    except ExceptionGroup as eg:
+        for e in eg.exceptions:
+            console.print(f"[bold red]Error:[/] {e}")
+        return RunStatus.RUNTIME_ERROR
 
     if any(
         (

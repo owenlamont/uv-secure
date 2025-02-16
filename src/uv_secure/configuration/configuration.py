@@ -2,13 +2,14 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 DEFAULT_HTTPX_CACHE_TTL = 24.0 * 60.0 * 60.0  # Default cache time to 1 day
 
 
 class CacheSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     cache_path: Path = Path.home() / ".cache/uv-secure"
     disable_cache: bool = False
     ttl_seconds: Annotated[float, Field(ge=0.0, allow_inf_nan=False)] = (
@@ -17,16 +18,23 @@ class CacheSettings(BaseModel):
 
 
 class MaintainabilityCriteria(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     max_package_age: Optional[timedelta] = None
     forbid_yanked: bool = False
 
 
-class Configuration(BaseModel):
+class VulnerabilityCriteria(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     aliases: bool = False
     desc: bool = False
     ignore_vulnerabilities: Optional[set[str]] = None
+
+
+class Configuration(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     cache_settings: CacheSettings = CacheSettings()
     maintainability_criteria: MaintainabilityCriteria = MaintainabilityCriteria()
+    vulnerability_criteria: VulnerabilityCriteria = VulnerabilityCriteria()
 
 
 class OverrideConfiguration(BaseModel):
@@ -53,11 +61,13 @@ def override_config(
 
     new_configuration = original_config.model_copy()
     if overrides.aliases is not None:
-        new_configuration.aliases = overrides.aliases
+        new_configuration.vulnerability_criteria.aliases = overrides.aliases
     if overrides.desc is not None:
-        new_configuration.desc = overrides.desc
+        new_configuration.vulnerability_criteria.desc = overrides.desc
     if overrides.ignore_vulnerabilities is not None:
-        new_configuration.ignore_vulnerabilities = overrides.ignore_vulnerabilities
+        new_configuration.vulnerability_criteria.ignore_vulnerabilities = (
+            overrides.ignore_vulnerabilities
+        )
     if overrides.forbid_yanked is not None:
         new_configuration.maintainability_criteria.forbid_yanked = (
             overrides.forbid_yanked

@@ -43,6 +43,7 @@ def temp_non_uv_requirements_txt_file(tmp_path: Path) -> Path:
 def temp_uv_secure_toml_file_ignored_vulnerability(tmp_path: Path) -> Path:
     uv_secure_toml_path = tmp_path / "uv-secure.toml"
     uv_lock_data = """
+        [vulnerability_criteria]
         ignore_vulnerabilities = ["VULN-123"]
     """
     uv_secure_toml_path.write_text(dedent(uv_lock_data).strip())
@@ -53,6 +54,7 @@ def temp_uv_secure_toml_file_ignored_vulnerability(tmp_path: Path) -> Path:
 def temp_uv_secure_toml_file_all_columns_enabled(tmp_path: Path) -> Path:
     uv_secure_toml_path = tmp_path / "uv-secure.toml"
     uv_lock_data = """
+        [vulnerability_criteria]
         aliases = true
         desc = true
     """
@@ -66,6 +68,7 @@ def temp_uv_secure_toml_file_all_columns_and_maintenance_issues_enabled(
 ) -> Path:
     uv_secure_toml_path = tmp_path / "uv-secure.toml"
     uv_lock_data = """
+        [vulnerability_criteria]
         aliases = true
         desc = true
 
@@ -81,6 +84,7 @@ def temp_uv_secure_toml_file_all_columns_and_maintenance_issues_enabled(
 def temp_uv_secure_toml_file_custom_caching(tmp_path: Path) -> Path:
     uv_secure_toml_path = tmp_path / "uv-secure.toml"
     uv_lock_data = f"""
+        [vulnerability_criteria]
         aliases = true
         desc = true
 
@@ -105,6 +109,7 @@ def temp_nested_uv_secure_toml_file_ignored_vulnerability(tmp_path: Path) -> Pat
     nested_uv_lock_path = tmp_path / "nested_project"
     uv_secure_toml_path = nested_uv_lock_path / "uv-secure.toml"
     uv_lock_data = """
+    [vulnerability_criteria]
     ignore_vulnerabilities = ["VULN-123"]
     """
     uv_secure_toml_path.write_text(dedent(uv_lock_data).strip())
@@ -125,7 +130,7 @@ def temp_pyproject_toml_file(tmp_path: Path) -> Path:
 def temp_pyproject_toml_file_extra_columns_enabled(tmp_path: Path) -> Path:
     pyproject_toml_path = tmp_path / "pyproject.toml"
     uv_lock_data = """
-    [tool.uv-secure]
+    [tool.uv-secure.vulnerability_criteria]
     aliases = true
     desc = true
     """
@@ -137,7 +142,7 @@ def temp_pyproject_toml_file_extra_columns_enabled(tmp_path: Path) -> Path:
 def temp_pyproject_toml_file_ignored_vulnerability(tmp_path: Path) -> Path:
     pyproject_toml_path = tmp_path / "pyproject.toml"
     uv_lock_data = """
-    [tool.uv-secure]
+    [tool.uv-secure.vulnerability_criteria]
     ignore_vulnerabilities = ["VULN-123"]
     """
     pyproject_toml_path.write_text(dedent(uv_lock_data).strip())
@@ -603,6 +608,29 @@ def test_bad_file_name() -> None:
     result = runner.invoke(app, "i_dont_exist.txt")
     assert result.exit_code == 3
     assert "Error" in result.output
+
+
+def test_bad_pyproject_toml_config_file(tmp_path: Path) -> None:
+    pyproject_toml_path = tmp_path / "pyproject.toml"
+    pyproject_toml_contents = """
+        [tool.uv-secure]
+        aliases = true
+        desc = true
+    """
+    pyproject_toml_path.write_text(dedent(pyproject_toml_contents).strip())
+    result = runner.invoke(app, [str(tmp_path / "uv.lock")])
+    assert "Error: Parsing uv-secure configuration at: " in result.output
+
+
+def test_bad_uv_secure_toml_config_file(tmp_path: Path) -> None:
+    uv_secure_toml_path = tmp_path / "uv-secure.toml"
+    uv_secure_toml = """
+        aliases = true
+        desc = true
+    """
+    uv_secure_toml_path.write_text(dedent(uv_secure_toml).strip())
+    result = runner.invoke(app, [str(tmp_path / "uv.lock")])
+    assert "Error: Parsing uv-secure configuration at: " in result.output
 
 
 def test_missing_file(tmp_path: Path) -> None:
