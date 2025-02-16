@@ -626,7 +626,7 @@ def test_lock_maintenance_pyproject_toml_direct_dependencies_one_issue(
     )
 
 
-def test_reqs_vulnerability_full_dependencies_one_vulnerability(
+def test_reqs_vulnerability_full_dependencies_one_vuln(
     temp_uv_secure_toml_file_all_columns_enabled: Path,
     temp_uv_requirements_txt_file_direct_indirect_dependencies: Path,
     no_vulnerabilities_response_direct_dependency: HTTPXMock,
@@ -640,7 +640,7 @@ def test_reqs_vulnerability_full_dependencies_one_vulnerability(
     assert result.output.count("indirect-dependency") == 1
 
 
-def test_reqs_vulnerability_uv_secure_toml_direct_dependencies_one_vulnerability(
+def test_reqs_vulnerability_uv_secure_toml_direct_dependencies_one_vuln(
     temp_uv_secure_toml_file_direct_dependency_vulnerabilities_only: Path,
     temp_uv_requirements_txt_file_direct_indirect_dependencies: Path,
     no_vulnerabilities_response_direct_dependency: HTTPXMock,
@@ -655,7 +655,7 @@ def test_reqs_vulnerability_uv_secure_toml_direct_dependencies_one_vulnerability
     )
 
 
-def test_reqs_vulnerability_pyproject_toml_direct_dependencies_one_vulnerability(
+def test_reqs_vulnerability_pyproject_toml_direct_dependencies_one_vuln(
     temp_pyproject_toml_file_direct_dependency_vulnerabilities_only: Path,
     temp_uv_requirements_txt_file_direct_indirect_dependencies: Path,
     no_vulnerabilities_response_direct_dependency: HTTPXMock,
@@ -663,6 +663,44 @@ def test_reqs_vulnerability_pyproject_toml_direct_dependencies_one_vulnerability
 ) -> None:
     result = runner.invoke(
         app, [str(temp_uv_requirements_txt_file_direct_indirect_dependencies)]
+    )
+    assert result.exit_code == 0
+    assert (
+        result.output.count("No vulnerabilities or maintenance issues detected!") == 1
+    )
+
+
+def test_reqs_vulnerability_uv_secure_toml_cli_override_direct_dependencies_one_vuln(
+    temp_uv_secure_toml_file_all_columns_enabled: Path,
+    temp_uv_requirements_txt_file_direct_indirect_dependencies: Path,
+    no_vulnerabilities_response_direct_dependency: HTTPXMock,
+    one_vulnerability_response_indirect_dependency: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_requirements_txt_file_direct_indirect_dependencies),
+            "--check-direct-dependency-vulnerabilities-only",
+        ],
+    )
+    assert result.exit_code == 0
+    assert (
+        result.output.count("No vulnerabilities or maintenance issues detected!") == 1
+    )
+
+
+def test_reqs_vulnerability_pyproject_toml_cli_override_direct_dependencies_one_vuln(
+    temp_uv_secure_toml_file_all_columns_enabled: Path,
+    temp_uv_requirements_txt_file_direct_indirect_dependencies: Path,
+    no_vulnerabilities_response_direct_dependency: HTTPXMock,
+    one_vulnerability_response_indirect_dependency: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_requirements_txt_file_direct_indirect_dependencies),
+            "--check-direct-dependency-vulnerabilities-only",
+        ],
     )
     assert result.exit_code == 0
     assert (
@@ -707,6 +745,44 @@ def test_reqs_maintenance_pyproject_toml_direct_dependencies_one_issue(
 ) -> None:
     result = runner.invoke(
         app, [str(temp_uv_requirements_txt_file_direct_indirect_dependencies)]
+    )
+    assert result.exit_code == 0
+    assert (
+        result.output.count("No vulnerabilities or maintenance issues detected!") == 1
+    )
+
+
+def test_reqs_maintenance_uv_secure_toml_cli_override_direct_dependencies_one_issue(
+    temp_uv_secure_toml_file_all_columns_and_maintenance_issues_enabled: Path,
+    temp_uv_requirements_txt_file_direct_indirect_dependencies: Path,
+    no_vulnerabilities_response_direct_dependency: HTTPXMock,
+    one_maintenance_issue_response_indirect_dependency: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_requirements_txt_file_direct_indirect_dependencies),
+            "--check-direct-dependency-maintenance-issues-only",
+        ],
+    )
+    assert result.exit_code == 0
+    assert (
+        result.output.count("No vulnerabilities or maintenance issues detected!") == 1
+    )
+
+
+def test_reqs_maintenance_pyproject_toml_cli_override_direct_dependencies_one_issue(
+    temp_uv_secure_toml_file_all_columns_and_maintenance_issues_enabled: Path,
+    temp_uv_requirements_txt_file_direct_indirect_dependencies: Path,
+    no_vulnerabilities_response_direct_dependency: HTTPXMock,
+    one_maintenance_issue_response_indirect_dependency: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_requirements_txt_file_direct_indirect_dependencies),
+            "--check-direct-dependency-maintenance-issues-only",
+        ],
     )
     assert result.exit_code == 0
     assert (

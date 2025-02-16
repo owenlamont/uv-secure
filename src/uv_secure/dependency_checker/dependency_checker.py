@@ -302,9 +302,14 @@ async def check_lock_files(
     forbid_yanked: Optional[bool],
     max_package_age: Optional[int],
     ignore: Optional[str],
+    check_direct_dependency_vulnerabilities_only: Optional[bool],
+    check_direct_dependency_maintenance_issues_only: Optional[bool],
     config_path: Optional[Path],
 ) -> RunStatus:
-    """Checks
+    """Checks uv.lock and requirements.txt files for issues
+
+    Check specified or discovered uv.lock and requirements.txt files for maintenance
+    issues or known vulnerabilities
 
     Args:
         file_paths: paths to files or directory to process
@@ -313,6 +318,10 @@ async def check_lock_files(
         disable_cache: flag whether to disable cache
         forbid_yanked: flag whether to forbid yanked dependencies
         max_package_age: maximum age of dependencies in days
+        check_direct_dependency_vulnerabilities_only: flag checking direct dependency
+            vulnerabilities only
+        check_direct_dependency_maintenance_issues_only: flag checking direct dependency
+            maintenance issues only
         ignore: Vulnerabilities IDs to ignore
 
     Returns
@@ -364,11 +373,20 @@ async def check_lock_files(
             ignore,
             disable_cache,
             forbid_yanked,
+            check_direct_dependency_vulnerabilities_only,
+            check_direct_dependency_maintenance_issues_only,
             max_package_age is not None,
         )
     ):
         cli_config = config_cli_arg_factory(
-            aliases, desc, disable_cache, forbid_yanked, max_package_age, ignore
+            aliases,
+            check_direct_dependency_maintenance_issues_only,
+            check_direct_dependency_vulnerabilities_only,
+            desc,
+            disable_cache,
+            forbid_yanked,
+            max_package_age,
+            ignore,
         )
         lock_to_config_map = {
             lock_file: override_config(config, cli_config)

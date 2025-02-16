@@ -98,29 +98,43 @@ After installation, you can run uv-secure --help to see the options.
 │                                    [default: None]                                   │
 ╰──────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ────────────────────────────────────────────────────────────────────────────╮
-│ --aliases                              Flag whether to include vulnerability aliases │
-│                                        in the vulnerabilities table                  │
-│ --desc                                 Flag whether to include vulnerability         │
-│                                        detailed description in the vulnerabilities   │
-│                                        table                                         │
-│ --disable-cache                        Flag whether to disable caching for           │
-│                                        vulnerability http requests                   │
-│ --forbid-yanked                        Flag whether disallow yanked package versions │
-│                                        from being dependencies                       │
-│ --max-age-days                INTEGER  Maximum age threshold for packages in days    │
-│                                        [default: None]                               │
-│ --ignore              -i      TEXT     Comma-separated list of vulnerability IDs to  │
-│                                        ignore, e.g. VULN-123,VULN-456                │
-│                                        [default: None]                               │
-│ --config                      PATH     Optional path to a configuration file         │
-│                                        (uv-secure.toml, .uv-secure.toml, or          │
-│                                        pyproject.toml)                               │
-│                                        [default: None]                               │
-│ --version                              Show the application's version                │
-│ --install-completion                   Install completion for the current shell.     │
-│ --show-completion                      Show completion for the current shell, to     │
-│                                        copy it or customize the installation.        │
-│ --help                                 Show this message and exit.                   │
+│ --aliases                                           Flag whether to include          │
+│                                                     vulnerability aliases in the     │
+│                                                     vulnerabilities table            │
+│ --desc                                              Flag whether to include          │
+│                                                     vulnerability detailed           │
+│                                                     description in the               │
+│                                                     vulnerabilities table            │
+│ --disable-cache                                     Flag whether to disable caching  │
+│                                                     for vulnerability http requests  │
+│ --forbid-yanked                                     Flag whether disallow yanked     │
+│                                                     package versions from being      │
+│                                                     dependencies                     │
+│ --max-age-days                             INTEGER  Maximum age threshold for        │
+│                                                     packages in days                 │
+│                                                     [default: None]                  │
+│ --ignore                           -i      TEXT     Comma-separated list of          │
+│                                                     vulnerability IDs to ignore,     │
+│                                                     e.g. VULN-123,VULN-456           │
+│                                                     [default: None]                  │
+│ --check-direct-dependency-vulner…                   Flag whether to only test only   │
+│                                                     direct dependencies for          │
+│                                                     vulnerabilities                  │
+│ --check-direct-dependency-mainte…                   Flag whether to only test only   │
+│                                                     direct dependencies for          │
+│                                                     maintenance issues               │
+│ --config                                   PATH     Optional path to a configuration │
+│                                                     file (uv-secure.toml,            │
+│                                                     .uv-secure.toml, or              │
+│                                                     pyproject.toml)                  │
+│                                                     [default: None]                  │
+│ --version                                           Show the application's version   │
+│ --install-completion                                Install completion for the       │
+│                                                     current shell.                   │
+│ --show-completion                                   Show completion for the current  │
+│                                                     shell, to copy it or customize   │
+│                                                     the installation.                │
+│ --help                                              Show this message and exit.      │
 ╰──────────────────────────────────────────────────────────────────────────────────────╯
 ```
 

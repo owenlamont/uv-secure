@@ -17,6 +17,8 @@ else:
 
 def config_cli_arg_factory(
     aliases: Optional[bool],
+    check_direct_dependency_maintenance_issues_only: Optional[bool],
+    check_direct_dependency_vulnerabilities_only: Optional[bool],
     desc: Optional[bool],
     disable_cache: Optional[bool],
     forbid_yanked: Optional[bool],
@@ -45,6 +47,8 @@ def config_cli_arg_factory(
 
     return OverrideConfiguration(
         aliases=aliases,
+        check_direct_dependency_maintenance_issues_only=check_direct_dependency_maintenance_issues_only,
+        check_direct_dependency_vulnerabilities_only=check_direct_dependency_vulnerabilities_only,
         desc=desc,
         disable_cache=disable_cache,
         forbid_yanked=forbid_yanked,

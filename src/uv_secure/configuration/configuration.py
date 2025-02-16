@@ -41,6 +41,8 @@ class Configuration(BaseModel):
 
 class OverrideConfiguration(BaseModel):
     aliases: Optional[bool] = None
+    check_direct_dependency_maintenance_issues_only: Optional[bool] = None
+    check_direct_dependency_vulnerabilities_only: Optional[bool] = None
     desc: Optional[bool] = None
     ignore_vulnerabilities: Optional[set[str]] = None
     forbid_yanked: Optional[bool] = None
@@ -64,6 +66,14 @@ def override_config(
     new_configuration = original_config.model_copy()
     if overrides.aliases is not None:
         new_configuration.vulnerability_criteria.aliases = overrides.aliases
+    if overrides.check_direct_dependency_maintenance_issues_only is not None:
+        new_configuration.maintainability_criteria.check_direct_dependencies_only = (
+            overrides.check_direct_dependency_maintenance_issues_only
+        )
+    if overrides.check_direct_dependency_vulnerabilities_only is not None:
+        new_configuration.vulnerability_criteria.check_direct_dependencies_only = (
+            overrides.check_direct_dependency_vulnerabilities_only
+        )
     if overrides.desc is not None:
         new_configuration.vulnerability_criteria.desc = overrides.desc
     if overrides.ignore_vulnerabilities is not None:

@@ -54,6 +54,18 @@ _forbid_yanked_option = typer.Option(
     help="Flag whether disallow yanked package versions from being dependencies",
 )
 
+_check_direct_dependency_vulnerabilities_only_option = typer.Option(
+    None,
+    "--check-direct-dependency-vulnerabilities-only",
+    help="Flag whether to only test only direct dependencies for vulnerabilities",
+)
+
+_check_direct_dependency_maintenance_issues_only_option = typer.Option(
+    None,
+    "--check-direct-dependency-maintenance-issues-only",
+    help="Flag whether to only test only direct dependencies for maintenance issues",
+)
+
 _max_package_age_option = typer.Option(
     None, "--max-age-days", help="Maximum age threshold for packages in days"
 )
@@ -92,6 +104,12 @@ def main(
     forbid_yanked: Optional[bool] = _forbid_yanked_option,
     max_package_age: Optional[int] = _max_package_age_option,
     ignore: Optional[str] = _ignore_option,
+    check_direct_dependency_vulnerabilities_only: Optional[
+        bool
+    ] = _check_direct_dependency_vulnerabilities_only_option,
+    check_direct_dependency_maintenance_issues_only: Optional[
+        bool
+    ] = _check_direct_dependency_maintenance_issues_only_option,
     config_path: Optional[Path] = _config_option,
     version: bool = _version_option,
 ) -> None:
@@ -115,6 +133,8 @@ def main(
             forbid_yanked,
             max_package_age,
             ignore,
+            check_direct_dependency_vulnerabilities_only,
+            check_direct_dependency_maintenance_issues_only,
             config_path,
         )
     )
