@@ -6,7 +6,7 @@ from pytest_httpx import HTTPXMock
 from rich.table import Table
 from rich.text import Text
 
-from uv_secure.configuration import Configuration
+from uv_secure.configuration import Configuration, VulnerabilityCriteria
 from uv_secure.dependency_checker import check_dependencies
 
 
@@ -17,7 +17,7 @@ from uv_secure.dependency_checker import check_dependencies
         pytest.param(
             "CVE-2024-12345",
             "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2024-12345",
-            id="CVE lias",
+            id="CVE alias",
         ),
         pytest.param(
             "GHSA-q2x7-8rv6-6q7h",
@@ -73,7 +73,8 @@ async def test_check_dependencies_alias_hyperlinks(
     )
 
     status, renderables = await check_dependencies(
-        APath(temp_uv_lock_file), Configuration(aliases=True)
+        APath(temp_uv_lock_file),
+        Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),
     )
 
     assert status == 2

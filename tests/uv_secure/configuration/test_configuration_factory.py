@@ -5,7 +5,12 @@ from typing import Optional
 from anyio import Path as APath
 import pytest
 
-from uv_secure.configuration import CacheSettings, config_file_factory, Configuration
+from uv_secure.configuration import (
+    CacheSettings,
+    config_file_factory,
+    Configuration,
+    VulnerabilityCriteria,
+)
 
 
 @pytest.mark.asyncio
@@ -21,10 +26,13 @@ from uv_secure.configuration import CacheSettings, config_file_factory, Configur
         pytest.param(
             "uv-secure.toml",
             """
+            [vulnerability_criteria]
             aliases = true
             desc = true
             """,
-            Configuration(aliases=True, desc=True),
+            Configuration(
+                vulnerability_criteria=VulnerabilityCriteria(aliases=True, desc=True)
+            ),
             id="Enable aliases and description",
         ),
         pytest.param(
@@ -44,7 +52,7 @@ from uv_secure.configuration import CacheSettings, config_file_factory, Configur
         pytest.param(
             "pyproject.toml",
             """
-            [tool.uv-secure]
+            [tool.uv-secure.vulnerability_criteria]
             aliases = true
             desc = true
             [tool.uv-secure.cache_settings]
@@ -52,8 +60,7 @@ from uv_secure.configuration import CacheSettings, config_file_factory, Configur
             ttl_seconds = 60.0
             """,
             Configuration(
-                aliases=True,
-                desc=True,
+                vulnerability_criteria=VulnerabilityCriteria(aliases=True, desc=True),
                 cache_settings=CacheSettings(
                     cache_path=Path("/dummy/.uv-secure"), ttl_seconds=60.0
                 ),

@@ -164,7 +164,9 @@ ignore = [
     "ISC001", # Implicitly concatenated string literals on one line
 ]
 
-per-file-ignores = { "tests/**" = ["D102", "D103", "S101"] }
+[tool.ruff.lint.per-file-ignores]
+"tests/uv_secure/package_info/test_dependency_file_parser.py" = ["E501"]
+"tests/**" = ["D102", "D103", "S101"]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]

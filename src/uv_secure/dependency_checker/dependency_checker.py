@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import Iterable, Sequence
 from enum import Enum
 from pathlib import Path
+import sys
 from typing import Optional
 
 from anyio import Path as APath
@@ -28,6 +29,10 @@ from uv_secure.package_info import (
 )
 
 
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
+
+
 def _render_vulnerability_table(
     config: Configuration, vulnerable_packages: Iterable[PackageInfo]
 ) -> Table:
@@ -42,9 +47,9 @@ def _render_vulnerability_table(
     table.add_column("Version", min_width=10, max_width=20)
     table.add_column("Vulnerability ID", style="bold cyan", min_width=20, max_width=24)
     table.add_column("Fix Versions", min_width=10, max_width=20)
-    if config.aliases:
+    if config.vulnerability_criteria.aliases:
         table.add_column("Aliases", min_width=20, max_width=24)
-    if config.desc:
+    if config.vulnerability_criteria.desc:
         table.add_column("Details", min_width=8)
     for package in vulnerable_packages:
         for vuln in package.vulnerabilities:
@@ -83,7 +88,7 @@ def _render_vulnerability_table(
                 if vuln.fixed_in
                 else Text(""),
             ]
-            if config.aliases:
+            if config.vulnerability_criteria.aliases:
                 alias_links = []
                 for alias in vuln.aliases or []:
                     hyperlink = None
@@ -107,7 +112,7 @@ def _render_vulnerability_table(
                 renderables.append(
                     Text(", ").join(alias_links) if alias_links else Text("")
                 )
-            if config.desc:
+            if config.vulnerability_criteria.desc:
                 renderables.append(vuln.details)
             table.add_row(*renderables)
     return table
@@ -210,27 +215,35 @@ async def check_dependencies(
             )
             continue
 
-        # Filter out ignored vulnerabilities
-        package.vulnerabilities = [
-            vuln
-            for vuln in package.vulnerabilities
-            if config.ignore_vulnerabilities is None
-            or vuln.id not in config.ignore_vulnerabilities
-        ]
-        if len(package.vulnerabilities) > 0:
-            vulnerable_count += len(package.vulnerabilities)
-            vulnerable_packages.append(package)
+        if (
+            package.direct_dependency
+            or not config.vulnerability_criteria.check_direct_dependencies_only
+        ):
+            # Filter out ignored vulnerabilities
+            package.vulnerabilities = [
+                vuln
+                for vuln in package.vulnerabilities
+                if config.vulnerability_criteria.ignore_vulnerabilities is None
+                or vuln.id not in config.vulnerability_criteria.ignore_vulnerabilities
+            ]
+            if len(package.vulnerabilities) > 0:
+                vulnerable_count += len(package.vulnerabilities)
+                vulnerable_packages.append(package)
 
-        found_rejected_yanked_package = (
-            config.maintainability_criteria.forbid_yanked and package.info.yanked
-        )
-        found_over_age_package = (
-            config.maintainability_criteria.max_package_age is not None
-            and package.age is not None
-            and package.age > config.maintainability_criteria.max_package_age
-        )
-        if found_rejected_yanked_package or found_over_age_package:
-            maintenance_issue_packages.append(package)
+        if (
+            package.direct_dependency
+            or not config.maintainability_criteria.check_direct_dependencies_only
+        ):
+            found_rejected_yanked_package = (
+                config.maintainability_criteria.forbid_yanked and package.info.yanked
+            )
+            found_over_age_package = (
+                config.maintainability_criteria.max_package_age is not None
+                and package.age is not None
+                and package.age > config.maintainability_criteria.max_package_age
+            )
+            if found_rejected_yanked_package or found_over_age_package:
+                maintenance_issue_packages.append(package)
 
     inf = inflect.engine()
     total_plural = inf.plural("dependency", total_dependencies)
@@ -266,7 +279,7 @@ async def check_dependencies(
     if status == 0:
         console_outputs.append(
             Panel.fit(
-                f"[bold green]No vulnerabilities detected![/]\n"
+                f"[bold green]No vulnerabilities or maintenance issues detected![/]\n"
                 f"Checked: [bold]{total_dependencies}[/] {total_plural}\n"
                 f"All dependencies appear safe!"
             )
@@ -289,9 +302,14 @@ async def check_lock_files(
     forbid_yanked: Optional[bool],
     max_package_age: Optional[int],
     ignore: Optional[str],
+    check_direct_dependency_vulnerabilities_only: Optional[bool],
+    check_direct_dependency_maintenance_issues_only: Optional[bool],
     config_path: Optional[Path],
 ) -> RunStatus:
-    """Checks
+    """Checks uv.lock and requirements.txt files for issues
+
+    Check specified or discovered uv.lock and requirements.txt files for maintenance
+    issues or known vulnerabilities
 
     Args:
         file_paths: paths to files or directory to process
@@ -300,6 +318,10 @@ async def check_lock_files(
         disable_cache: flag whether to disable cache
         forbid_yanked: flag whether to forbid yanked dependencies
         max_package_age: maximum age of dependencies in days
+        check_direct_dependency_vulnerabilities_only: flag checking direct dependency
+            vulnerabilities only
+        check_direct_dependency_maintenance_issues_only: flag checking direct dependency
+            maintenance issues only
         ignore: Vulnerabilities IDs to ignore
 
     Returns
@@ -310,31 +332,39 @@ async def check_lock_files(
         file_paths = (Path(),)
 
     console = Console()
-    if len(file_paths) == 1 and file_paths[0].is_dir():
-        lock_to_config_map = await get_dependency_file_to_config_map(
-            APath(file_paths[0])
-        )
-        file_paths = tuple(lock_to_config_map.keys())
-    else:
-        if config_path is not None:
-            possible_config = await config_file_factory(APath(config_path))
-            config = possible_config if possible_config is not None else Configuration()
-            lock_to_config_map = {APath(file): config for file in file_paths}
-        elif all(
-            file_path.name in {"requirements.txt", "uv.lock"}
-            for file_path in file_paths
-        ):
+
+    try:
+        if len(file_paths) == 1 and file_paths[0].is_dir():
             lock_to_config_map = await get_dependency_file_to_config_map(
-                [APath(file_path) for file_path in file_paths]
+                APath(file_paths[0])
             )
             file_paths = tuple(lock_to_config_map.keys())
         else:
-            console.print(
-                "[bold red]Error:[/] file_paths must either reference a single "
-                "project root directory or a sequence of uv.lock / requirements.txt "
-                "file paths"
-            )
-            return RunStatus.RUNTIME_ERROR
+            if config_path is not None:
+                possible_config = await config_file_factory(APath(config_path))
+                config = (
+                    possible_config if possible_config is not None else Configuration()
+                )
+                lock_to_config_map = {APath(file): config for file in file_paths}
+            elif all(
+                file_path.name in {"requirements.txt", "uv.lock"}
+                for file_path in file_paths
+            ):
+                lock_to_config_map = await get_dependency_file_to_config_map(
+                    [APath(file_path) for file_path in file_paths]
+                )
+                file_paths = tuple(lock_to_config_map.keys())
+            else:
+                console.print(
+                    "[bold red]Error:[/] file_paths must either reference a single "
+                    "project root directory or a sequence of uv.lock / "
+                    "requirements.txt file paths"
+                )
+                return RunStatus.RUNTIME_ERROR
+    except ExceptionGroup as eg:
+        for e in eg.exceptions:
+            console.print(f"[bold red]Error:[/] {e}")
+        return RunStatus.RUNTIME_ERROR
 
     if any(
         (
@@ -343,11 +373,20 @@ async def check_lock_files(
             ignore,
             disable_cache,
             forbid_yanked,
+            check_direct_dependency_vulnerabilities_only,
+            check_direct_dependency_maintenance_issues_only,
             max_package_age is not None,
         )
     ):
         cli_config = config_cli_arg_factory(
-            aliases, desc, disable_cache, forbid_yanked, max_package_age, ignore
+            aliases,
+            check_direct_dependency_maintenance_issues_only,
+            check_direct_dependency_vulnerabilities_only,
+            desc,
+            disable_cache,
+            forbid_yanked,
+            max_package_age,
+            ignore,
         )
         lock_to_config_map = {
             lock_file: override_config(config, cli_config)

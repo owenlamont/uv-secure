@@ -38,6 +38,11 @@ they don't see multiple contributors.
 - The test module for a src module should have the same name as the src module except
   the test module will have a `test_` prefix. I want to use this scheme to make it easy
   to find the tests for any given logic.
+- We don't create sub-packages (no `__init__.py` files) in the test directories, a
+  consequence of this test strategy is no duplicate module (.py file) names are allowed
+  anywhere in this repo (with the obvious exception of `__init__.py` files) since pytest
+  can't support duplicate test file names without sub-packages. I think that is a good
+  constraint though as duplicate .py file names make looking up linter issues harder.
 
 ## Development Environment
 

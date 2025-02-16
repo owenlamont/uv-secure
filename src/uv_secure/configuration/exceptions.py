@@ -1,0 +1,2 @@
+class UvSecureConfigurationError(Exception):
+    pass
