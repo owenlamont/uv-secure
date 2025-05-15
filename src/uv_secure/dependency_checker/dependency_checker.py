@@ -223,8 +223,12 @@ async def check_dependencies(
             package.vulnerabilities = [
                 vuln
                 for vuln in package.vulnerabilities
-                if config.vulnerability_criteria.ignore_vulnerabilities is None
-                or vuln.id not in config.vulnerability_criteria.ignore_vulnerabilities
+                if (
+                    config.vulnerability_criteria.ignore_vulnerabilities is None
+                    or vuln.id
+                    not in config.vulnerability_criteria.ignore_vulnerabilities
+                )
+                and vuln.withdrawn is None
             ]
             if len(package.vulnerabilities) > 0:
                 vulnerable_count += len(package.vulnerabilities)

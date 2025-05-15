@@ -280,6 +280,17 @@ def test_app_with_arg_ignored_vulnerability(
     assert "All dependencies appear safe!" in result.output
 
 
+def test_app_with_arg_withdrawn_vulnerability(
+    temp_uv_lock_file: Path, withdrawn_vulnerability_response: HTTPXMock
+) -> None:
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
+
+
 def test_check_dependencies_with_vulnerability_pyproject_all_columns_configured(
     temp_uv_lock_file: Path,
     temp_pyproject_toml_file_extra_columns_enabled: Path,

@@ -386,6 +386,43 @@ def one_vulnerability_response(httpx_mock: HTTPXMock) -> HTTPXMock:
 
 
 @pytest.fixture
+def withdrawn_vulnerability_response(httpx_mock: HTTPXMock) -> HTTPXMock:
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "A minimal package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "A minimal package example",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
+            "vulnerabilities": [
+                {
+                    "aliases": ["CVE-2024-12345"],
+                    "id": "VULN-123",
+                    "details": "A critical vulnerability in example-package.",
+                    "fixed_in": None,
+                    "link": "https://example.com/vuln-123",
+                    "withdrawn": "2024-06-28T16:39:06Z",
+                }
+            ],
+        },
+    )
+    return httpx_mock
+
+
+@pytest.fixture
 def one_vulnerability_response_indirect_dependency(httpx_mock: HTTPXMock) -> HTTPXMock:
     httpx_mock.add_response(
         url="https://pypi.org/pypi/indirect-dependency/1.5.0/json",
