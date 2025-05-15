@@ -85,6 +85,15 @@ def test_app_no_vulnerabilities_requirements_txt(
     assert "All dependencies appear safe!" in result.output
 
 
+def test_app_empty_requirements_txt(temp_uv_empty_requirements_txt_file: Path) -> None:
+    result = runner.invoke(
+        app, [str(temp_uv_empty_requirements_txt_file), "--disable-cache"]
+    )
+
+    assert result.exit_code == 0
+    assert result.output == "\n"
+
+
 def test_app_no_vulnerabilities_requirements_txt_no_specified_path(
     tmp_path: Path,
     temp_uv_requirements_txt_file: Path,
