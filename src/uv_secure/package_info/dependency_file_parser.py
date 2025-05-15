@@ -38,7 +38,6 @@ async def parse_requirements_txt_file(file_path: Path) -> list[Dependency]:
         if "==" in line:
             if dependency is not None:
                 dependencies.append(dependency)
-                dependency = None
             name, version = line.split("==")
             dependency = Dependency(name=name.strip(), version=version.strip())
         elif (" -r " in line or " (pyproject.toml)" in line) and dependency is not None:

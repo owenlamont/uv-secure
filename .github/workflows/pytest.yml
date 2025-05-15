@@ -13,9 +13,9 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
@@ -26,7 +26,7 @@ jobs:
       - name: Install the project
         run: uv sync --dev
       - name: Run tests with Coverage
-        run: uv run pytest tests --cov=. --cov-report=term
+        run: uv run pytest tests --cov=. --cov-branch --cov-report=term
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
@@ -41,9 +41,9 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -68,14 +68,14 @@ jobs:
       - name: Find Coverage Report Comment
         if: github.event.pull_request.head.repo.full_name == github.repository
         id: find-comment
-        uses: peter-evans/find-comment@v3
+        uses: peter-evans/find-comment@3eae4d37986fb5a8592848f6a574fdf654e61f9e
         with:
           issue-number: ${{ github.event.pull_request.number }}
           comment-author: github-actions[bot]
           body-includes: '### Coverage Report'
       - name: Create or Update Coverage Comment
         if: github.event.pull_request.head.repo.full_name == github.repository
-        uses: peter-evans/create-or-update-comment@v4
+        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           issue-number: ${{ github.event.pull_request.number }}

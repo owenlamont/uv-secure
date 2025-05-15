@@ -85,6 +85,15 @@ def test_app_no_vulnerabilities_requirements_txt(
     assert "All dependencies appear safe!" in result.output
 
 
+def test_app_empty_requirements_txt(temp_uv_empty_requirements_txt_file: Path) -> None:
+    result = runner.invoke(
+        app, [str(temp_uv_empty_requirements_txt_file), "--disable-cache"]
+    )
+
+    assert result.exit_code == 0
+    assert result.output == "\n"
+
+
 def test_app_no_vulnerabilities_requirements_txt_no_specified_path(
     tmp_path: Path,
     temp_uv_requirements_txt_file: Path,
@@ -273,6 +282,17 @@ def test_app_with_arg_ignored_vulnerability(
     result = runner.invoke(
         app, [str(temp_uv_lock_file), "--ignore", "VULN-123", "--disable-cache"]
     )
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
+
+
+def test_app_with_arg_withdrawn_vulnerability(
+    temp_uv_lock_file: Path, withdrawn_vulnerability_response: HTTPXMock
+) -> None:
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
 
     assert result.exit_code == 0
     assert "No vulnerabilities or maintenance issues detected!" in result.output
