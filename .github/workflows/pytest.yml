@@ -8,6 +8,7 @@ jobs:
       matrix:
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        extra: ["none", "faster-async"]
     permissions:
       contents: read
       pull-requests: write
@@ -24,13 +25,18 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install the project
-        run: uv sync --all-extras
+        run: |
+          if [ "${{ matrix.extras }}" = "faster-async" ]; then
+            uv sync --extra dev --extra faster-async
+          else
+            uv sync --extra dev
+          fi
       - name: Run tests with Coverage
         run: uv run pytest tests --cov=. --cov-branch --cov-report=term
       - name: Upload coverage artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: coverage-${{ matrix.os }}-python-${{ matrix.python-version }}
+          name: coverage-${{ matrix.os }}-python-${{ matrix.python-version }}-extra-${{ matrix.extra }}
           path: .coverage
           include-hidden-files: true
   combine-and-comment:
@@ -57,7 +63,7 @@ jobs:
       - name: Combine coverage data
         run: |
           set -o pipefail
-          uv run coverage combine coverage/*-python-*/.coverage
+          uv run coverage combine coverage/*-python-*-extra-*/.coverage
           uv run coverage report | tee coverage_summary.txt
       - name: Prepare Comment Body
         run: |
