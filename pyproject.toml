@@ -42,6 +42,12 @@ dependencies = [
     "typer>=0.15.1",
 ]
 
+[project.optional-dependencies]
+faster-async = [
+    "winloop>=0.1.8; sys_platform == 'win32'",
+    "uvloop>=0.21.0; sys_platform != 'win32'"
+]
+
 [project.scripts]
 uv-secure = "uv_secure.run:app"
 
@@ -58,12 +64,14 @@ source = [
   "src",
   "/Users/runner/work/uv-secure/uv-secure/src",
   "/home/runner/work/uv-secure/uv-secure/src",
+  "C:/a/uv-secure/uv-secure/src",
   "D:/a/uv-secure/uv-secure/src"
 ]
 tests = [
   "tests",
   "/Users/runner/work/uv-secure/uv-secure/tests",
   "/home/runner/work/uv-secure/uv-secure/tests",
+  "C:/a/uv-secure/uv-secure/tests",
   "D:/a/uv-secure/uv-secure/tests"
 ]
 
@@ -98,9 +106,9 @@ warn_required_dynamic_aliases = true
 
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 filterwarnings = [
     "error",
-    "ignore::ResourceWarning" # Disabling as I think pytest-httpx is somehow causing
 ]
 testpaths = ["tests"]
 
@@ -108,7 +116,6 @@ testpaths = ["tests"]
 
 line-length = 88
 indent-width = 4
-target-version = "py39"
 
 [tool.ruff.format]
 quote-style = "double"

@@ -4,9 +4,14 @@ import re
 from typing import Optional, Union
 
 from hishel import AsyncCacheClient, AsyncFileStorage
+from httpx import Headers
 from pydantic import BaseModel
 
+from uv_secure import __version__
 from uv_secure.package_info.dependency_file_parser import Dependency
+
+
+USER_AGENT = f"uv-secure/{__version__} (contact: owenrlamont@gmail.com)"
 
 
 class Downloads(BaseModel):
@@ -123,6 +128,8 @@ async def download_packages(
     dependencies: list[Dependency], storage: AsyncFileStorage, disable_cache: bool
 ) -> list[Union[PackageInfo, BaseException]]:
     """Fetch vulnerabilities for all dependencies concurrently."""
-    async with AsyncCacheClient(timeout=10, storage=storage) as client:
+    async with AsyncCacheClient(
+        timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
+    ) as client:
         tasks = [_download_package(client, dep, disable_cache) for dep in dependencies]
         return await asyncio.gather(*tasks, return_exceptions=True)

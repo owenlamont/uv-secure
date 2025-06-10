@@ -7,6 +7,8 @@ from httpx import Request, RequestError
 import pytest
 from pytest_httpx import HTTPXMock
 
+from uv_secure.package_info import USER_AGENT
+
 
 @pytest.fixture
 def temp_uv_lock_file(tmp_path: Path) -> Path:
@@ -331,6 +333,35 @@ def no_vulnerabilities_response(httpx_mock: HTTPXMock) -> HTTPXMock:
             "urls": [],
             "vulnerabilities": [],
         },
+    )
+    return httpx_mock
+
+
+@pytest.fixture
+def no_vulnerabilities_response_header_check(httpx_mock: HTTPXMock) -> HTTPXMock:
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "A minimal package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "A minimal package example",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
+            "vulnerabilities": [],
+        },
+        match_headers={"User-Agent": USER_AGENT},
     )
     return httpx_mock
 

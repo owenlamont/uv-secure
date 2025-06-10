@@ -63,20 +63,35 @@ asynchronous event loop (at the expense of debuggability if you want to develop
 uv-secure yourself). Also note, winloop is a relatively young package and may give you
 some stability issues on particular versions of Python
 
-If you want to install the optional dependency with uv do it like this:
+If you want to install these faster async dependencies with uv do it with the
+faster-async extension like this:
 
 ```shell
-uv tool install uv-secure --with uvloop
+uv tool install uv-secure[faster-async]
 ```
 
 or with pipx like this:
 
-```powershell
-pipx install uv-secure
-pipx inject uv-secure winloop
+```shell
+pipx install uv-secure[faster-async]
 ```
 
-uv-secure will automatically use uvloop or winloop if it finds them in the same
+With pixi, given conda doesn't support optional dependencies, you can install uv-secure
+globally with uvloop or winloop like this:
+
+Mac/Linux:
+
+```shell
+pixi global install uv-secure --with uvloop
+```
+
+Windows:
+
+```powershell
+pixi global install uv-secure --with winloop
+```
+
+uv-secure will automatically use uvloop or winloop if it finds them in the same Python
 environment as itself.
 
 ## Usage
@@ -254,7 +269,7 @@ uv-secure can be run as a pre-commit hook by adding this configuration to your
 
 ```yaml
   - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.9.1
+    rev: 0.9.2
     hooks:
       - id: uv-secure
 ```

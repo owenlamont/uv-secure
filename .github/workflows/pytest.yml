@@ -8,6 +8,7 @@ jobs:
       matrix:
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        extra: ["none", "faster-async"]
     permissions:
       contents: read
       pull-requests: write
@@ -20,17 +21,21 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install the project
-        run: uv sync --dev
+      - name: Install the project (no extras)
+        if: matrix.extra == 'none'
+        run: uv sync
+      - name: Install the project (faster-async)
+        if: matrix.extra == 'faster-async'
+        run: uv sync --extra faster-async
       - name: Run tests with Coverage
         run: uv run pytest tests --cov=. --cov-branch --cov-report=term
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: coverage-${{ matrix.os }}-python-${{ matrix.python-version }}
+          name: coverage-${{ matrix.os }}-python-${{ matrix.python-version }}-extra-${{ matrix.extra }}
           path: .coverage
           include-hidden-files: true
   combine-and-comment:
@@ -45,19 +50,20 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.13"
       - name: Install the project
-        run: uv sync --dev
+        run: uv sync --all-extras
       - name: Download all coverage artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           path: coverage
       - name: Combine coverage data
         run: |
-          uv run coverage combine coverage/*-python-*/.coverage
-          uv run coverage report > coverage_summary.txt
+          set -o pipefail
+          uv run coverage combine coverage/*-python-*-extra-*/.coverage
+          uv run coverage report | tee coverage_summary.txt
       - name: Prepare Comment Body
         run: |
           echo '### Coverage Report' >> comment_body.md

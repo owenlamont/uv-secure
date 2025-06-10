@@ -6,10 +6,12 @@ from uv_secure.package_info.dependency_file_parser import (
 from uv_secure.package_info.package_info_downloader import (
     download_packages,
     PackageInfo,
+    USER_AGENT,
 )
 
 
 __all__ = [
+    "USER_AGENT",
     "Dependency",
     "PackageInfo",
     "download_packages",
