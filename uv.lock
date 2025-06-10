@@ -288,7 +288,7 @@ name = "importlib-metadata"
 version = "8.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "zipp" },
+    { name = "zipp", marker = "python_full_version < '3.10'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/76/66/650a33bd90f786193e4de4b3ad86ea60b53c89b669a5c7be931fac31cdb0/importlib_metadata-8.7.0.tar.gz", hash = "sha256:d13b81ad223b890aa16c5471f2ac3056cf76c5f10f82d6f9292f0b415f389000", size = 56641, upload-time = "2025-04-27T15:29:01.736Z" }
 wheels = [
@@ -748,6 +748,12 @@ dependencies = [
     { name = "typer" },
 ]
 
+[package.optional-dependencies]
+faster-async = [
+    { name = "uvloop", marker = "sys_platform != 'win32'" },
+    { name = "winloop", marker = "sys_platform == 'win32'" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "coverage" },
@@ -759,10 +765,6 @@ dev = [
     { name = "pytest-httpx" },
     { name = "pytest-mock" },
     { name = "setuptools" },
-]
-faster-async = [
-    { name = "uvloop", marker = "sys_platform != 'win32'" },
-    { name = "winloop", marker = "sys_platform == 'win32'" },
 ]
 
 [package.metadata]
@@ -777,7 +779,10 @@ requires-dist = [
     { name = "rich", specifier = ">=13.9.4" },
     { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "typer", specifier = ">=0.15.1" },
+    { name = "uvloop", marker = "sys_platform != 'win32' and extra == 'faster-async'", specifier = ">=0.21.0" },
+    { name = "winloop", marker = "sys_platform == 'win32' and extra == 'faster-async'", specifier = ">=0.1.8" },
 ]
+provides-extras = ["faster-async"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -790,10 +795,6 @@ dev = [
     { name = "pytest-httpx", specifier = ">=0.35.0" },
     { name = "pytest-mock", specifier = ">=3.14.0" },
     { name = "setuptools", specifier = ">=75.8.0" },
-]
-faster-async = [
-    { name = "uvloop", marker = "sys_platform != 'win32'", specifier = ">=0.21.0" },
-    { name = "winloop", marker = "sys_platform == 'win32'", specifier = ">=0.1.8" },
 ]
 
 [[package]]

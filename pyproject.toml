@@ -42,6 +42,12 @@ dependencies = [
     "typer>=0.15.1",
 ]
 
+[project.optional-dependencies]
+faster-async = [
+    "winloop>=0.1.8; sys_platform == 'win32'",
+    "uvloop>=0.21.0; sys_platform != 'win32'"
+]
+
 [project.scripts]
 uv-secure = "uv_secure.run:app"
 
@@ -210,9 +216,4 @@ dev = [
     "pytest-httpx>=0.35.0",
     "pytest-mock>=3.14.0",
     "setuptools>=75.8.0",
-]
-
-faster-async = [
-    "winloop>=0.1.8; sys_platform == 'win32'",
-    "uvloop>=0.21.0; sys_platform != 'win32'",
 ]
