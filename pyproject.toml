@@ -106,6 +106,7 @@ warn_required_dynamic_aliases = true
 
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 filterwarnings = [
     "error",
     "ignore::ResourceWarning" # Disabling as I think pytest-httpx is somehow causing
