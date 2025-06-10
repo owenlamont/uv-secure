@@ -74,6 +74,13 @@ def test_app_no_vulnerabilities(
     assert "All dependencies appear safe!" in result.output
 
 
+def test_app_agent_headers(
+    temp_uv_lock_file: Path, no_vulnerabilities_response_header_check: HTTPXMock
+) -> None:
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+    assert result.exit_code == 0
+
+
 def test_app_no_vulnerabilities_requirements_txt(
     temp_uv_requirements_txt_file: Path, no_vulnerabilities_response: HTTPXMock
 ) -> None:
