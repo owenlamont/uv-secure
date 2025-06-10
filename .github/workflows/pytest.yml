@@ -24,7 +24,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install the project
-        run: uv sync --dev
+        run: uv sync --all-extras
       - name: Run tests with Coverage
         run: uv run pytest tests --cov=. --cov-branch --cov-report=term
       - name: Upload coverage artifact
@@ -56,8 +56,9 @@ jobs:
           path: coverage
       - name: Combine coverage data
         run: |
+          set -o pipefail
           uv run coverage combine coverage/*-python-*/.coverage
-          uv run coverage report > coverage_summary.txt
+          uv run coverage report | tee coverage_summary.txt
       - name: Prepare Comment Body
         run: |
           echo '### Coverage Report' >> comment_body.md
