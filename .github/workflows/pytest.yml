@@ -27,9 +27,9 @@ jobs:
       - name: Install the project
         run: |
           if [ "${{ matrix.extras }}" = "faster-async" ]; then
-            uv sync --extra dev --extra faster-async
+            uv sync --extra faster-async
           else
-            uv sync --extra dev
+            uv sync
           fi
       - name: Run tests with Coverage
         run: uv run pytest tests --cov=. --cov-branch --cov-report=term
