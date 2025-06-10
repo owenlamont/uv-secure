@@ -109,7 +109,6 @@ asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 filterwarnings = [
     "error",
-    "ignore::ResourceWarning" # Disabling as I think pytest-httpx is somehow causing
 ]
 testpaths = ["tests"]
 
@@ -117,7 +116,6 @@ testpaths = ["tests"]
 
 line-length = 88
 indent-width = 4
-target-version = "py39"
 
 [tool.ruff.format]
 quote-style = "double"
