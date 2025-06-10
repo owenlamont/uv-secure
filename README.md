@@ -72,11 +72,26 @@ uv tool install uv-secure[faster-async]
 
 or with pipx like this:
 
-```powershell
+```shell
 pipx install uv-secure[faster-async]
 ```
 
-uv-secure will automatically use uvloop or winloop if it finds them in the same
+With pixi, given conda doesn't support optional dependencies, you can install uv-secure
+globally with uvloop or winloop like this:
+
+Mac/Linux:
+
+```shell
+pixi global install uv-secure --with uvloop
+```
+
+Windows:
+
+```powershell
+pixi global install uv-secure --with winloop
+```
+
+uv-secure will automatically use uvloop or winloop if it finds them in the same Python
 environment as itself.
 
 ## Usage
