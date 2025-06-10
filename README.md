@@ -63,17 +63,17 @@ asynchronous event loop (at the expense of debuggability if you want to develop
 uv-secure yourself). Also note, winloop is a relatively young package and may give you
 some stability issues on particular versions of Python
 
-If you want to install the optional dependency with uv do it like this:
+If you want to install these faster async dependencies with uv do it with the
+faster-async extension like this:
 
 ```shell
-uv tool install uv-secure --with uvloop
+uv tool install uv-secure[faster-async]
 ```
 
 or with pipx like this:
 
 ```powershell
-pipx install uv-secure
-pipx inject uv-secure winloop
+pipx install uv-secure[faster-async]
 ```
 
 uv-secure will automatically use uvloop or winloop if it finds them in the same
