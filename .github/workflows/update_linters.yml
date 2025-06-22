@@ -31,6 +31,7 @@ jobs:
         if: steps.check_diff.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e
         with:
+          token: ${{ secrets.GH_PAT }}
           commit-message: "chore: refresh .pre-commit-config.yaml"
           title: "chore: refresh .pre-commit-config.yaml"
           body: |
