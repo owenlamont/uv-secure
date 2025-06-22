@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  refresh-uv-lock:
+  refresh-pre-commit-config:
     runs-on: ubuntu-latest
     permissions:
       contents: write
