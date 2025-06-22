@@ -1,0 +1,41 @@
+name: Update Linters
+on:
+  schedule:
+    - cron: '30 8 * * 6'  # Saturday 18:00 UTC+9:30
+  workflow_dispatch:
+
+jobs:
+  refresh-uv-lock:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Install uv
+        uses: astral-sh/setup-uv@445689ea25e0de0a23313031f5fe577c74ae45a1
+      - name: Install pre-commit globally
+        run: uv tool install pre-commit --with pre-commit-uv --force
+      - name: Run pre-commit autoupdate
+        run: pre-commit autoupdate
+      - name: Check for changes in .pre-commit-config.yaml
+        id: check_diff
+        run: |
+          if git diff --quiet .pre-commit-config.yaml; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+      - name: Create PR with updated .pre-commit-config.yaml
+        if: steps.check_diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e
+        with:
+          commit-message: "chore: refresh .pre-commit-config.yaml"
+          title: "chore: refresh .pre-commit-config.yaml"
+          body: |
+            This PR updates `.pre-commit-config.yaml` by running `pre-commit autoupdate`.
+            It was triggered automatically (or manually) to keep linters up-to-date.
+          branch: bot/pre-commit-config-refresh
+          author: GitHub Actions <actions@github.com>
+          delete-branch: true
