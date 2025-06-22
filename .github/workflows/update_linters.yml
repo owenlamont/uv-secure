@@ -13,34 +13,29 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
-        with:
-          python-version: "3.9"
       - name: Install uv
         uses: astral-sh/setup-uv@445689ea25e0de0a23313031f5fe577c74ae45a1
-        with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-      - name: Run uv lock upgrade
-        run: uv lock --upgrade
-      - name: Check for changes in uv.lock
+      - name: Install pre-commit globally
+        run: uv tool install pre-commit --with pre-commit-uv --force
+      - name: Run pre-commit autoupdate
+        run: pre-commit autoupdate
+      - name: Check for changes in .pre-commit-config.yaml
         id: check_diff
         run: |
-          if git diff --quiet uv.lock; then
+          if git diff --quiet .pre-commit-config.yaml; then
             echo "changed=false" >> $GITHUB_OUTPUT
           else
             echo "changed=true" >> $GITHUB_OUTPUT
           fi
-      - name: Create PR with updated uv.lock
+      - name: Create PR with updated .pre-commit-config.yaml
         if: steps.check_diff.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e
         with:
-          commit-message: "chore: refresh uv.lock"
-          title: "chore: refresh uv.lock"
+          commit-message: "chore: refresh .pre-commit-config.yaml"
+          title: "chore: refresh .pre-commit-config.yaml"
           body: |
-            This PR updates `uv.lock` by running `uv lock --upgrade`.
-            It was triggered automatically (or manually) to keep transitive and unpinned dependencies up-to-date.
-          branch: bot/uv-lock-refresh
+            This PR updates `.pre-commit-config.yaml` by running `pre-commit autoupdate`.
+            It was triggered automatically (or manually) to keep linters up-to-date.
+          branch: bot/pre-commit-config-refresh
           author: GitHub Actions <actions@github.com>
           delete-branch: true
