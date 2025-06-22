@@ -1,7 +1,7 @@
-name: Update Dependencies
+name: Update Linters
 on:
   schedule:
-    - cron: '30 8 * * 5'  # Friday 18:00 UTC+9:30
+    - cron: '30 8 * * 6'  # Saturday 18:00 UTC+9:30
   workflow_dispatch:
 
 jobs:
