@@ -27,11 +27,18 @@ jobs:
           else
             echo "changed=true" >> $GITHUB_OUTPUT
           fi
+      - name: Generate token
+        if: steps.check_diff.outputs.changed == 'true'
+        uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e
+        id: generate-token
+        with:
+          app-id: ${{ secrets.AUTH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AUTH_APP_PRIVATE_KEY }}
       - name: Create PR with updated .pre-commit-config.yaml
         if: steps.check_diff.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e
         with:
-          token: ${{ secrets.GH_PAT }}
+          token: ${{ steps.generate-token.outputs.token }}
           commit-message: "chore: refresh .pre-commit-config.yaml"
           title: "chore: refresh .pre-commit-config.yaml"
           body: |
