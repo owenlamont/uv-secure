@@ -1,20 +1,7 @@
 from datetime import timedelta
-from pathlib import Path
-from typing import Annotated, Optional
+from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
-
-
-DEFAULT_HTTPX_CACHE_TTL = 24.0 * 60.0 * 60.0  # Default cache time to 1 day
-
-
-class CacheSettings(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    cache_path: Path = Path.home() / ".cache/uv-secure"
-    disable_cache: bool = False
-    ttl_seconds: Annotated[float, Field(ge=0.0, allow_inf_nan=False)] = (
-        DEFAULT_HTTPX_CACHE_TTL
-    )
+from pydantic import BaseModel, ConfigDict
 
 
 class MaintainabilityCriteria(BaseModel):
@@ -34,7 +21,6 @@ class VulnerabilityCriteria(BaseModel):
 
 class Configuration(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    cache_settings: CacheSettings = CacheSettings()
     maintainability_criteria: MaintainabilityCriteria = MaintainabilityCriteria()
     vulnerability_criteria: VulnerabilityCriteria = VulnerabilityCriteria()
 
@@ -47,7 +33,6 @@ class OverrideConfiguration(BaseModel):
     ignore_vulnerabilities: Optional[set[str]] = None
     forbid_yanked: Optional[bool] = None
     max_package_age: Optional[timedelta] = None
-    disable_cache: Optional[bool] = None
 
 
 def override_config(
@@ -88,7 +73,5 @@ def override_config(
         new_configuration.maintainability_criteria.max_package_age = (
             overrides.max_package_age
         )
-    if overrides.disable_cache is not None:
-        new_configuration.cache_settings.disable_cache = overrides.disable_cache
 
     return new_configuration

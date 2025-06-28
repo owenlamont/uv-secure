@@ -3,15 +3,10 @@ from datetime import datetime, timedelta, timezone
 import re
 from typing import Optional, Union
 
-from hishel import AsyncCacheClient, AsyncFileStorage
-from httpx import Headers
+from hishel import AsyncCacheClient
 from pydantic import BaseModel
 
-from uv_secure import __version__
 from uv_secure.package_info.dependency_file_parser import Dependency
-
-
-USER_AGENT = f"uv-secure/{__version__} (contact: owenrlamont@gmail.com)"
 
 
 class Downloads(BaseModel):
@@ -112,12 +107,12 @@ def _canonicalize_name(name: str) -> str:
 
 
 async def _download_package(
-    client: AsyncCacheClient, dependency: Dependency, disable_cache: bool
+    http_client: AsyncCacheClient, dependency: Dependency, disable_cache: bool
 ) -> PackageInfo:
     """Queries the PyPi JSON API for vulnerabilities of a given dependency."""
     canonical_name = _canonicalize_name(dependency.name)
     url = f"https://pypi.org/pypi/{canonical_name}/{dependency.version}/json"
-    response = await client.get(
+    response = await http_client.get(
         url, extensions={"cache_disabled": True} if disable_cache else None
     )
     response.raise_for_status()
@@ -125,11 +120,8 @@ async def _download_package(
 
 
 async def download_packages(
-    dependencies: list[Dependency], storage: AsyncFileStorage, disable_cache: bool
+    dependencies: list[Dependency], http_client: AsyncCacheClient, disable_cache: bool
 ) -> list[Union[PackageInfo, BaseException]]:
     """Fetch vulnerabilities for all dependencies concurrently."""
-    async with AsyncCacheClient(
-        timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
-    ) as client:
-        tasks = [_download_package(client, dep, disable_cache) for dep in dependencies]
-        return await asyncio.gather(*tasks, return_exceptions=True)
+    tasks = [_download_package(http_client, dep, disable_cache) for dep in dependencies]
+    return await asyncio.gather(*tasks, return_exceptions=True)

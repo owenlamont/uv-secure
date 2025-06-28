@@ -8,6 +8,9 @@ from uv_secure.__version__ import __version__
 from uv_secure.dependency_checker import check_lock_files, RunStatus
 
 
+DEFAULT_HTTPX_CACHE_TTL_SECONDS = 24.0 * 60.0 * 60.0
+
+
 app = typer.Typer()
 
 
@@ -42,8 +45,21 @@ _desc_option = typer.Option(
     ),
 )
 
+_cache_path_option = typer.Option(
+    Path.home() / ".cache/uv-secure",
+    "--cache-path",
+    help="Path to the cache directory for vulnerability http requests",
+    show_default="~/.cache/uv-secure",
+)
+
+_cache_ttl_seconds_option = typer.Option(
+    DEFAULT_HTTPX_CACHE_TTL_SECONDS,
+    "--cache-ttl-seconds",
+    help="Time to live in seconds for the vulnerability http requests cache",
+)
+
 _disable_cache_option = typer.Option(
-    None,
+    False,
     "--disable-cache",
     help="Flag whether to disable caching for vulnerability http requests",
 )
@@ -100,7 +116,9 @@ def main(
     file_paths: Optional[list[Path]] = _file_path_args,
     aliases: Optional[bool] = _aliases_option,
     desc: Optional[bool] = _desc_option,
-    disable_cache: Optional[bool] = _disable_cache_option,
+    cache_path: Path = _cache_path_option,
+    cache_ttl_seconds: float = _cache_ttl_seconds_option,
+    disable_cache: bool = _disable_cache_option,
     forbid_yanked: Optional[bool] = _forbid_yanked_option,
     max_package_age: Optional[int] = _max_package_age_option,
     ignore: Optional[str] = _ignore_option,
@@ -129,6 +147,8 @@ def main(
             file_paths,
             aliases,
             desc,
+            cache_path,
+            cache_ttl_seconds,
             disable_cache,
             forbid_yanked,
             max_package_age,

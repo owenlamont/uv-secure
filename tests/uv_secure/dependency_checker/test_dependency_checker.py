@@ -1,13 +1,15 @@
 from pathlib import Path
 
 from anyio import Path as APath
+from hishel import AsyncCacheClient, AsyncFileStorage
+from httpx import Headers
 import pytest
 from pytest_httpx import HTTPXMock
 from rich.table import Table
 from rich.text import Text
 
 from uv_secure.configuration import Configuration, VulnerabilityCriteria
-from uv_secure.dependency_checker import check_dependencies
+from uv_secure.dependency_checker import check_dependencies, USER_AGENT
 
 
 @pytest.mark.asyncio
@@ -72,10 +74,16 @@ async def test_check_dependencies_alias_hyperlinks(
         },
     )
 
-    status, renderables = await check_dependencies(
-        APath(temp_uv_lock_file),
-        Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),
-    )
+    storage = AsyncFileStorage(base_path=Path.home() / ".cache/uv-secure", ttl=86400.0)
+    async with AsyncCacheClient(
+        timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
+    ) as http_client:
+        status, renderables = await check_dependencies(
+            APath(temp_uv_lock_file),
+            Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),
+            http_client,
+            True,
+        )
 
     assert status == 2
     for renderable in renderables:
