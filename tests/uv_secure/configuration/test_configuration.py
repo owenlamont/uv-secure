@@ -1,7 +1,6 @@
 import pytest
 
 from uv_secure.configuration import (
-    CacheSettings,
     Configuration,
     override_config,
     OverrideConfiguration,
@@ -31,12 +30,6 @@ from uv_secure.configuration import (
                 vulnerability_criteria=VulnerabilityCriteria(aliases=False, desc=False)
             ),
             id="aliases and desc override to False",
-        ),
-        pytest.param(
-            Configuration(),
-            OverrideConfiguration(disable_cache=True),
-            Configuration(cache_settings=CacheSettings(disable_cache=True)),
-            id="Disable caching",
         ),
     ],
 )

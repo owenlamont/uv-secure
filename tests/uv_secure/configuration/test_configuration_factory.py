@@ -6,7 +6,6 @@ from anyio import Path as APath
 import pytest
 
 from uv_secure.configuration import (
-    CacheSettings,
     config_file_factory,
     Configuration,
     VulnerabilityCriteria,
@@ -34,38 +33,6 @@ from uv_secure.configuration import (
                 vulnerability_criteria=VulnerabilityCriteria(aliases=True, desc=True)
             ),
             id="Enable aliases and description",
-        ),
-        pytest.param(
-            "uv-secure.toml",
-            """
-            [cache_settings]
-            cache_path = "/dummy/.uv-secure"
-            ttl_seconds = 60.0
-            """,
-            Configuration(
-                cache_settings=CacheSettings(
-                    cache_path=Path("/dummy/.uv-secure"), ttl_seconds=60.0
-                )
-            ),
-            id="Custom cache settings",
-        ),
-        pytest.param(
-            "pyproject.toml",
-            """
-            [tool.uv-secure.vulnerability_criteria]
-            aliases = true
-            desc = true
-            [tool.uv-secure.cache_settings]
-            cache_path = "/dummy/.uv-secure"
-            ttl_seconds = 60.0
-            """,
-            Configuration(
-                vulnerability_criteria=VulnerabilityCriteria(aliases=True, desc=True),
-                cache_settings=CacheSettings(
-                    cache_path=Path("/dummy/.uv-secure"), ttl_seconds=60.0
-                ),
-            ),
-            id="pyproject.toml aliases, description, and cache_settings",
         ),
         pytest.param(
             "pyproject.toml",

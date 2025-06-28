@@ -6,7 +6,8 @@ import sys
 from typing import Optional
 
 from anyio import Path as APath
-from hishel import AsyncFileStorage
+from hishel import AsyncCacheClient, AsyncFileStorage
+from httpx import Headers
 import humanize
 import inflect
 from rich.console import Console, ConsoleRenderable
@@ -14,6 +15,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from uv_secure import __version__
 from uv_secure.configuration import (
     config_cli_arg_factory,
     config_file_factory,
@@ -31,6 +33,9 @@ from uv_secure.package_info import (
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
+
+
+USER_AGENT = f"uv-secure/{__version__} (contact: owenrlamont@gmail.com)"
 
 
 def _render_vulnerability_table(
@@ -159,13 +164,18 @@ def _render_issue_table(
 
 
 async def check_dependencies(
-    dependency_file_path: APath, config: Configuration
+    dependency_file_path: APath,
+    config: Configuration,
+    http_client: AsyncCacheClient,
+    disable_cache: bool,
 ) -> tuple[int, Iterable[ConsoleRenderable]]:
     """Checks dependencies for vulnerabilities and summarizes the results
 
     Args:
         dependency_file_path: uv.lock file or requirements.txt file path
         config: uv-secure configuration object
+        http_client: HTTP client for making requests
+        disable_cache: flag whether to disable cache for HTTP requests
 
     Returns:
         tuple with status code and output for console to render
@@ -177,14 +187,6 @@ async def check_dependencies(
             f"[bold red]Error:[/] File {dependency_file_path} does not exist."
         )
         return 3, console_outputs
-
-    # I found antivirus programs (specifically Windows Defender) can almost fully
-    # negate the benefits of using a file cache if you don't exclude the virus checker
-    # from checking the cache dir given it is frequently read from
-    storage = AsyncFileStorage(
-        base_path=config.cache_settings.cache_path,
-        ttl=config.cache_settings.ttl_seconds,
-    )
 
     if dependency_file_path.name == "uv.lock":
         dependencies = await parse_uv_lock_file(dependency_file_path)
@@ -199,9 +201,7 @@ async def check_dependencies(
         "...[/]\n"
     )
 
-    packages = await download_packages(
-        dependencies, storage, config.cache_settings.disable_cache
-    )
+    packages = await download_packages(dependencies, http_client, disable_cache)
 
     total_dependencies = len(packages)
     vulnerable_count = 0
@@ -302,7 +302,9 @@ async def check_lock_files(
     file_paths: Optional[Sequence[Path]],
     aliases: Optional[bool],
     desc: Optional[bool],
-    disable_cache: Optional[bool],
+    cache_path: Path,
+    cache_ttl_seconds: float,
+    disable_cache: bool,
     forbid_yanked: Optional[bool],
     max_package_age: Optional[int],
     ignore: Optional[str],
@@ -319,6 +321,8 @@ async def check_lock_files(
         file_paths: paths to files or directory to process
         aliases: flag whether to show vulnerability aliases
         desc: flag whether to show vulnerability descriptions
+        cache_path: path to cache directory
+        cache_ttl_seconds: time in seconds to cache
         disable_cache: flag whether to disable cache
         forbid_yanked: flag whether to forbid yanked dependencies
         max_package_age: maximum age of dependencies in days
@@ -375,7 +379,6 @@ async def check_lock_files(
             aliases,
             desc,
             ignore,
-            disable_cache,
             forbid_yanked,
             check_direct_dependency_vulnerabilities_only,
             check_direct_dependency_maintenance_issues_only,
@@ -387,7 +390,6 @@ async def check_lock_files(
             check_direct_dependency_maintenance_issues_only,
             check_direct_dependency_vulnerabilities_only,
             desc,
-            disable_cache,
             forbid_yanked,
             max_package_age,
             ignore,
@@ -397,13 +399,23 @@ async def check_lock_files(
             for lock_file, config in lock_to_config_map.items()
         }
 
-    status_output_tasks = [
-        check_dependencies(
-            APath(dependency_file_path), lock_to_config_map[APath(dependency_file_path)]
-        )
-        for dependency_file_path in file_paths
-    ]
-    status_outputs = await asyncio.gather(*status_output_tasks)
+    # I found antivirus programs (specifically Windows Defender) can almost fully
+    # negate the benefits of using a file cache if you don't exclude the virus checker
+    # from checking the cache dir given it is frequently read from
+    storage = AsyncFileStorage(base_path=cache_path, ttl=cache_ttl_seconds)
+    async with AsyncCacheClient(
+        timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
+    ) as http_client:
+        status_output_tasks = [
+            check_dependencies(
+                APath(dependency_file_path),
+                lock_to_config_map[APath(dependency_file_path)],
+                http_client,
+                disable_cache,
+            )
+            for dependency_file_path in file_paths
+        ]
+        status_outputs = await asyncio.gather(*status_output_tasks)
     maintenance_issues_found = False
     vulnerabilities_found = False
     runtime_error = False

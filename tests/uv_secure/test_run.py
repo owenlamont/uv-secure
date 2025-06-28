@@ -379,11 +379,19 @@ def test_check_dependencies_with_vulnerability_and_maintenance_issues_uv_secure(
 
 
 def test_check_dependencies_with_custom_caching(
-    temp_uv_lock_file: Path,
-    temp_uv_secure_toml_file_custom_caching: Path,
-    no_vulnerabilities_response: HTTPXMock,
+    temp_uv_lock_file: Path, tmp_path: Path, no_vulnerabilities_response: HTTPXMock
 ) -> None:
-    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            "--cache-path",
+            (tmp_path / ".uv-secure").as_posix(),
+            "--cache-ttl-seconds",
+            "60",
+            "--disable-cache",
+        ],
+    )
     assert result.exit_code == 0
     assert "No vulnerabilities or maintenance issues detected!" in result.output
     assert "Checked: 1 dependency" in result.output

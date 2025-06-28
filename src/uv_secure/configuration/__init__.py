@@ -3,7 +3,6 @@ from uv_secure.configuration.config_factory import (
     config_file_factory,
 )
 from uv_secure.configuration.configuration import (
-    CacheSettings,
     Configuration,
     MaintainabilityCriteria,
     override_config,
@@ -14,7 +13,6 @@ from uv_secure.configuration.exceptions import UvSecureConfigurationError
 
 
 __all__ = [
-    "CacheSettings",
     "Configuration",
     "MaintainabilityCriteria",
     "OverrideConfiguration",

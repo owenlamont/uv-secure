@@ -7,7 +7,7 @@ from httpx import Request, RequestError
 import pytest
 from pytest_httpx import HTTPXMock
 
-from uv_secure.package_info import USER_AGENT
+from uv_secure.dependency_checker import USER_AGENT
 
 
 @pytest.fixture
@@ -169,22 +169,6 @@ def temp_uv_secure_toml_file_all_columns_and_maintenance_issues_enabled(
         [maintainability_criteria]
         max_package_age = "P1000D"
         forbid_yanked = true
-    """
-    uv_secure_toml_path.write_text(dedent(uv_lock_data).strip())
-    return uv_secure_toml_path
-
-
-@pytest.fixture
-def temp_uv_secure_toml_file_custom_caching(tmp_path: Path) -> Path:
-    uv_secure_toml_path = tmp_path / "uv-secure.toml"
-    uv_lock_data = f"""
-        [vulnerability_criteria]
-        aliases = true
-        desc = true
-
-        [cache_settings]
-        cache_path = "{(tmp_path / ".uv-secure").as_posix()}"
-        ttl_seconds = 60.0
     """
     uv_secure_toml_path.write_text(dedent(uv_lock_data).strip())
     return uv_secure_toml_path

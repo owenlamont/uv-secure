@@ -120,6 +120,14 @@ After installation, you can run uv-secure --help to see the options.
 │                                                     vulnerability detailed           │
 │                                                     description in the               │
 │                                                     vulnerabilities table            │
+│ --cache-path                               PATH     Path to the cache directory for  │
+│                                                     vulnerability http requests      │
+│                                                     [default:                        │
+│                                                     C:\Users\Owen\.cache\uv-secure]  │
+│ --cache-ttl-seconds                        FLOAT    Time to live in seconds for the  │
+│                                                     vulnerability http requests      │
+│                                                     cache                            │
+│                                                     [default: 86400.0]               │
 │ --disable-cache                                     Flag whether to disable caching  │
 │                                                     for vulnerability http requests  │
 │ --forbid-yanked                                     Flag whether disallow yanked     │
@@ -176,12 +184,6 @@ aliases = true # Defaults to false
 desc = true # Defaults to false
 check_direct_dependencies_only = true # Defaults to false (test transitive dependencies)
 
-[cache_settings]
-cache_path = "~/.uv-secure" # Defaults to ~/.cache/uv-secure if not set
-ttl_seconds = 60.0 # Defaults to one day (86400 seconds) if not set
-disable_cache = false # Defaults to false if not set
-check_direct_dependencies_only = true # Defaults to false (test transitive dependencies)
-
 [maintainability_criteria]
 # max_package_age takes numeric seconds or an ISO8601 duration string
 max_package_age = "P1000D" # Defaults to None if not set (no age limit)
@@ -196,11 +198,6 @@ ignore_vulnerabilities = ["VULN-123"]
 aliases = true # Defaults to false
 desc = true # Defaults to false
 check_direct_dependencies_only = true # Defaults to false (test transitive dependencies)
-
-[tool.uv-secure.cache_settings]
-cache_path = "~/.uv-secure" # Defaults to ~/.cache/uv-secure if not set
-ttl_seconds = 60.0 # Defaults to one day (86400 seconds) if not set
-disable_cache = false # Defaults to false if not set
 
 [tool.uv-secure.maintainability_criteria]
 # max_package_age takes numeric seconds or an ISO8601 duration string
@@ -269,7 +266,7 @@ uv-secure can be run as a pre-commit hook by adding this configuration to your
 
 ```yaml
   - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.9.2
+    rev: 0.10.0
     hooks:
       - id: uv-secure
 ```
