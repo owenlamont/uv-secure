@@ -49,6 +49,7 @@ _cache_path_option = typer.Option(
     Path.home() / ".cache/uv-secure",
     "--cache-path",
     help="Path to the cache directory for vulnerability http requests",
+    show_default="~/.cache/uv-secure",
 )
 
 _cache_ttl_seconds_option = typer.Option(

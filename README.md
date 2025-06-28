@@ -122,8 +122,7 @@ After installation, you can run uv-secure --help to see the options.
 │                                                     vulnerabilities table            │
 │ --cache-path                               PATH     Path to the cache directory for  │
 │                                                     vulnerability http requests      │
-│                                                     [default:                        │
-│                                                     C:\Users\Owen\.cache\uv-secure]  │
+│                                                     [default: (~/.cache/uv-secure)]  │
 │ --cache-ttl-seconds                        FLOAT    Time to live in seconds for the  │
 │                                                     vulnerability http requests      │
 │                                                     cache                            │
