@@ -381,21 +381,32 @@ def test_check_dependencies_with_vulnerability_and_maintenance_issues_uv_secure(
 def test_check_dependencies_with_custom_caching(
     temp_uv_lock_file: Path, tmp_path: Path, no_vulnerabilities_response: HTTPXMock
 ) -> None:
+    cache_dir = tmp_path / ".uv-secure"
     result = runner.invoke(
         app,
         [
             str(temp_uv_lock_file),
             "--cache-path",
-            (tmp_path / ".uv-secure").as_posix(),
+            cache_dir.as_posix(),
             "--cache-ttl-seconds",
-            "60",
-            "--disable-cache",
+            "600",
         ],
     )
+
     assert result.exit_code == 0
     assert "No vulnerabilities or maintenance issues detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "All dependencies appear safe!" in result.output
+    assert "error" not in result.output
+
+    cache_files = set(cache_dir.iterdir())
+    assert len(cache_files) == 2
+    cache_files.remove(cache_dir / ".gitignore")
+    assert len(cache_files) == 1
+
+    # Would like to run a second request and test the cache is actually used here, but
+    # pytest-httpx and hishel don't play well together. Might need an alternative
+    # approach to test caching that doesn't involve pytest-httpx.
 
 
 def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_override(
