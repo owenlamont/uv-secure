@@ -1,5 +1,4 @@
 import asyncio
-from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from enum import Enum
 from pathlib import Path
@@ -7,8 +6,8 @@ import sys
 from typing import Optional
 
 from anyio import Path as APath
-from hishel import AsyncCacheClient, AsyncCacheTransport, AsyncFileStorage
-from httpx import AsyncBaseTransport, AsyncHTTPTransport, Headers, Request, Response
+from hishel import AsyncCacheClient, AsyncFileStorage
+from httpx import Headers
 import humanize
 import inflect
 from rich.console import Console, ConsoleRenderable
@@ -299,22 +298,6 @@ class RunStatus(Enum):
     RUNTIME_ERROR = 3
 
 
-class OneConcurrentRequestPerEndpointTransport(AsyncBaseTransport):
-    def __init__(self, next_transport: AsyncBaseTransport) -> None:
-        self.next_transport = next_transport
-        self._active_requests: defaultdict[str, asyncio.locks.Lock] = defaultdict(
-            lambda: asyncio.Lock()
-        )
-
-    async def handle_async_request(self, request: Request) -> Response:
-        """Handle a single HTTP request
-
-        Ensure only one request per URL is active at a time.
-        """
-        async with self._active_requests[request.url]:
-            return await self.next_transport.handle_async_request(request)
-
-
 async def check_lock_files(
     file_paths: Optional[Sequence[Path]],
     aliases: Optional[bool],
@@ -420,28 +403,19 @@ async def check_lock_files(
     # negate the benefits of using a file cache if you don't exclude the virus checker
     # from checking the cache dir given it is frequently read from
     storage = AsyncFileStorage(base_path=cache_path, ttl=cache_ttl_seconds)
-
-    # AsyncCacheTransport implementation suggested by @karpetrosyan in
-    # https://github.com/karpetrosyan/hishel/issues/338
-    async with AsyncCacheTransport(
-        transport=AsyncHTTPTransport(), storage=storage
-    ) as transport:
-        cache_stampede_transport = OneConcurrentRequestPerEndpointTransport(transport)
-        async with AsyncCacheClient(
-            timeout=10,
-            transport=cache_stampede_transport,
-            headers=Headers({"User-Agent": USER_AGENT}),
-        ) as http_client:
-            status_output_tasks = [
-                check_dependencies(
-                    APath(dependency_file_path),
-                    lock_to_config_map[APath(dependency_file_path)],
-                    http_client,
-                    disable_cache,
-                )
-                for dependency_file_path in file_paths
-            ]
-            status_outputs = await asyncio.gather(*status_output_tasks)
+    async with AsyncCacheClient(
+        timeout=10, headers=Headers({"User-Agent": USER_AGENT}), storage=storage
+    ) as http_client:
+        status_output_tasks = [
+            check_dependencies(
+                APath(dependency_file_path),
+                lock_to_config_map[APath(dependency_file_path)],
+                http_client,
+                disable_cache,
+            )
+            for dependency_file_path in file_paths
+        ]
+        status_outputs = await asyncio.gather(*status_output_tasks)
     maintenance_issues_found = False
     vulnerabilities_found = False
     runtime_error = False

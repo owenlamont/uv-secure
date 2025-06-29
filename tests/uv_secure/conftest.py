@@ -297,6 +297,7 @@ def temp_double_nested_uv_lock_file(tmp_path: Path) -> Path:
 def no_vulnerabilities_response(httpx_mock: HTTPXMock) -> HTTPXMock:
     httpx_mock.add_response(
         url="https://pypi.org/pypi/example-package/1.0.0/json",
+        headers={"cache-control": "max-age=900, public"},
         json={
             "info": {
                 "author_email": "example@example.com",
