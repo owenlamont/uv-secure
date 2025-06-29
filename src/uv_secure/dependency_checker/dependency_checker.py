@@ -1,5 +1,4 @@
 import asyncio
-from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from enum import Enum
 from pathlib import Path
@@ -8,7 +7,7 @@ from typing import Optional
 
 from anyio import Path as APath
 from hishel import AsyncCacheClient, AsyncFileStorage
-from httpx import AsyncBaseTransport, Headers, Request, Response
+from httpx import Headers
 import humanize
 import inflect
 from rich.console import Console, ConsoleRenderable
@@ -297,22 +296,6 @@ class RunStatus(Enum):
     MAINTENANCE_ISSUES_FOUND = 1
     VULNERABILITIES_FOUND = 2
     RUNTIME_ERROR = 3
-
-
-class OneConcurrentRequestPerEndpointTransport(AsyncBaseTransport):
-    def __init__(self, next_transport: AsyncBaseTransport) -> None:
-        self.next_transport = next_transport
-        self._active_requests: defaultdict[str, asyncio.locks.Lock] = defaultdict(
-            lambda: asyncio.Lock()
-        )
-
-    async def handle_async_request(self, request: Request) -> Response:
-        """Handle a single HTTP request
-
-        Ensure only one request per URL is active at a time.
-        """
-        async with self._active_requests[request.url]:
-            return await self.next_transport.handle_async_request(request)
 
 
 async def check_lock_files(
