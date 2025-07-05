@@ -1,12 +1,11 @@
 from datetime import timedelta
-from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
 
 
 class MaintainabilityCriteria(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    max_package_age: Optional[timedelta] = None
+    max_package_age: timedelta | None = None
     forbid_yanked: bool = False
     check_direct_dependencies_only: bool = False
 
@@ -15,7 +14,7 @@ class VulnerabilityCriteria(BaseModel):
     model_config = ConfigDict(extra="forbid")
     aliases: bool = False
     desc: bool = False
-    ignore_vulnerabilities: Optional[set[str]] = None
+    ignore_vulnerabilities: set[str] | None = None
     check_direct_dependencies_only: bool = False
 
 
@@ -23,16 +22,18 @@ class Configuration(BaseModel):
     model_config = ConfigDict(extra="forbid")
     maintainability_criteria: MaintainabilityCriteria = MaintainabilityCriteria()
     vulnerability_criteria: VulnerabilityCriteria = VulnerabilityCriteria()
+    ignore_packages: dict[str, tuple[str, ...]] | None = None
 
 
 class OverrideConfiguration(BaseModel):
-    aliases: Optional[bool] = None
-    check_direct_dependency_maintenance_issues_only: Optional[bool] = None
-    check_direct_dependency_vulnerabilities_only: Optional[bool] = None
-    desc: Optional[bool] = None
-    ignore_vulnerabilities: Optional[set[str]] = None
-    forbid_yanked: Optional[bool] = None
-    max_package_age: Optional[timedelta] = None
+    aliases: bool | None = None
+    check_direct_dependency_maintenance_issues_only: bool | None = None
+    check_direct_dependency_vulnerabilities_only: bool | None = None
+    desc: bool | None = None
+    ignore_vulnerabilities: set[str] | None = None
+    ignore_packages: dict[str, tuple[str, ...]] | None = None
+    forbid_yanked: bool | None = None
+    max_package_age: timedelta | None = None
 
 
 def override_config(
@@ -65,6 +66,8 @@ def override_config(
         new_configuration.vulnerability_criteria.ignore_vulnerabilities = (
             overrides.ignore_vulnerabilities
         )
+    if overrides.ignore_packages is not None:
+        new_configuration.ignore_packages = overrides.ignore_packages
     if overrides.forbid_yanked is not None:
         new_configuration.maintainability_criteria.forbid_yanked = (
             overrides.forbid_yanked

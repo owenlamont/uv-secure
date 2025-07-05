@@ -1,6 +1,5 @@
 from pathlib import Path
 from textwrap import dedent
-from typing import Optional
 
 from anyio import Path as APath
 import pytest
@@ -50,7 +49,7 @@ async def test_check_dependencies_alias_hyperlinks(
     tmp_path: Path,
     filename: str,
     file_contents: str,
-    expected_configuration: Optional[Configuration],
+    expected_configuration: Configuration | None,
 ) -> None:
     config_file_path = tmp_path / filename
     config_file_path.write_text(dedent(file_contents).strip())

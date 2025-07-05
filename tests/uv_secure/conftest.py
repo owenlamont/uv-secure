@@ -1,7 +1,6 @@
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from pathlib import Path
 from textwrap import dedent
-from typing import Callable
 
 from httpx import Request, RequestError
 import pytest

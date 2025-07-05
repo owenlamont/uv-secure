@@ -1,15 +1,16 @@
 import asyncio
 from collections.abc import Iterable, Sequence
 from enum import Enum
+from functools import cache
 from pathlib import Path
 import sys
-from typing import Optional
 
 from anyio import Path as APath
 from hishel import AsyncCacheClient, AsyncFileStorage
 from httpx import Headers
 import humanize
 import inflect
+from packaging.specifiers import SpecifierSet
 from rich.console import Console, ConsoleRenderable
 from rich.panel import Panel
 from rich.table import Table
@@ -163,6 +164,19 @@ def _render_issue_table(
     return table
 
 
+@cache
+def get_specifier_sets(specifiers: tuple[str, ...]) -> tuple[SpecifierSet, ...]:
+    """Converts a tuple of version specifiers to a tuple of SpecifierSets
+
+    Args:
+        specifiers: tuple of version specifiers
+
+    Returns:
+        tuple of SpecifierSets
+    """
+    return tuple(SpecifierSet(spec) for spec in specifiers)
+
+
 async def check_dependencies(
     dependency_file_path: APath,
     config: Configuration,
@@ -208,12 +222,30 @@ async def check_dependencies(
     vulnerable_packages = []
     maintenance_issue_packages = []
 
+    ignore_packages = {}
+    if config.ignore_packages is not None:
+        ignore_packages = {
+            name: get_specifier_sets(tuple(specifiers))
+            for name, specifiers in config.ignore_packages.items()
+        }
+
     for idx, package in enumerate(packages):
         if isinstance(package, BaseException):
             console_outputs.append(
                 f"[bold red]Error:[/] {dependencies[idx]} raised exception: {package}"
             )
-            continue
+            return 3, console_outputs
+
+        if package.info.name in ignore_packages:
+            specifiers: tuple[SpecifierSet, ...] = ignore_packages[package.info.name]
+            if len(specifiers) == 0 or any(
+                specifier.contains(package.info.version) for specifier in specifiers
+            ):
+                console_outputs.append(
+                    f"[bold yellow]Skipping {package.info.name} "
+                    f"({package.info.version}) as it is ignored[/]"
+                )
+                continue
 
         if (
             package.direct_dependency
@@ -299,18 +331,19 @@ class RunStatus(Enum):
 
 
 async def check_lock_files(
-    file_paths: Optional[Sequence[Path]],
-    aliases: Optional[bool],
-    desc: Optional[bool],
+    file_paths: Sequence[Path] | None,
+    aliases: bool | None,
+    desc: bool | None,
     cache_path: Path,
     cache_ttl_seconds: float,
     disable_cache: bool,
-    forbid_yanked: Optional[bool],
-    max_package_age: Optional[int],
-    ignore: Optional[str],
-    check_direct_dependency_vulnerabilities_only: Optional[bool],
-    check_direct_dependency_maintenance_issues_only: Optional[bool],
-    config_path: Optional[Path],
+    forbid_yanked: bool | None,
+    max_package_age: int | None,
+    ignore_vulns: str | None,
+    ignore_pkgs: list[str] | None,
+    check_direct_dependency_vulnerabilities_only: bool | None,
+    check_direct_dependency_maintenance_issues_only: bool | None,
+    config_path: Path | None,
 ) -> RunStatus:
     """Checks uv.lock and requirements.txt files for issues
 
@@ -326,42 +359,44 @@ async def check_lock_files(
         disable_cache: flag whether to disable cache
         forbid_yanked: flag whether to forbid yanked dependencies
         max_package_age: maximum age of dependencies in days
+        ignore_vulns: Vulnerabilities IDs to ignore
+        ignore_pkgs: list of package names to ignore
         check_direct_dependency_vulnerabilities_only: flag checking direct dependency
             vulnerabilities only
         check_direct_dependency_maintenance_issues_only: flag checking direct dependency
             maintenance issues only
-        ignore: Vulnerabilities IDs to ignore
+        config_path: path to configuration file
+
 
     Returns
     -------
         True if vulnerabilities were found, False otherwise.
     """
-    if not file_paths:
-        file_paths = (Path(),)
+    file_apaths: tuple[APath, ...] = (
+        (APath(),) if not file_paths else tuple(APath(file) for file in file_paths)
+    )
 
     console = Console()
 
     try:
-        if len(file_paths) == 1 and file_paths[0].is_dir():
-            lock_to_config_map = await get_dependency_file_to_config_map(
-                APath(file_paths[0])
-            )
-            file_paths = tuple(lock_to_config_map.keys())
+        if len(file_apaths) == 1 and await file_apaths[0].is_dir():
+            lock_to_config_map = await get_dependency_file_to_config_map(file_apaths[0])
+            file_apaths = tuple(lock_to_config_map.keys())
         else:
             if config_path is not None:
                 possible_config = await config_file_factory(APath(config_path))
                 config = (
                     possible_config if possible_config is not None else Configuration()
                 )
-                lock_to_config_map = {APath(file): config for file in file_paths}
+                lock_to_config_map = dict.fromkeys(file_apaths, config)
             elif all(
                 file_path.name in {"requirements.txt", "uv.lock"}
-                for file_path in file_paths
+                for file_path in file_apaths
             ):
                 lock_to_config_map = await get_dependency_file_to_config_map(
-                    [APath(file_path) for file_path in file_paths]
+                    file_apaths
                 )
-                file_paths = tuple(lock_to_config_map.keys())
+                file_apaths = tuple(lock_to_config_map.keys())
             else:
                 console.print(
                     "[bold red]Error:[/] file_paths must either reference a single "
@@ -378,7 +413,8 @@ async def check_lock_files(
         (
             aliases,
             desc,
-            ignore,
+            ignore_vulns,
+            ignore_pkgs,
             forbid_yanked,
             check_direct_dependency_vulnerabilities_only,
             check_direct_dependency_maintenance_issues_only,
@@ -392,7 +428,8 @@ async def check_lock_files(
             desc,
             forbid_yanked,
             max_package_age,
-            ignore,
+            ignore_vulns,
+            ignore_pkgs,
         )
         lock_to_config_map = {
             lock_file: override_config(config, cli_config)
@@ -408,12 +445,12 @@ async def check_lock_files(
     ) as http_client:
         status_output_tasks = [
             check_dependencies(
-                APath(dependency_file_path),
+                dependency_file_path,
                 lock_to_config_map[APath(dependency_file_path)],
                 http_client,
                 disable_cache,
             )
-            for dependency_file_path in file_paths
+            for dependency_file_path in file_apaths
         ]
         status_outputs = await asyncio.gather(*status_output_tasks)
     maintenance_issues_found = False

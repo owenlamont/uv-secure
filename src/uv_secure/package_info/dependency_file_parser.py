@@ -1,5 +1,4 @@
 import sys
-from typing import Optional
 
 from anyio import Path
 from pydantic import BaseModel
@@ -33,7 +32,7 @@ async def parse_requirements_txt_file(file_path: Path) -> list[Dependency]:
         )
         return []
     dependencies = []
-    dependency: Optional[Dependency] = None
+    dependency: Dependency | None = None
     for line in lines:
         if "==" in line:
             if dependency is not None:

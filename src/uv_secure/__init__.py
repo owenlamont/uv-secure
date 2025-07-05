@@ -1,5 +1,7 @@
-from uv_secure.__version__ import __version__
+from importlib.metadata import version
+
 from uv_secure.run import app
 
 
-__all__ = ["__version__", "app"]
+__all__ = ["app"]
+__version__ = version(__name__)
