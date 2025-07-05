@@ -34,17 +34,15 @@ def _parse_pkg_versions(raw: list[str] | None) -> dict[str, tuple[str, ...]] | N
     typer.BadParameter
         If the input format is invalid, e.g. missing colon or no specifiers
     """
+    if not raw:
+        return None
     parsed: dict[str, tuple[str, ...]] = {}
-    if raw is None:
-        return parsed
     for item in raw:
         if ":" in item:
             name, spec_expr = item.split(":", 1)
             parsed[name] = tuple(spec_expr.split("|"))
         else:
             parsed[item] = ()
-    if not parsed:
-        return None
     return parsed
 
 
