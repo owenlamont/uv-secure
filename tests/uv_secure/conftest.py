@@ -120,7 +120,7 @@ def temp_uv_secure_toml_file_ignored_package(tmp_path: Path) -> Path:
     uv_secure_toml_path = tmp_path / "uv-secure.toml"
     uv_lock_data = """
         [ignore_packages]
-        example-package = [">=1.0, <2.0"]
+        example-package = []
     """
     uv_secure_toml_path.write_text(dedent(uv_lock_data).strip())
     return uv_secure_toml_path

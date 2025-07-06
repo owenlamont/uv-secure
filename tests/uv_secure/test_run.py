@@ -323,6 +323,26 @@ def test_app_with_arg_ignored_package_with_specifiers(
     assert "All dependencies appear safe!" in result.output
 
 
+def test_app_with_arg_ignored_package_with_specifiers_no_match(
+    temp_uv_lock_file: Path, one_vulnerability_response: HTTPXMock
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            "--ignore-pkgs",
+            "example-package:>=0.5,<0.6",
+            "--disable-cache",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "Vulnerabilities detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "Vulnerable: 1 vulnerability" in result.output
+    assert "example-package" in result.output
+
+
 def test_app_with_arg_withdrawn_vulnerability(
     temp_uv_lock_file: Path, withdrawn_vulnerability_response: HTTPXMock
 ) -> None:
