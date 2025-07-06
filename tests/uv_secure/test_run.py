@@ -1,8 +1,8 @@
+from collections.abc import Callable
 from datetime import datetime, timezone
 import os
 from pathlib import Path
 from textwrap import dedent
-from typing import Callable
 
 from freezegun import freeze_time
 import pytest
@@ -185,14 +185,11 @@ def test_app_failed_vulnerability_request(
 ) -> None:
     result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 3
     assert (
         "Error: name='example-package' version='1.0.0' direct=False raised "
         "exception: Request failed"
     ) in result.output
-    assert "No vulnerabilities or maintenance issues detected!" in result.output
-    assert "Checked: 1 dependency" in result.output
-    assert "All dependencies appear safe!" in result.output
 
 
 def test_app_package_not_found(
@@ -200,15 +197,12 @@ def test_app_package_not_found(
 ) -> None:
     result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 3
     assert (
         "Error: name='example-package' version='1.0.0' direct=False raised "
         "exception: Client error '404 Not Found' for url "
         "'https://pypi.org/pypi/example-package/1.0.0/json'"
     ) in result.output
-    assert "No vulnerabilities or maintenance issues detected!" in result.output
-    assert "Checked: 1 dependency" in result.output
-    assert "All dependencies appear safe!" in result.output
 
 
 @pytest.mark.parametrize(
@@ -287,13 +281,66 @@ def test_app_with_arg_ignored_vulnerability(
     temp_uv_lock_file: Path, one_vulnerability_response: HTTPXMock
 ) -> None:
     result = runner.invoke(
-        app, [str(temp_uv_lock_file), "--ignore", "VULN-123", "--disable-cache"]
+        app, [str(temp_uv_lock_file), "--ignore-vulns", "VULN-123", "--disable-cache"]
     )
 
     assert result.exit_code == 0
     assert "No vulnerabilities or maintenance issues detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "All dependencies appear safe!" in result.output
+
+
+def test_app_with_arg_ignored_package_no_specifiers(
+    temp_uv_lock_file: Path, one_vulnerability_response: HTTPXMock
+) -> None:
+    result = runner.invoke(
+        app,
+        [str(temp_uv_lock_file), "--ignore-pkgs", "example-package", "--disable-cache"],
+    )
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
+
+
+def test_app_with_arg_ignored_package_with_specifiers(
+    temp_uv_lock_file: Path, one_vulnerability_response: HTTPXMock
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            "--ignore-pkgs",
+            "example-package:>=0.5,<0.6|>=1.0,<2",
+            "--disable-cache",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
+
+
+def test_app_with_arg_ignored_package_with_specifiers_no_match(
+    temp_uv_lock_file: Path, one_vulnerability_response: HTTPXMock
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            "--ignore-pkgs",
+            "example-package:>=0.5,<0.6",
+            "--disable-cache",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "Vulnerabilities detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "Vulnerable: 1 vulnerability" in result.output
+    assert "example-package" in result.output
 
 
 def test_app_with_arg_withdrawn_vulnerability(
@@ -416,7 +463,43 @@ def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_overr
 ) -> None:
     result = runner.invoke(
         app,
-        [str(temp_uv_lock_file), "--ignore", "VULN-NOT-HERE", "--aliases", "--desc"],
+        [
+            str(temp_uv_lock_file),
+            "--ignore-vulns",
+            "VULN-NOT-HERE",
+            "--aliases",
+            "--desc",
+        ],
+        "--disable-cache",
+    )
+
+    assert "Vulnerabilities detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "Vulnerable: 1 vulnerability" in result.output
+    assert "example-package" in result.output
+    assert "1.0.0" in result.output
+    assert "VULN-123" in result.output
+    assert "1.0.1" in result.output
+    assert "Aliases" in result.output
+    assert "CVE-2024-12345" in result.output
+    assert "Details" in result.output
+    assert "A critical vulnerability in example-package.  " in result.output
+
+
+def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_pkg_override(
+    temp_uv_lock_file: Path,
+    temp_pyproject_toml_file_ignored_package: Path,
+    one_vulnerability_response: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            "--ignore-pkgs",
+            "another-package",
+            "--aliases",
+            "--desc",
+        ],
         "--disable-cache",
     )
 
@@ -454,6 +537,23 @@ def test_app_with_uv_secure_toml_ignored_vulnerability(
     assert "All dependencies appear safe!" in result.output
 
 
+def test_app_with_uv_secure_toml_ignored_package(
+    temp_uv_lock_file: Path,
+    temp_uv_secure_toml_file_ignored_package: Path,
+    one_vulnerability_response: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [str(temp_uv_lock_file), "--config", temp_uv_secure_toml_file_ignored_package],
+        "--disable-cache",
+    )
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
+
+
 def test_app_with_pyproject_toml_ignored_vulnerability(
     temp_uv_lock_file: Path,
     temp_pyproject_toml_file_ignored_vulnerability: Path,
@@ -475,16 +575,71 @@ def test_app_with_pyproject_toml_ignored_vulnerability(
     assert "All dependencies appear safe!" in result.output
 
 
+def test_app_with_pyproject_toml_ignored_package(
+    temp_uv_lock_file: Path,
+    temp_pyproject_toml_file_ignored_package: Path,
+    one_vulnerability_response: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [str(temp_uv_lock_file), "--config", temp_pyproject_toml_file_ignored_package],
+        "--disable-cache",
+    )
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
+
+
 def test_app_multiple_lock_files_no_vulnerabilities(
     temp_uv_lock_file: Path, temp_nested_uv_lock_file: Path, httpx_mock: HTTPXMock
 ) -> None:
     httpx_mock.add_response(
         url="https://pypi.org/pypi/example-package/1.0.0/json",
-        json={"vulnerabilities": []},
+        json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "A minimal package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "A minimal package example",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
+            "vulnerabilities": [],
+        },
     )
     httpx_mock.add_response(
         url="https://pypi.org/pypi/example-package/2.0.0/json",
-        json={"vulnerabilities": []},
+        json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "A minimal package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "A minimal package example",
+                "version": "2.0.0",
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
+            "vulnerabilities": [],
+        },
     )
 
     result = runner.invoke(

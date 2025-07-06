@@ -1,12 +1,12 @@
 [project]
 name = "uv-secure"
-dynamic = ["version"]
+version = "0.11.0"
 description = "Scan your uv.lock file for dependencies with known vulnerabilities"
 readme = "README.md"
 authors = [
     { name = "Owen Lamont", email = "owenrlamont@gmail.com" }
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 keywords = [
   "uv", "uv.lock", "vulnerabilities"
 ]
@@ -18,7 +18,6 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Natural Language :: English",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -36,6 +35,7 @@ dependencies = [
     "httpx>=0.28.1",
     "humanize>=4.11.0",
     "inflect>=7.4.0",
+    "packaging>=25.0",
     "pydantic[email]>=2.10.3",
     "rich>=13.9.4",
     "tomli; python_version < '3.11'",
@@ -56,8 +56,8 @@ Repository = "https://github.com/owenlamont/uv-secure"
 Releases = "https://github.com/owenlamont/uv-secure/releases"
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.7.19,<0.8.0"]
+build-backend = "uv_build"
 
 [tool.coverage.paths]
 source = [
@@ -83,7 +83,7 @@ plugins = [
   "pydantic.mypy"
 ]
 
-python_version = "3.9"
+python_version = "3.10"
 files = ["src"]
 
 ignore_missing_imports = true

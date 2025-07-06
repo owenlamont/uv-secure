@@ -1,7 +1,6 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 import re
-from typing import Optional, Union
 
 from hishel import AsyncCacheClient
 from pydantic import BaseModel
@@ -10,42 +9,42 @@ from uv_secure.package_info.dependency_file_parser import Dependency
 
 
 class Downloads(BaseModel):
-    last_day: Optional[int] = None
-    last_month: Optional[int] = None
-    last_week: Optional[int] = None
+    last_day: int | None = None
+    last_month: int | None = None
+    last_week: int | None = None
 
 
 class Info(BaseModel):
-    author: Optional[str] = None
-    author_email: Optional[str] = None
-    bugtrack_url: Optional[str] = None
+    author: str | None = None
+    author_email: str | None = None
+    bugtrack_url: str | None = None
     classifiers: list[str]
     description: str
-    description_content_type: Optional[str] = None
-    docs_url: Optional[str] = None
-    download_url: Optional[str] = None
+    description_content_type: str | None = None
+    docs_url: str | None = None
+    download_url: str | None = None
     downloads: Downloads
-    dynamic: Optional[Union[list[str], str]] = None
-    home_page: Optional[str] = None
-    keywords: Optional[Union[str, list[str]]] = None
-    license: Optional[str] = None
-    license_expression: Optional[str] = None
-    license_files: Optional[list[str]] = None
-    maintainer: Optional[str] = None
-    maintainer_email: Optional[str] = None
+    dynamic: list[str] | str | None = None
+    home_page: str | None = None
+    keywords: str | list[str] | None = None
+    license: str | None = None
+    license_expression: str | None = None
+    license_files: list[str] | None = None
+    maintainer: str | None = None
+    maintainer_email: str | None = None
     name: str
-    package_url: Optional[str] = None
-    platform: Optional[str] = None
-    project_url: Optional[str] = None
-    project_urls: Optional[dict[str, str]] = None
-    provides_extra: Optional[list[str]] = None
+    package_url: str | None = None
+    platform: str | None = None
+    project_url: str | None = None
+    project_urls: dict[str, str] | None = None
+    provides_extra: list[str] | None = None
     release_url: str
-    requires_dist: Optional[list[str]] = None
-    requires_python: Optional[str] = None
-    summary: Optional[str] = None
+    requires_dist: list[str] | None = None
+    requires_python: str | None = None
+    summary: str | None = None
     version: str
     yanked: bool
-    yanked_reason: Optional[str] = None
+    yanked_reason: str | None = None
 
 
 class Digests(BaseModel):
@@ -55,7 +54,7 @@ class Digests(BaseModel):
 
 
 class Url(BaseModel):
-    comment_text: Optional[str] = None
+    comment_text: str | None = None
     digests: Digests
     downloads: int
     filename: str
@@ -63,24 +62,24 @@ class Url(BaseModel):
     md5_digest: str
     packagetype: str
     python_version: str
-    requires_python: Optional[str] = None
+    requires_python: str | None = None
     size: int
     upload_time: datetime
     upload_time_iso_8601: datetime
     url: str
     yanked: bool
-    yanked_reason: Optional[str] = None
+    yanked_reason: str | None = None
 
 
 class Vulnerability(BaseModel):
     id: str
     details: str
-    fixed_in: Optional[list[str]] = None
-    aliases: Optional[list[str]] = None
-    link: Optional[str] = None
-    source: Optional[str] = None
-    summary: Optional[str] = None
-    withdrawn: Optional[str] = None
+    fixed_in: list[str] | None = None
+    aliases: list[str] | None = None
+    link: str | None = None
+    source: str | None = None
+    summary: str | None = None
+    withdrawn: str | None = None
 
 
 class PackageInfo(BaseModel):
@@ -91,7 +90,7 @@ class PackageInfo(BaseModel):
     direct_dependency: bool = False
 
     @property
-    def age(self) -> Optional[timedelta]:
+    def age(self) -> timedelta | None:
         """Return age of the package"""
         release_date = min(
             (url.upload_time_iso_8601 for url in self.urls), default=None
@@ -121,7 +120,7 @@ async def _download_package(
 
 async def download_packages(
     dependencies: list[Dependency], http_client: AsyncCacheClient, disable_cache: bool
-) -> list[Union[PackageInfo, BaseException]]:
+) -> list[PackageInfo | BaseException]:
     """Fetch vulnerabilities for all dependencies concurrently."""
     tasks = [_download_package(http_client, dep, disable_cache) for dep in dependencies]
     return await asyncio.gather(*tasks, return_exceptions=True)

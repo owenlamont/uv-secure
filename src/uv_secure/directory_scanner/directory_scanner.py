@@ -1,5 +1,4 @@
 from collections.abc import Iterable, Sequence
-from typing import Union
 
 from anyio import Path
 from asyncer import create_task_group
@@ -49,7 +48,7 @@ def _get_root_dir(file_paths: Sequence[Path]) -> Path:
 
 
 async def get_dependency_file_to_config_map(
-    file_paths: Union[Path, list[Path]],
+    file_paths: Path | Sequence[Path],
 ) -> dict[Path, Configuration]:
     """Get map of uv.lock files to their configurations.
 
@@ -99,7 +98,9 @@ async def get_dependency_file_to_config_map(
         ]
     configs = [future.value for future in config_futures]
     path_config_map = {
-        p.parent: c for p, c in zip(config_file_paths, configs) if c is not None
+        p.parent: c
+        for p, c in zip(config_file_paths, configs, strict=False)
+        if c is not None
     }
 
     dependency_file_paths = config_and_lock_files.get(

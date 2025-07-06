@@ -1,10 +1,9 @@
 from pathlib import Path
 import sys
-from typing import Optional
 
 import typer
 
-from uv_secure.__version__ import __version__
+from uv_secure import __version__
 from uv_secure.dependency_checker import check_lock_files, RunStatus
 
 
@@ -86,10 +85,9 @@ _max_package_age_option = typer.Option(
     None, "--max-age-days", help="Maximum age threshold for packages in days"
 )
 
-_ignore_option = typer.Option(
+_ignore_vulns_option = typer.Option(
     None,
-    "--ignore",
-    "-i",
+    "--ignore-vulns",
     help="Comma-separated list of vulnerability IDs to ignore, e.g. VULN-123,VULN-456",
 )
 
@@ -111,24 +109,35 @@ _version_option = typer.Option(
 )
 
 
+_ignore_pkg_options = typer.Option(
+    None,
+    "--ignore-pkgs",
+    metavar="PKG:SPEC1|SPEC2|…",
+    help=(
+        "Dependency with optional version specifiers. "
+        "Syntax: name:spec1|spec2|…  "
+        "e.g. foo:>=1.0,<1.5|==4.5.*"
+    ),
+)
+
+
 @app.command()
 def main(
-    file_paths: Optional[list[Path]] = _file_path_args,
-    aliases: Optional[bool] = _aliases_option,
-    desc: Optional[bool] = _desc_option,
+    file_paths: list[Path] | None = _file_path_args,
+    aliases: bool | None = _aliases_option,
+    desc: bool | None = _desc_option,
     cache_path: Path = _cache_path_option,
     cache_ttl_seconds: float = _cache_ttl_seconds_option,
     disable_cache: bool = _disable_cache_option,
-    forbid_yanked: Optional[bool] = _forbid_yanked_option,
-    max_package_age: Optional[int] = _max_package_age_option,
-    ignore: Optional[str] = _ignore_option,
-    check_direct_dependency_vulnerabilities_only: Optional[
-        bool
-    ] = _check_direct_dependency_vulnerabilities_only_option,
-    check_direct_dependency_maintenance_issues_only: Optional[
-        bool
-    ] = _check_direct_dependency_maintenance_issues_only_option,
-    config_path: Optional[Path] = _config_option,
+    forbid_yanked: bool | None = _forbid_yanked_option,
+    max_package_age: int | None = _max_package_age_option,
+    ignore_vulns: str | None = _ignore_vulns_option,
+    ignore_pkgs: list[str] | None = _ignore_pkg_options,
+    check_direct_dependency_vulnerabilities_only: bool
+    | None = _check_direct_dependency_vulnerabilities_only_option,
+    check_direct_dependency_maintenance_issues_only: bool
+    | None = _check_direct_dependency_maintenance_issues_only_option,
+    config_path: Path | None = _config_option,
     version: bool = _version_option,
 ) -> None:
     """Parse uv.lock files, check vulnerabilities, and display summary."""
@@ -152,7 +161,8 @@ def main(
             disable_cache,
             forbid_yanked,
             max_package_age,
-            ignore,
+            ignore_vulns,
+            ignore_pkgs,
             check_direct_dependency_vulnerabilities_only,
             check_direct_dependency_maintenance_issues_only,
             config_path,

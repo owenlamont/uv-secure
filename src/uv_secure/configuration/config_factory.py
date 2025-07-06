@@ -1,6 +1,5 @@
 from datetime import timedelta
 import sys
-from typing import Optional
 
 from anyio import Path
 from pydantic import ValidationError
@@ -15,14 +14,43 @@ else:
     import tomli as toml
 
 
+def _parse_pkg_versions(raw: list[str] | None) -> dict[str, tuple[str, ...]] | None:
+    """Parse package and bar delimited version specifiers
+
+    Parse things like "foo:>=1.0,<1.5|==4.5.*" into
+    {"foo": [SpecifierSet(">=1.0,<1.5"), SpecifierSet("==4.5.*")]}
+
+    Args:
+        raw: list of strings in the format "NAME:SPEC1|SPEC2|…"
+
+    Returns:
+        dictionary mapping package names to lists of SpecifierSets
+
+    Raises:
+        typer.BadParameter: If the input format is invalid, e.g. missing colon or no
+        specifiers
+    """
+    if not raw:
+        return None
+    parsed: dict[str, tuple[str, ...]] = {}
+    for item in raw:
+        if ":" in item:
+            name, spec_expr = item.split(":", 1)
+            parsed[name] = tuple(spec_expr.split("|"))
+        else:
+            parsed[item] = ()
+    return parsed
+
+
 def config_cli_arg_factory(
-    aliases: Optional[bool],
-    check_direct_dependency_maintenance_issues_only: Optional[bool],
-    check_direct_dependency_vulnerabilities_only: Optional[bool],
-    desc: Optional[bool],
-    forbid_yanked: Optional[bool],
-    max_package_age: Optional[int],
-    ignore: Optional[str],
+    aliases: bool | None,
+    check_direct_dependency_maintenance_issues_only: bool | None,
+    check_direct_dependency_vulnerabilities_only: bool | None,
+    desc: bool | None,
+    forbid_yanked: bool | None,
+    max_package_age: int | None,
+    ignore_vulns: str | None,
+    ignore_pkgs: list[str] | None,
 ) -> OverrideConfiguration:
     """Factory to create a uv-secure configuration from its command line arguments
 
@@ -32,15 +60,15 @@ def config_cli_arg_factory(
         disable_cache: Flag whether to disable cache
         forbid_yanked: flag whether to forbid yanked dependencies
         max_package_age: maximum age of dependencies in days
-        ignore: comma separated string of vulnerability ids to ignore
+        ignore_vulns: comma separated string of vulnerability ids to ignore
+        ignore_pkgs: list of package names and version specifiers to ignore
 
-    Returns
-    -------
+    Returns:
         uv-secure override configuration object
     """
     ignore_vulnerabilities = (
-        {vuln_id.strip() for vuln_id in ignore.split(",") if vuln_id.strip()}
-        if ignore is not None
+        {vuln_id.strip() for vuln_id in ignore_vulns.split(",") if vuln_id.strip()}
+        if ignore_vulns is not None
         else None
     )
 
@@ -52,18 +80,18 @@ def config_cli_arg_factory(
         forbid_yanked=forbid_yanked,
         max_package_age=timedelta(days=max_package_age) if max_package_age else None,
         ignore_vulnerabilities=ignore_vulnerabilities,
+        ignore_packages=_parse_pkg_versions(ignore_pkgs),
     )
 
 
-async def config_file_factory(config_file: Path) -> Optional[Configuration]:
+async def config_file_factory(config_file: Path) -> Configuration | None:
     """Factory to create a uv-secure configuration from a configuration toml file
 
     Args:
         config_file: Path to the configuration file (uv-secure.toml, .uv-secure.toml, or
-        pyproject.toml)
+            pyproject.toml)
 
-    Returns
-    -------
+    Returns:
         uv-secure configuration object or None if no configuration was present
     """
     try:

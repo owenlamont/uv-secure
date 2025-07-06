@@ -164,4 +164,4 @@ cython_debug/
 .idea/
 
 # VS Code
-.code/
+.vscode/

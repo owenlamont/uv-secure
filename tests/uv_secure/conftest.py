@@ -1,7 +1,6 @@
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from pathlib import Path
 from textwrap import dedent
-from typing import Callable
 
 from httpx import Request, RequestError
 import pytest
@@ -111,6 +110,17 @@ def temp_uv_secure_toml_file_ignored_vulnerability(tmp_path: Path) -> Path:
     uv_lock_data = """
         [vulnerability_criteria]
         ignore_vulnerabilities = ["VULN-123"]
+    """
+    uv_secure_toml_path.write_text(dedent(uv_lock_data).strip())
+    return uv_secure_toml_path
+
+
+@pytest.fixture
+def temp_uv_secure_toml_file_ignored_package(tmp_path: Path) -> Path:
+    uv_secure_toml_path = tmp_path / "uv-secure.toml"
+    uv_lock_data = """
+        [ignore_packages]
+        example-package = []
     """
     uv_secure_toml_path.write_text(dedent(uv_lock_data).strip())
     return uv_secure_toml_path
@@ -250,6 +260,17 @@ def temp_pyproject_toml_file_ignored_vulnerability(tmp_path: Path) -> Path:
     uv_lock_data = """
     [tool.uv-secure.vulnerability_criteria]
     ignore_vulnerabilities = ["VULN-123"]
+    """
+    pyproject_toml_path.write_text(dedent(uv_lock_data).strip())
+    return pyproject_toml_path
+
+
+@pytest.fixture
+def temp_pyproject_toml_file_ignored_package(tmp_path: Path) -> Path:
+    pyproject_toml_path = tmp_path / "pyproject.toml"
+    uv_lock_data = """
+    [tool.uv-secure.ignore_packages]
+    example-package = [">=1.0, <2.0"]
     """
     pyproject_toml_path.write_text(dedent(uv_lock_data).strip())
     return pyproject_toml_path
