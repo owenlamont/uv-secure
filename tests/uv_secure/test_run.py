@@ -304,6 +304,25 @@ def test_app_with_arg_ignored_package_no_specifiers(
     assert "All dependencies appear safe!" in result.output
 
 
+def test_app_with_arg_ignored_package_with_specifiers(
+    temp_uv_lock_file: Path, one_vulnerability_response: HTTPXMock
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            "--ignore-pkgs",
+            "example-package:>=0.5,<0.6|>=1.0,<2",
+            "--disable-cache",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
+
+
 def test_app_with_arg_withdrawn_vulnerability(
     temp_uv_lock_file: Path, withdrawn_vulnerability_response: HTTPXMock
 ) -> None:
@@ -428,6 +447,36 @@ def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_overr
             str(temp_uv_lock_file),
             "--ignore-vulns",
             "VULN-NOT-HERE",
+            "--aliases",
+            "--desc",
+        ],
+        "--disable-cache",
+    )
+
+    assert "Vulnerabilities detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "Vulnerable: 1 vulnerability" in result.output
+    assert "example-package" in result.output
+    assert "1.0.0" in result.output
+    assert "VULN-123" in result.output
+    assert "1.0.1" in result.output
+    assert "Aliases" in result.output
+    assert "CVE-2024-12345" in result.output
+    assert "Details" in result.output
+    assert "A critical vulnerability in example-package.  " in result.output
+
+
+def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_pkg_override(
+    temp_uv_lock_file: Path,
+    temp_pyproject_toml_file_ignored_package: Path,
+    one_vulnerability_response: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            "--ignore-pkgs",
+            "another-package",
             "--aliases",
             "--desc",
         ],

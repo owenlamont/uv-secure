@@ -255,6 +255,17 @@ def temp_pyproject_toml_file_ignored_vulnerability(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def temp_pyproject_toml_file_ignored_package(tmp_path: Path) -> Path:
+    pyproject_toml_path = tmp_path / "pyproject.toml"
+    uv_lock_data = """
+    [tool.uv-secure.ignore_packages]
+    example-package = [">=1.0, <2.0"]
+    """
+    pyproject_toml_path.write_text(dedent(uv_lock_data).strip())
+    return pyproject_toml_path
+
+
+@pytest.fixture
 def temp_nested_pyproject_toml_file_no_config(tmp_path: Path) -> Path:
     pyproject_toml_path = tmp_path / "nested_project" / "pyproject.toml"
     uv_lock_data = ""
