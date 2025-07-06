@@ -368,8 +368,7 @@ async def check_lock_files(
         config_path: path to configuration file
 
 
-    Returns
-    -------
+    Returns:
         True if vulnerabilities were found, False otherwise.
     """
     file_apaths: tuple[APath, ...] = (

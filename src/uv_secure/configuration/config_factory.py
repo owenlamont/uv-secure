@@ -20,19 +20,15 @@ def _parse_pkg_versions(raw: list[str] | None) -> dict[str, tuple[str, ...]] | N
     Parse things like "foo:>=1.0,<1.5|==4.5.*" into
     {"foo": [SpecifierSet(">=1.0,<1.5"), SpecifierSet("==4.5.*")]}
 
-    Parameters
-    ----------
-    raw
-        list of strings in the format "NAME:SPEC1|SPEC2|…"
+    Args:
+        raw: list of strings in the format "NAME:SPEC1|SPEC2|…"
 
-    Returns
-    -------
+    Returns:
         dictionary mapping package names to lists of SpecifierSets
 
-    Raises
-    ------
-    typer.BadParameter
-        If the input format is invalid, e.g. missing colon or no specifiers
+    Raises:
+        typer.BadParameter: If the input format is invalid, e.g. missing colon or no
+        specifiers
     """
     if not raw:
         return None
@@ -67,8 +63,7 @@ def config_cli_arg_factory(
         ignore_vulns: comma separated string of vulnerability ids to ignore
         ignore_pkgs: list of package names and version specifiers to ignore
 
-    Returns
-    -------
+    Returns:
         uv-secure override configuration object
     """
     ignore_vulnerabilities = (
@@ -94,10 +89,9 @@ async def config_file_factory(config_file: Path) -> Configuration | None:
 
     Args:
         config_file: Path to the configuration file (uv-secure.toml, .uv-secure.toml, or
-        pyproject.toml)
+            pyproject.toml)
 
-    Returns
-    -------
+    Returns:
         uv-secure configuration object or None if no configuration was present
     """
     try:
