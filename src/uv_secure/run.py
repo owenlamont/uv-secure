@@ -112,9 +112,9 @@ _version_option = typer.Option(
 _ignore_pkg_options = typer.Option(
     None,
     "--ignore-pkgs",
-    metavar="PKG:SPEC…",
+    metavar="PKG:SPEC1|SPEC2|…",
     help=(
-        "Dependency with OR-groups.  "
+        "Dependency with optional version specifiers. "
         "Syntax: name:spec1|spec2|…  "
         "e.g. foo:>=1.0,<1.5|==4.5.*"
     ),

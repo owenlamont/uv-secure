@@ -517,6 +517,23 @@ def test_app_with_uv_secure_toml_ignored_vulnerability(
     assert "All dependencies appear safe!" in result.output
 
 
+def test_app_with_uv_secure_toml_ignored_package(
+    temp_uv_lock_file: Path,
+    temp_uv_secure_toml_file_ignored_package: Path,
+    one_vulnerability_response: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [str(temp_uv_lock_file), "--config", temp_uv_secure_toml_file_ignored_package],
+        "--disable-cache",
+    )
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
+
+
 def test_app_with_pyproject_toml_ignored_vulnerability(
     temp_uv_lock_file: Path,
     temp_pyproject_toml_file_ignored_vulnerability: Path,
@@ -529,6 +546,23 @@ def test_app_with_pyproject_toml_ignored_vulnerability(
             "--config",
             temp_pyproject_toml_file_ignored_vulnerability,
         ],
+        "--disable-cache",
+    )
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
+
+
+def test_app_with_pyproject_toml_ignored_package(
+    temp_uv_lock_file: Path,
+    temp_pyproject_toml_file_ignored_package: Path,
+    one_vulnerability_response: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [str(temp_uv_lock_file), "--config", temp_pyproject_toml_file_ignored_package],
         "--disable-cache",
     )
 

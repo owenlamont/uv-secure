@@ -14,7 +14,7 @@ servers. See roadmap below for my plans for future enhancements.
 
 I don't intend uv-secure to ever create virtual environments or do dependency
 resolution - the plan is to leave that all to uv since it does that so well and just
-target lock files and fully pinned and dependency resolved requirements.txt files). If
+target lock files and fully pinned and (dependency resolved) requirements.txt files. If
 you want a tool that does dependency resolution on requirements.txt files for first
 order and unpinned dependencies I recommend using
 [pip-audit](https://pypi.org/project/pip-audit/) instead.
@@ -113,50 +113,60 @@ After installation, you can run uv-secure --help to see the options.
 │                                    [default: None]                                   │
 ╰──────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ────────────────────────────────────────────────────────────────────────────╮
-│ --aliases                                           Flag whether to include          │
-│                                                     vulnerability aliases in the     │
-│                                                     vulnerabilities table            │
-│ --desc                                              Flag whether to include          │
-│                                                     vulnerability detailed           │
-│                                                     description in the               │
-│                                                     vulnerabilities table            │
-│ --cache-path                               PATH     Path to the cache directory for  │
-│                                                     vulnerability http requests      │
-│                                                     [default: (~/.cache/uv-secure)]  │
-│ --cache-ttl-seconds                        FLOAT    Time to live in seconds for the  │
-│                                                     vulnerability http requests      │
-│                                                     cache                            │
-│                                                     [default: 86400.0]               │
-│ --disable-cache                                     Flag whether to disable caching  │
-│                                                     for vulnerability http requests  │
-│ --forbid-yanked                                     Flag whether disallow yanked     │
-│                                                     package versions from being      │
-│                                                     dependencies                     │
-│ --max-age-days                             INTEGER  Maximum age threshold for        │
-│                                                     packages in days                 │
-│                                                     [default: None]                  │
-│ --ignore                           -i      TEXT     Comma-separated list of          │
-│                                                     vulnerability IDs to ignore,     │
-│                                                     e.g. VULN-123,VULN-456           │
-│                                                     [default: None]                  │
-│ --check-direct-dependency-vulner…                   Flag whether to only test only   │
-│                                                     direct dependencies for          │
-│                                                     vulnerabilities                  │
-│ --check-direct-dependency-mainte…                   Flag whether to only test only   │
-│                                                     direct dependencies for          │
-│                                                     maintenance issues               │
-│ --config                                   PATH     Optional path to a configuration │
-│                                                     file (uv-secure.toml,            │
-│                                                     .uv-secure.toml, or              │
-│                                                     pyproject.toml)                  │
-│                                                     [default: None]                  │
-│ --version                                           Show the application's version   │
-│ --install-completion                                Install completion for the       │
-│                                                     current shell.                   │
-│ --show-completion                                   Show completion for the current  │
-│                                                     shell, to copy it or customize   │
-│                                                     the installation.                │
-│ --help                                              Show this message and exit.      │
+│ --aliases                                               Flag whether to include      │
+│                                                         vulnerability aliases in the │
+│                                                         vulnerabilities table        │
+│ --desc                                                  Flag whether to include      │
+│                                                         vulnerability detailed       │
+│                                                         description in the           │
+│                                                         vulnerabilities table        │
+│ --cache-path                         PATH               Path to the cache directory  │
+│                                                         for vulnerability http       │
+│                                                         requests                     │
+│                                                         [default:                    │
+│                                                         (~/.cache/uv-secure)]        │
+│ --cache-ttl-seconds                  FLOAT              Time to live in seconds for  │
+│                                                         the vulnerability http       │
+│                                                         requests cache               │
+│                                                         [default: 86400.0]           │
+│ --disable-cache                                         Flag whether to disable      │
+│                                                         caching for vulnerability    │
+│                                                         http requests                │
+│ --forbid-yanked                                         Flag whether disallow yanked │
+│                                                         package versions from being  │
+│                                                         dependencies                 │
+│ --max-age-days                       INTEGER            Maximum age threshold for    │
+│                                                         packages in days             │
+│                                                         [default: None]              │
+│ --ignore-vulns                       TEXT               Comma-separated list of      │
+│                                                         vulnerability IDs to ignore, │
+│                                                         e.g. VULN-123,VULN-456       │
+│                                                         [default: None]              │
+│ --ignore-pkgs                        PKG:SPEC1|SPEC2|…  Dependency with optional     │
+│                                                         version specifiers. Syntax:  │
+│                                                         name:spec1|spec2|…  e.g.     │
+│                                                         foo:>=1.0,<1.5|==4.5.*       │
+│                                                         [default: None]              │
+│ --check-direct-dependency-vu…                           Flag whether to only test    │
+│                                                         only direct dependencies for │
+│                                                         vulnerabilities              │
+│ --check-direct-dependency-ma…                           Flag whether to only test    │
+│                                                         only direct dependencies for │
+│                                                         maintenance issues           │
+│ --config                             PATH               Optional path to a           │
+│                                                         configuration file           │
+│                                                         (uv-secure.toml,             │
+│                                                         .uv-secure.toml, or          │
+│                                                         pyproject.toml)              │
+│                                                         [default: None]              │
+│ --version                                               Show the application's       │
+│                                                         version                      │
+│ --install-completion                                    Install completion for the   │
+│                                                         current shell.               │
+│ --show-completion                                       Show completion for the      │
+│                                                         current shell, to copy it or │
+│                                                         customize the installation.  │
+│ --help                                                  Show this message and exit.  │
 ╰──────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -177,6 +187,11 @@ uv-secure can read configuration from a toml file specified with the config opti
 ### uv-secure.toml / .uv-secure.toml
 
 ```toml
+[ignore_packages]
+requests = [] # Ignore issues with all versions of the requests package
+urllib = [">=1.0, <2.0"] # Ignore issues between version 1.0 and less than 2.0
+jinja2 = [">=0.1, <1.0", "~=2.0"] # Ignore issues between version 0.1 and 1.0 or 2.0
+
 [vulnerability_criteria]
 ignore_vulnerabilities = ["VULN-123"]
 aliases = true # Defaults to false
@@ -192,6 +207,11 @@ forbid_yanked = true # Defaults to false (allow yanked package dependencies) if 
 ### pyproject.toml
 
 ```toml
+[tool.uv-secure.ignore_packages]
+requests = [] # Ignore issues with all versions of the requests package
+urllib = [">=1.0, <2.0"] # Ignore issues between version 1.0 and less than 2.0
+jinja2 = [">=0.1, <1.0", "~=2.0"] # Ignore issues between version 0.1 and 1.0 or 2.0
+
 [tool.uv-secure.vulnerability_criteria]
 ignore_vulnerabilities = ["VULN-123"]
 aliases = true # Defaults to false
@@ -251,7 +271,7 @@ pyproject.toml files with uv-secure config (only if you define all three in the 
 directory though - which would be a bit weird - I may make this a warning or error in
 future).
 
-Like Ruff configuration files aren't hierarchically combined, just the nearest / highest
+Like Ruff, configuration files aren't hierarchically combined, the nearest / highest
 precedence configuration is used. If you set a specific configuration file that will
 take precedence and hierarchical configuration file discovery is disabled. If you do
 specify a configuration options directly, e.g. pass the  --ignore option that will
@@ -265,7 +285,7 @@ uv-secure can be run as a pre-commit hook by adding this configuration to your
 
 ```yaml
   - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.10.0
+    rev: 0.11.0
     hooks:
       - id: uv-secure
 ```
