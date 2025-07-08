@@ -1,8 +1,5 @@
-from importlib.metadata import version
+from uv_secure.__version__ import __version__
+from uv_secure.run import app
 
 
 __all__ = ["__version__", "app"]
-__version__ = version("uv-secure")
-
-# Import app after defining __version__ to avoid circular imports
-from uv_secure.run import app
