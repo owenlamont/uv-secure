@@ -2,6 +2,7 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 import os
 from pathlib import Path
+import re
 from textwrap import dedent
 
 from freezegun import freeze_time
@@ -18,7 +19,11 @@ runner = CliRunner()
 def test_app_version() -> None:
     result = runner.invoke(app, "--version")
     assert result.exit_code == 0
-    assert "uv-secure " in result.output
+    # Check that output contains "uv-secure" followed by a semantic version (x.y.z)
+    pattern = r"uv-secure \d+\.\d+\.\d+"
+    assert re.search(pattern, result.output), (
+        f"Expected semantic version pattern, got: {result.output!r}"
+    )
 
 
 def test_bad_file_name() -> None:
