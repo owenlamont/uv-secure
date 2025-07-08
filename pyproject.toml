@@ -1,6 +1,6 @@
 [project]
 name = "uv-secure"
-version = "0.11.0"
+version = "0.11.1"
 description = "Scan your uv.lock file for dependencies with known vulnerabilities"
 readme = "README.md"
 authors = [

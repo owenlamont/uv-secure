@@ -1,4 +1,4 @@
 from importlib.metadata import version
 
 
-__version__ = version("uv_secure")
+__version__ = version("uv-secure")
