@@ -106,10 +106,10 @@ After installation, you can run uv-secure --help to see the options.
  Parse uv.lock files, check vulnerabilities, and display summary.
 
 ╭─ Arguments ──────────────────────────────────────────────────────────────────────────╮
-│   file_paths      [FILE_PATHS]...  Paths to the uv.lock or uv generated              │
-│                                    requirements.txt files or a single project root   │
-│                                    level directory (defaults to working directory if │
-│                                    not set)                                          │
+│   file_paths      [FILE_PATHS]...  Paths to the uv.lock or uv generated pylock.toml  │
+│                                    or requirements.txt files or a single project     │
+│                                    root level directory (defaults to working         │
+│                                    directory if not set)                             │
 │                                    [default: None]                                   │
 ╰──────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ────────────────────────────────────────────────────────────────────────────╮
@@ -285,7 +285,7 @@ uv-secure can be run as a pre-commit hook by adding this configuration to your
 
 ```yaml
   - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.11.0
+    rev: 0.12.0
     hooks:
       - id: uv-secure
 ```
