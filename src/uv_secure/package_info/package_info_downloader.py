@@ -87,7 +87,7 @@ class PackageInfo(BaseModel):
     last_serial: int
     urls: list[Url]
     vulnerabilities: list[Vulnerability]
-    direct_dependency: bool = False
+    direct_dependency: bool | None = False
 
     @property
     def age(self) -> timedelta | None:
