@@ -240,9 +240,8 @@ async def check_dependencies(
         config.vulnerability_criteria.check_direct_dependencies_only
         or config.maintainability_criteria.check_direct_dependencies_only
     ):
-        resolved_path = await dependency_file_path.resolve()
         console_outputs.append(
-            f"[bold yellow]Warning:[/] {resolved_path} doesn't contain "
+            f"[bold yellow]Warning:[/] {dependency_file_path} doesn't contain "
             "the necessary information to determine direct dependencies."
         )
 
