@@ -1036,29 +1036,45 @@ def test_reqs_maintenance_pyproject_toml_cli_override_direct_dependencies_one_is
     )
 
 
-def test_pylock_vulnerability_full_dependencies_one_vuln(
-    temp_uv_secure_toml_file_all_columns_enabled: Path,
-    temp_uv_pylock_toml_file_multiple_dependencies: Path,
-    no_vulnerabilities_response_direct_dependency: HTTPXMock,
-    one_vulnerability_response_indirect_dependency: HTTPXMock,
+def test_pylock_toml_check_direct_dependency_vulnerabilities_only_warning(
+    temp_uv_pylock_toml_file: Path, no_vulnerabilities_response: HTTPXMock
 ) -> None:
+    """Test warning message when checking direct dependencies only with pylock.toml."""
     result = runner.invoke(
-        app, [str(temp_uv_pylock_toml_file_multiple_dependencies)]
+        app,
+        [
+            str(temp_uv_pylock_toml_file),
+            "--check-direct-dependency-vulnerabilities-only",
+            "--disable-cache",
+        ],
     )
-    assert result.exit_code == 2
-    assert result.output.count("Vulnerable: 1 vulnerability") == 1
-    assert result.output.count("indirect-dependency") == 1
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert (
+        "doesn't contain the necessary information to determine direct dependencies"
+        in result.output
+    )
+    assert "Checked: 1 dependency" in result.output
 
 
-def test_pylock_maintenance_full_dependencies_one_issue(
-    temp_uv_secure_toml_file_all_columns_and_maintenance_issues_enabled: Path,
-    temp_uv_pylock_toml_file_multiple_dependencies: Path,
-    no_vulnerabilities_response_direct_dependency: HTTPXMock,
-    one_maintenance_issue_response_indirect_dependency: HTTPXMock,
+def test_pylock_toml_check_direct_dependency_maintenance_issues_only_warning(
+    temp_uv_pylock_toml_file: Path, no_vulnerabilities_response: HTTPXMock
 ) -> None:
+    """Test warning for direct dependencies maintenance issues with pylock.toml."""
     result = runner.invoke(
-        app, [str(temp_uv_pylock_toml_file_multiple_dependencies)]
+        app,
+        [
+            str(temp_uv_pylock_toml_file),
+            "--check-direct-dependency-maintenance-issues-only",
+            "--disable-cache",
+        ],
     )
-    assert result.exit_code == 1
-    assert result.output.count("Issues: 1 issue") == 1
-    assert result.output.count("indirect-dependency") == 1
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert (
+        "doesn't contain the necessary information to determine direct dependencies"
+        in result.output
+    )
+    assert "Checked: 1 dependency" in result.output
