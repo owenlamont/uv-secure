@@ -131,7 +131,7 @@ This ensures consistency across the entire codebase and still executes quite fas
 If you encounter a bug or have a feature request, please
 [create an issue](https://github.com/owenlamont/uv-secure/issues) on GitHub. Include as
 much detail as possible to help reproduce the issue or understand the feature request (
-providing any problem uv.lock files or requirements.txt files would help).
+providing any problem pylock.toml, requirements.txt, or uv.lock files would help).
 
 ---
 

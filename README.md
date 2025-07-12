@@ -5,12 +5,12 @@ Scan your uv.lock file for dependencies with known vulnerabilities.
 ## Scope and Limitations
 
 This tool will scan PyPi dependencies listed in your uv.lock files (or uv generated
-requirements.txt files) and check for known vulnerabilities listed against those
-packages and versions in the PyPi json API. Since it is making network requests for each
-PyPi package this can be a relatively slow tool to run, and it will only work in test
-environments with access to the PyPi API. Currently only packages sourced from PyPi are
-tested - there's no support for custom packages or packages stored in private PyPi
-servers. See roadmap below for my plans for future enhancements.
+pylock.toml or requirements.txt files) and check for known vulnerabilities listed
+against those packages and versions in the PyPi json API. Since it is making network
+requests for each PyPi package this can be a relatively slow tool to run, and it will
+only work in test environments with access to the PyPi API. Currently only packages
+sourced from PyPi are tested - there's no support for custom packages or packages stored
+in private PyPi servers. See roadmap below for my plans for future enhancements.
 
 I don't intend uv-secure to ever create virtual environments or do dependency
 resolution - the plan is to leave that all to uv since it does that so well and just

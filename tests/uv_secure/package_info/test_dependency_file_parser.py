@@ -115,15 +115,12 @@ from uv_secure.package_info import (
     ],
 )
 async def test_parse_pylock_toml_file(
-    tmp_path: Path,
-    pylock_toml_contents: str,
-    expected_dependencies: list[Dependency],
+    tmp_path: Path, pylock_toml_contents: str, expected_dependencies: list[Dependency]
 ) -> None:
     pylock_toml_path = tmp_path / "pylock.toml"
     pylock_toml_path.write_text(dedent(pylock_toml_contents).strip())
     dependencies = await parse_pylock_toml_file(APath(pylock_toml_path))
     assert dependencies == expected_dependencies
-
 
 
 @pytest.mark.asyncio

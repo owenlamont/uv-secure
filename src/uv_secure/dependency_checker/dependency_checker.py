@@ -251,7 +251,7 @@ async def check_dependencies(
                 continue
 
         if (
-            package.direct_dependency
+            package.direct_dependency is not False
             or not config.vulnerability_criteria.check_direct_dependencies_only
         ):
             # Filter out ignored vulnerabilities
@@ -270,7 +270,7 @@ async def check_dependencies(
                 vulnerable_packages.append(package)
 
         if (
-            package.direct_dependency
+            package.direct_dependency is not False
             or not config.maintainability_criteria.check_direct_dependencies_only
         ):
             found_rejected_yanked_package = (
@@ -392,7 +392,7 @@ async def check_lock_files(
                 )
                 lock_to_config_map = dict.fromkeys(file_apaths, config)
             elif all(
-                file_path.name in {"requirements.txt", "uv.lock"}
+                file_path.name in {"pylock.toml", "requirements.txt", "uv.lock"}
                 for file_path in file_apaths
             ):
                 lock_to_config_map = await get_dependency_file_to_config_map(
@@ -402,7 +402,7 @@ async def check_lock_files(
             else:
                 console.print(
                     "[bold red]Error:[/] file_paths must either reference a single "
-                    "project root directory or a sequence of uv.lock / "
+                    "project root directory or a sequence of uv.lock / pylock.toml / "
                     "requirements.txt file paths"
                 )
                 return RunStatus.RUNTIME_ERROR
