@@ -231,7 +231,7 @@ async def check_dependencies(
             name: get_specifier_sets(tuple(specifiers))
             for name, specifiers in config.ignore_packages.items()
         }
-    
+
     has_none_direct_dependency = any(
         isinstance(package, PackageInfo) and package.direct_dependency is None
         for package in packages
