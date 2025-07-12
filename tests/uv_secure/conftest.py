@@ -872,7 +872,7 @@ def missing_vulnerability_response(httpx_mock: HTTPXMock) -> HTTPXMock:
 @pytest.fixture(scope="session", autouse=True)
 def wide_console() -> Generator:
     mp = pytest.MonkeyPatch()
-    mp.setenv("COLUMNS", "200")
+    mp.setenv("COLUMNS", "400")
     yield mp
     mp.undo()
 
