@@ -67,6 +67,13 @@ def test_non_uv_requirements_txt_file(temp_non_uv_requirements_txt_file: Path) -
     assert "doesn't appear to be a uv generated requirements.txt file" in result.output
 
 
+def test_non_uv_pylock_toml_file(temp_non_uv_pylock_toml_file: Path) -> None:
+    result = runner.invoke(app, [str(temp_non_uv_pylock_toml_file)])
+
+    assert result.exit_code == 0
+    assert "doesn't appear to be a uv generated pylock.toml file" in result.output
+
+
 def test_app_no_vulnerabilities(
     temp_uv_lock_file: Path, no_vulnerabilities_response: HTTPXMock
 ) -> None:
@@ -96,6 +103,17 @@ def test_app_no_vulnerabilities_requirements_txt(
     assert "All dependencies appear safe!" in result.output
 
 
+def test_app_no_vulnerabilities_pylock_toml(
+    temp_uv_pylock_toml_file: Path, no_vulnerabilities_response: HTTPXMock
+) -> None:
+    result = runner.invoke(app, [str(temp_uv_pylock_toml_file), "--disable-cache"])
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
+
+
 def test_app_empty_requirements_txt(temp_uv_empty_requirements_txt_file: Path) -> None:
     result = runner.invoke(
         app, [str(temp_uv_empty_requirements_txt_file), "--disable-cache"]
@@ -105,9 +123,32 @@ def test_app_empty_requirements_txt(temp_uv_empty_requirements_txt_file: Path) -
     assert result.output == "\n"
 
 
+def test_app_empty_pylock_toml(temp_uv_empty_pylock_toml_file: Path) -> None:
+    result = runner.invoke(
+        app, [str(temp_uv_empty_pylock_toml_file), "--disable-cache"]
+    )
+
+    assert result.exit_code == 0
+    assert result.output == "\n"
+
+
 def test_app_no_vulnerabilities_requirements_txt_no_specified_path(
     tmp_path: Path,
     temp_uv_requirements_txt_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+) -> None:
+    os.chdir(tmp_path)
+    result = runner.invoke(app, "--disable-cache")
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
+
+
+def test_app_no_vulnerabilities_pylock_toml_no_specified_path(
+    tmp_path: Path,
+    temp_uv_pylock_toml_file: Path,
     no_vulnerabilities_response: HTTPXMock,
 ) -> None:
     os.chdir(tmp_path)
@@ -993,3 +1034,31 @@ def test_reqs_maintenance_pyproject_toml_cli_override_direct_dependencies_one_is
     assert (
         result.output.count("No vulnerabilities or maintenance issues detected!") == 1
     )
+
+
+def test_pylock_vulnerability_full_dependencies_one_vuln(
+    temp_uv_secure_toml_file_all_columns_enabled: Path,
+    temp_uv_pylock_toml_file_multiple_dependencies: Path,
+    no_vulnerabilities_response_direct_dependency: HTTPXMock,
+    one_vulnerability_response_indirect_dependency: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app, [str(temp_uv_pylock_toml_file_multiple_dependencies)]
+    )
+    assert result.exit_code == 2
+    assert result.output.count("Vulnerable: 1 vulnerability") == 1
+    assert result.output.count("indirect-dependency") == 1
+
+
+def test_pylock_maintenance_full_dependencies_one_issue(
+    temp_uv_secure_toml_file_all_columns_and_maintenance_issues_enabled: Path,
+    temp_uv_pylock_toml_file_multiple_dependencies: Path,
+    no_vulnerabilities_response_direct_dependency: HTTPXMock,
+    one_maintenance_issue_response_indirect_dependency: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app, [str(temp_uv_pylock_toml_file_multiple_dependencies)]
+    )
+    assert result.exit_code == 1
+    assert result.output.count("Issues: 1 issue") == 1
+    assert result.output.count("indirect-dependency") == 1
