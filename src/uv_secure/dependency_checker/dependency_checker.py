@@ -231,6 +231,20 @@ async def check_dependencies(
             name: get_specifier_sets(tuple(specifiers))
             for name, specifiers in config.ignore_packages.items()
         }
+    
+    has_none_direct_dependency = any(
+        isinstance(package, PackageInfo) and package.direct_dependency is None
+        for package in packages
+    )
+    if has_none_direct_dependency and (
+        config.vulnerability_criteria.check_direct_dependencies_only
+        or config.maintainability_criteria.check_direct_dependencies_only
+    ):
+        resolved_path = await dependency_file_path.resolve()
+        console_outputs.append(
+            f"[bold yellow]Warning:[/] {resolved_path} doesn't contain "
+            "the necessary information to determine direct dependencies."
+        )
 
     for idx, package in enumerate(packages):
         if isinstance(package, BaseException):
