@@ -33,7 +33,7 @@ repos:
         additional_dependencies:
           - pydantic
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.12.2
+    rev: v0.12.3
     hooks:
       - id: ruff-check
         args: [ --fix, --exit-non-zero-on-fix ]
@@ -49,7 +49,7 @@ repos:
           # --write-changes (Don't use this to stop typos making auto-corrections)
         ]
   - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.10.1
+    rev: 0.11.1
     hooks:
       - id: uv-secure
   - repo: https://github.com/adrienverge/yamllint.git
