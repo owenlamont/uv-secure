@@ -27,6 +27,7 @@ from uv_secure.directory_scanner import get_dependency_file_to_config_map
 from uv_secure.package_info import (
     download_packages,
     PackageInfo,
+    parse_pylock_toml_file,
     parse_requirements_txt_file,
     parse_uv_lock_file,
 )
@@ -186,7 +187,7 @@ async def check_dependencies(
     """Checks dependencies for vulnerabilities and summarizes the results
 
     Args:
-        dependency_file_path: uv.lock file or requirements.txt file path
+        dependency_file_path: pylock.toml, requirements.txt, or uv.lock file file path
         config: uv-secure configuration object
         http_client: HTTP client for making requests
         disable_cache: flag whether to disable cache for HTTP requests
@@ -204,8 +205,10 @@ async def check_dependencies(
 
     if dependency_file_path.name == "uv.lock":
         dependencies = await parse_uv_lock_file(dependency_file_path)
-    else:  # Assume dependency_file_path.name == "requirements.txt"
+    elif dependency_file_path.name == "requirements.txt":
         dependencies = await parse_requirements_txt_file(dependency_file_path)
+    else:  # Assume dependency_file_path.name == "pyproject.toml"
+        dependencies = await parse_pylock_toml_file(dependency_file_path)
 
     if len(dependencies) == 0:
         return 0, console_outputs
@@ -345,7 +348,7 @@ async def check_lock_files(
     check_direct_dependency_maintenance_issues_only: bool | None,
     config_path: Path | None,
 ) -> RunStatus:
-    """Checks uv.lock and requirements.txt files for issues
+    """Checks (uv-generated) pylock.toml, requirements.txt, and uv.lock files for issues
 
     Check specified or discovered uv.lock and requirements.txt files for maintenance
     issues or known vulnerabilities
