@@ -916,20 +916,3 @@ def temp_uv_empty_pylock_toml_file(tmp_path: Path) -> Path:
     """
     pylock_toml_path.write_text(dedent(pylock_toml_data).strip())
     return pylock_toml_path
-
-
-@pytest.fixture
-def temp_non_uv_pylock_toml_file(tmp_path: Path) -> Path:
-    pylock_toml_path = tmp_path / "pylock.toml"
-    pylock_toml_data = """
-        lock-version = "1.0"
-        created-by = "other-tool"
-        requires-python = ">=3.10"
-
-        [[packages]]
-        name = "example-package"
-        version = "1.0.0"
-        index = "https://pypi.org/simple"
-    """
-    pylock_toml_path.write_text(dedent(pylock_toml_data).strip())
-    return pylock_toml_path
