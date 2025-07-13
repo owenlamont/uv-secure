@@ -107,6 +107,22 @@ def test_app_no_vulnerabilities_pylock_toml(
     assert "All dependencies appear safe!" in result.output
 
 
+def test_app_vulnerabilities_pylock_toml(
+    temp_uv_pylock_toml_file: Path, one_vulnerability_response: HTTPXMock
+) -> None:
+    """Test check_dependencies with pylock.toml file and a vulnerability detected."""
+    result = runner.invoke(app, [str(temp_uv_pylock_toml_file), "--disable-cache"])
+
+    assert result.exit_code == 2
+    assert "Vulnerabilities detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "Vulnerable: 1 vulnerability" in result.output
+    assert "example-package" in result.output
+    assert "1.0.0" in result.output
+    assert "VULN-123" in result.output
+    assert "1.0.1" in result.output
+
+
 def test_app_empty_requirements_txt(temp_uv_empty_requirements_txt_file: Path) -> None:
     result = runner.invoke(
         app, [str(temp_uv_empty_requirements_txt_file), "--disable-cache"]
