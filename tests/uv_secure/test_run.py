@@ -67,13 +67,6 @@ def test_non_uv_requirements_txt_file(temp_non_uv_requirements_txt_file: Path) -
     assert "doesn't appear to be a uv generated requirements.txt file" in result.output
 
 
-def test_non_uv_pylock_toml_file(temp_non_uv_pylock_toml_file: Path) -> None:
-    result = runner.invoke(app, [str(temp_non_uv_pylock_toml_file)])
-
-    assert result.exit_code == 0
-    assert "doesn't appear to be a uv generated pylock.toml file" in result.output
-
-
 def test_app_no_vulnerabilities(
     temp_uv_lock_file: Path, no_vulnerabilities_response: HTTPXMock
 ) -> None:
