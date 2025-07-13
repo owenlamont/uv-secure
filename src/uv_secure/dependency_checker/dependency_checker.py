@@ -187,7 +187,7 @@ async def check_dependencies(
     """Checks dependencies for vulnerabilities and summarizes the results
 
     Args:
-        dependency_file_path: pylock.toml, requirements.txt, or uv.lock file file path
+        dependency_file_path: PEP751 pylock.toml, requirements.txt, or uv.lock file path
         config: uv-secure configuration object
         http_client: HTTP client for making requests
         disable_cache: flag whether to disable cache for HTTP requests
@@ -361,7 +361,7 @@ async def check_lock_files(
     check_direct_dependency_maintenance_issues_only: bool | None,
     config_path: Path | None,
 ) -> RunStatus:
-    """Checks (uv-generated) pylock.toml, requirements.txt, and uv.lock files for issues
+    """Checks PEP751 pylock.toml, requirements.txt, and uv.lock files for issues
 
     Check specified or discovered uv.lock and requirements.txt files for maintenance
     issues or known vulnerabilities
