@@ -96,6 +96,33 @@ def test_app_no_vulnerabilities_requirements_txt(
     assert "All dependencies appear safe!" in result.output
 
 
+def test_app_no_vulnerabilities_pylock_toml(
+    temp_uv_pylock_toml_file: Path, no_vulnerabilities_response: HTTPXMock
+) -> None:
+    result = runner.invoke(app, [str(temp_uv_pylock_toml_file), "--disable-cache"])
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
+
+
+def test_app_vulnerabilities_pylock_toml(
+    temp_uv_pylock_toml_file: Path, one_vulnerability_response: HTTPXMock
+) -> None:
+    """Test check_dependencies with pylock.toml file and a vulnerability detected."""
+    result = runner.invoke(app, [str(temp_uv_pylock_toml_file), "--disable-cache"])
+
+    assert result.exit_code == 2
+    assert "Vulnerabilities detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "Vulnerable: 1 vulnerability" in result.output
+    assert "example-package" in result.output
+    assert "1.0.0" in result.output
+    assert "VULN-123" in result.output
+    assert "1.0.1" in result.output
+
+
 def test_app_empty_requirements_txt(temp_uv_empty_requirements_txt_file: Path) -> None:
     result = runner.invoke(
         app, [str(temp_uv_empty_requirements_txt_file), "--disable-cache"]
@@ -105,9 +132,32 @@ def test_app_empty_requirements_txt(temp_uv_empty_requirements_txt_file: Path) -
     assert result.output == "\n"
 
 
+def test_app_empty_pylock_toml(temp_uv_empty_pylock_toml_file: Path) -> None:
+    result = runner.invoke(
+        app, [str(temp_uv_empty_pylock_toml_file), "--disable-cache"]
+    )
+
+    assert result.exit_code == 0
+    assert result.output == "\n"
+
+
 def test_app_no_vulnerabilities_requirements_txt_no_specified_path(
     tmp_path: Path,
     temp_uv_requirements_txt_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+) -> None:
+    os.chdir(tmp_path)
+    result = runner.invoke(app, "--disable-cache")
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
+
+
+def test_app_no_vulnerabilities_pylock_toml_no_specified_path(
+    tmp_path: Path,
+    temp_uv_pylock_toml_file: Path,
     no_vulnerabilities_response: HTTPXMock,
 ) -> None:
     os.chdir(tmp_path)
@@ -993,3 +1043,47 @@ def test_reqs_maintenance_pyproject_toml_cli_override_direct_dependencies_one_is
     assert (
         result.output.count("No vulnerabilities or maintenance issues detected!") == 1
     )
+
+
+def test_pylock_toml_check_direct_dependency_vulnerabilities_only_warning(
+    temp_uv_pylock_toml_file: Path, no_vulnerabilities_response: HTTPXMock
+) -> None:
+    """Test warning message when checking direct dependencies only with pylock.toml."""
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_pylock_toml_file),
+            "--check-direct-dependency-vulnerabilities-only",
+            "--disable-cache",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert (
+        "doesn't contain the necessary information to determine direct dependencies"
+        in result.output
+    )
+    assert "Checked: 1 dependency" in result.output
+
+
+def test_pylock_toml_check_direct_dependency_maintenance_issues_only_warning(
+    temp_uv_pylock_toml_file: Path, no_vulnerabilities_response: HTTPXMock
+) -> None:
+    """Test warning for direct dependencies maintenance issues with pylock.toml."""
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_pylock_toml_file),
+            "--check-direct-dependency-maintenance-issues-only",
+            "--disable-cache",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert (
+        "doesn't contain the necessary information to determine direct dependencies"
+        in result.output
+    )
+    assert "Checked: 1 dependency" in result.output

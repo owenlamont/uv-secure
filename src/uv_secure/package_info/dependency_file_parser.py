@@ -14,7 +14,31 @@ else:
 class Dependency(BaseModel):
     name: str
     version: str
-    direct: bool = False
+    direct: bool | None = False
+
+
+async def parse_pylock_toml_file(file_path: Path) -> list[Dependency]:
+    """Parses a PEP751 pylock.toml file and extracts package PyPi dependencies"""
+    data = await file_path.read_text()
+    toml_data = toml.loads(data)
+    dependencies = []
+    packages = toml_data.get("packages", [])
+
+    for package in packages:
+        package_name = package.get("name")
+        package_version = package.get("version")
+        index = package.get("index", "")
+
+        # Only include packages from PyPI registry
+        if package_name and package_version and index == "https://pypi.org/simple":
+            dependency = Dependency(
+                name=package_name,
+                version=package_version,
+                direct=None,  # Cannot determine direct dependencies from pylock.toml
+            )
+            dependencies.append(dependency)
+
+    return dependencies
 
 
 async def parse_requirements_txt_file(file_path: Path) -> list[Dependency]:

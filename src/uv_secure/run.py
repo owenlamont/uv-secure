@@ -22,8 +22,9 @@ def _version_callback(value: bool) -> None:
 _file_path_args = typer.Argument(
     None,
     help=(
-        "Paths to the uv.lock or uv generated requirements.txt files or a single "
-        "project root level directory (defaults to working directory if not set)"
+        "Paths to the uv.lock, PEP751 pylock.toml, or uv generated requirements.txt "
+        "files or a single project root level directory (defaults to working directory "
+        "if not set)"
     ),
 )
 
@@ -140,7 +141,10 @@ def main(
     config_path: Path | None = _config_option,
     version: bool = _version_option,
 ) -> None:
-    """Parse uv.lock files, check vulnerabilities, and display summary."""
+    """Parse uv.lock, pylock.toml, and requirements.txt files.
+
+    Check vulnerabilities and display summary.
+    """
 
     # Use uvloop or winloop if present
     try:
