@@ -24,6 +24,9 @@ from uv_secure.configuration import (
     override_config,
 )
 from uv_secure.directory_scanner import get_dependency_file_to_config_map
+from uv_secure.directory_scanner.directory_scanner import (
+    get_dependency_files_to_config_map,
+)
 from uv_secure.package_info import (
     download_packages,
     PackageInfo,
@@ -65,7 +68,7 @@ def _render_vulnerability_table(
                 if vuln.link
                 else Text(vuln.id)
             )
-            renderables = [
+            renderables: list[Text] = [
                 Text.assemble(
                     (
                         package.info.name,
@@ -120,7 +123,7 @@ def _render_vulnerability_table(
                     Text(", ").join(alias_links) if alias_links else Text("")
                 )
             if config.vulnerability_criteria.desc:
-                renderables.append(vuln.details)
+                renderables.append(Text(vuln.details))
             table.add_row(*renderables)
     return table
 
@@ -141,7 +144,7 @@ def _render_issue_table(
     table.add_column("Yanked Reason", min_width=20, max_width=24)
     table.add_column("Age", min_width=20, max_width=24)
     for package in maintenance_issue_packages:
-        renderables = [
+        renderables: list[Text] = [
             Text.assemble(
                 (
                     package.info.name,
@@ -155,11 +158,13 @@ def _render_issue_table(
                     f"{package.info.version}/",
                 )
             ),
-            str(package.info.yanked),
-            package.info.yanked_reason if package.info.yanked_reason else "Unknown",
-            humanize.precisedelta(package.age, minimum_unit="days")
+            Text(str(package.info.yanked)),
+            Text(package.info.yanked_reason)
+            if package.info.yanked_reason
+            else Text("Unknown"),
+            Text(humanize.precisedelta(package.age, minimum_unit="days"))
             if package.age
-            else "Unknown",
+            else Text("Unknown"),
         ]
         table.add_row(*renderables)
     return table
@@ -195,27 +200,35 @@ async def check_dependencies(
     Returns:
         tuple with status code and output for console to render
     """
-    console_outputs = []
+    console_outputs: list[ConsoleRenderable] = []
 
     if not await dependency_file_path.exists():
         console_outputs.append(
-            f"[bold red]Error:[/] File {dependency_file_path} does not exist."
+            Text(f"[bold red]Error:[/] File {dependency_file_path} does not exist.")
         )
         return 3, console_outputs
 
-    if dependency_file_path.name == "uv.lock":
-        dependencies = await parse_uv_lock_file(dependency_file_path)
-    elif dependency_file_path.name == "requirements.txt":
-        dependencies = await parse_requirements_txt_file(dependency_file_path)
-    else:  # Assume dependency_file_path.name == "pyproject.toml"
-        dependencies = await parse_pylock_toml_file(dependency_file_path)
+    try:
+        if dependency_file_path.name == "uv.lock":
+            dependencies = await parse_uv_lock_file(dependency_file_path)
+        elif dependency_file_path.name == "requirements.txt":
+            dependencies = await parse_requirements_txt_file(dependency_file_path)
+        else:  # Assume dependency_file_path.name == "pyproject.toml"
+            dependencies = await parse_pylock_toml_file(dependency_file_path)
+    except Exception as e:
+        console_outputs.append(
+            Text(f"[bold red]Error:[/] Failed to parse {dependency_file_path}: {e}")
+        )
+        return 3, console_outputs
 
     if len(dependencies) == 0:
         return 0, console_outputs
 
     console_outputs.append(
-        f"[bold cyan]Checking {dependency_file_path} dependencies for vulnerabilities"
-        "...[/]\n"
+        Text(
+            f"[bold cyan]Checking {dependency_file_path} dependencies for "
+            "vulnerabilities ...[/]\n"
+        )
     )
 
     packages = await download_packages(dependencies, http_client, disable_cache)
@@ -241,14 +254,19 @@ async def check_dependencies(
         or config.maintainability_criteria.check_direct_dependencies_only
     ):
         console_outputs.append(
-            f"[bold yellow]Warning:[/] {dependency_file_path} doesn't contain "
-            "the necessary information to determine direct dependencies."
+            Text(
+                f"[bold yellow]Warning:[/] {dependency_file_path} doesn't contain "
+                "the necessary information to determine direct dependencies."
+            )
         )
 
     for idx, package in enumerate(packages):
         if isinstance(package, BaseException):
             console_outputs.append(
-                f"[bold red]Error:[/] {dependencies[idx]} raised exception: {package}"
+                Text(
+                    f"[bold red]Error:[/] {dependencies[idx]} raised exception: "
+                    f"{package}"
+                )
             )
             return 3, console_outputs
 
@@ -258,8 +276,10 @@ async def check_dependencies(
                 specifier.contains(package.info.version) for specifier in specifiers
             ):
                 console_outputs.append(
-                    f"[bold yellow]Skipping {package.info.name} "
-                    f"({package.info.version}) as it is ignored[/]"
+                    Text(
+                        f"[bold yellow]Skipping {package.info.name} "
+                        f"({package.info.version}) as it is ignored[/]"
+                    )
                 )
                 continue
 
@@ -408,7 +428,7 @@ async def check_lock_files(
                 file_path.name in {"pylock.toml", "requirements.txt", "uv.lock"}
                 for file_path in file_apaths
             ):
-                lock_to_config_map = await get_dependency_file_to_config_map(
+                lock_to_config_map = await get_dependency_files_to_config_map(
                     file_apaths
                 )
                 file_apaths = tuple(lock_to_config_map.keys())

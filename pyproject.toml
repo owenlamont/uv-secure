@@ -1,6 +1,6 @@
 [project]
 name = "uv-secure"
-version = "0.12.0"
+version = "0.12.1"
 description = "Scan your uv.lock file for dependencies with known vulnerabilities"
 readme = "README.md"
 authors = [
@@ -38,6 +38,7 @@ dependencies = [
     "packaging>=25.0",
     "pydantic[email]>=2.10.3",
     "rich>=13.9.4",
+    "stamina>=25.1.0",
     "tomli; python_version < '3.11'",
     "typer>=0.15.1",
 ]
@@ -147,6 +148,7 @@ select = [
     "RET",
     "RUF",
     "SIM",
+    "TID",
     "UP"
 ]
 ignore = [
@@ -183,6 +185,9 @@ unfixable = [
 [tool.ruff.lint.flake8-pytest-style]
 mark-parentheses = false
 
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
 [tool.ruff.lint.isort]
 case-sensitive = false
 combine-as-imports = true
@@ -207,6 +212,7 @@ convention = "google"
 dev = [
     "coverage>=7.6.9",
     "freezegun>=1.5.1",
+    "mypy>=1.17.0",
     "pip>=25.0",
     "pytest>=8.3.4",
     "pytest-asyncio>=0.25.2",

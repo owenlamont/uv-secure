@@ -151,9 +151,9 @@ def main(
         if sys.platform in {"win32", "cygwin", "cli"}:
             from winloop import run
         else:
-            from uvloop import run
+            from uvloop import run  # type: ignore[no-redef, unused-ignore]
     except ImportError:
-        from asyncio import run
+        from asyncio import run  # type: ignore[assignment, unused-ignore]
 
     run_status = run(
         check_lock_files(

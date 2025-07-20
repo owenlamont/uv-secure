@@ -47,49 +47,9 @@ def _get_root_dir(file_paths: Sequence[Path]) -> Path:
     return Path(*common_parts)
 
 
-async def get_dependency_file_to_config_map(
-    file_paths: Path | Sequence[Path],
+async def _fetch_dependency_files(
+    root_dir: Path, config_and_lock_files: dict[str, list[Path]]
 ) -> dict[Path, Configuration]:
-    """Get map of requirements.txt, pylock.toml, and uv.lock files to configurations
-
-    Using provided dependency files or root directory discover the files and also
-    find and map the nearest parent configuration for each dependency file.
-
-    Args:
-        file_paths: A list of dependency files or root directory
-
-    Returns:
-        A dictionary mapping dependency files to their nearest Configuration
-    """
-    if type(file_paths) is Path:
-        root_dir = await file_paths.resolve()
-        config_and_lock_files = await _find_files(
-            root_dir,
-            (
-                "pyproject.toml",
-                "uv-secure.toml",
-                ".uv-secure.toml",
-                "pylock.toml",
-                "requirements.txt",
-                "uv.lock",
-            ),
-        )
-    else:
-        resolved_paths = await _resolve_paths(file_paths)
-        root_dir = _get_root_dir(resolved_paths)
-        config_and_lock_files = await _find_files(
-            root_dir, ["pyproject.toml", "uv-secure.toml", ".uv-secure.toml"]
-        )
-        config_and_lock_files["pylock.toml"] = [
-            path for path in resolved_paths if path.name == "pylock.toml"
-        ]
-        config_and_lock_files["requirements.txt"] = [
-            path for path in resolved_paths if path.name == "requirements.txt"
-        ]
-        config_and_lock_files["uv.lock"] = [
-            path for path in resolved_paths if path.name == "uv.lock"
-        ]
-
     config_file_paths = (
         config_and_lock_files["pyproject.toml"]
         + config_and_lock_files["uv-secure.toml"]
@@ -126,3 +86,65 @@ async def get_dependency_file_to_config_map(
             found_config = default_config
         dependency_file_to_config_map[dependency_file] = found_config
     return dependency_file_to_config_map
+
+
+async def get_dependency_file_to_config_map(
+    root_dir: Path,
+) -> dict[Path, Configuration]:
+    """Get map of requirements.txt, pylock.toml, and uv.lock files to configurations
+
+    Using provided dependency files or root directory discover the files and also
+    find and map the nearest parent configuration for each dependency file.
+
+    Args:
+        root_dir: Root directory
+
+    Returns:
+        A dictionary mapping dependency files to their nearest Configuration
+    """
+    root_dir = await root_dir.resolve()
+    config_and_lock_files = await _find_files(
+        root_dir,
+        (
+            "pyproject.toml",
+            "uv-secure.toml",
+            ".uv-secure.toml",
+            "pylock.toml",
+            "requirements.txt",
+            "uv.lock",
+        ),
+    )
+
+    return await _fetch_dependency_files(root_dir, config_and_lock_files)
+
+
+async def get_dependency_files_to_config_map(
+    file_paths: Sequence[Path],
+) -> dict[Path, Configuration]:
+    """Get map of requirements.txt, pylock.toml, and uv.lock files to configurations
+
+    Using provided dependency files or root directory discover the files and also
+    find and map the nearest parent configuration for each dependency file.
+
+    Args:
+        file_paths: A list of dependency files
+
+    Returns:
+        A dictionary mapping dependency files to their nearest Configuration
+    """
+    resolved_paths = await _resolve_paths(file_paths)
+    root_dir = _get_root_dir(resolved_paths)
+    config_and_lock_files = await _find_files(
+        root_dir, ["pyproject.toml", "uv-secure.toml", ".uv-secure.toml"]
+    )
+    config_and_lock_files["pylock.toml"] = [
+        path for path in resolved_paths if path.name == "pylock.toml"
+    ]
+    config_and_lock_files["requirements.txt"] = [
+        path for path in resolved_paths if path.name == "requirements.txt"
+    ]
+    config_and_lock_files["uv.lock"] = [
+        path for path in resolved_paths if path.name == "uv.lock"
+    ]
+
+    return await _fetch_dependency_files(root_dir, config_and_lock_files)
