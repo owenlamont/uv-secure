@@ -580,7 +580,7 @@ def test_app_with_uv_secure_toml_ignored_vulnerability(
         [
             str(temp_uv_lock_file),
             "--config",
-            temp_uv_secure_toml_file_ignored_vulnerability,
+            str(temp_uv_secure_toml_file_ignored_vulnerability),
         ],
         "--disable-cache",
     )
@@ -598,7 +598,11 @@ def test_app_with_uv_secure_toml_ignored_package(
 ) -> None:
     result = runner.invoke(
         app,
-        [str(temp_uv_lock_file), "--config", temp_uv_secure_toml_file_ignored_package],
+        [
+            str(temp_uv_lock_file),
+            "--config",
+            str(temp_uv_secure_toml_file_ignored_package),
+        ],
         "--disable-cache",
     )
 
@@ -618,7 +622,7 @@ def test_app_with_pyproject_toml_ignored_vulnerability(
         [
             str(temp_uv_lock_file),
             "--config",
-            temp_pyproject_toml_file_ignored_vulnerability,
+            str(temp_pyproject_toml_file_ignored_vulnerability),
         ],
         "--disable-cache",
     )
@@ -636,7 +640,11 @@ def test_app_with_pyproject_toml_ignored_package(
 ) -> None:
     result = runner.invoke(
         app,
-        [str(temp_uv_lock_file), "--config", temp_pyproject_toml_file_ignored_package],
+        [
+            str(temp_uv_lock_file),
+            "--config",
+            str(temp_pyproject_toml_file_ignored_package),
+        ],
         "--disable-cache",
     )
 
@@ -1087,3 +1095,57 @@ def test_pylock_toml_check_direct_dependency_maintenance_issues_only_warning(
         in result.output
     )
     assert "Checked: 1 dependency" in result.output
+
+
+# Tests for retry logic and file parsing error handling
+
+
+def test_uv_lock_file_parsing_with_corrupted_file(
+    temp_corrupted_uv_lock_file: Path,
+) -> None:
+    """Test that file parsing fails gracefully with corrupted uv.lock files.
+
+    This test verifies that stamina retry logic is invoked and proper error
+    handling occurs.
+    """
+    result = runner.invoke(app, [str(temp_corrupted_uv_lock_file)])
+
+    # Should fail with runtime error after all retry attempts
+    assert result.exit_code == 3
+    assert "Error" in result.output
+    assert "Failed to parse" in result.output
+    assert str(temp_corrupted_uv_lock_file) in result.output
+
+
+def test_requirements_txt_file_parsing_with_corrupted_file(
+    temp_corrupted_requirements_txt_file: Path,
+) -> None:
+    """Test that file parsing fails gracefully with corrupted requirements.txt files.
+
+    This test verifies that stamina retry logic is invoked and proper error
+    handling occurs.
+    """
+    result = runner.invoke(app, [str(temp_corrupted_requirements_txt_file)])
+
+    # Should fail with runtime error after all retry attempts
+    assert result.exit_code == 3
+    assert "Error" in result.output
+    assert "Failed to parse" in result.output
+    assert str(temp_corrupted_requirements_txt_file) in result.output
+
+
+def test_pylock_toml_file_parsing_with_corrupted_file(
+    temp_corrupted_pylock_toml_file: Path,
+) -> None:
+    """Test that file parsing fails gracefully with corrupted pylock.toml files.
+
+    This test verifies that stamina retry logic is invoked and proper error
+    handling occurs.
+    """
+    result = runner.invoke(app, [str(temp_corrupted_pylock_toml_file)])
+
+    # Should fail with runtime error after all retry attempts
+    assert result.exit_code == 3
+    assert "Error" in result.output
+    assert "Failed to parse" in result.output
+    assert str(temp_corrupted_pylock_toml_file) in result.output
