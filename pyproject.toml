@@ -1,6 +1,6 @@
 [project]
 name = "uv-secure"
-version = "0.12.0"
+version = "0.12.1"
 description = "Scan your uv.lock file for dependencies with known vulnerabilities"
 readme = "README.md"
 authors = [
@@ -38,6 +38,7 @@ dependencies = [
     "packaging>=25.0",
     "pydantic[email]>=2.10.3",
     "rich>=13.9.4",
+    "stamina>=25.1.0",
     "tomli; python_version < '3.11'",
     "typer>=0.15.1",
 ]

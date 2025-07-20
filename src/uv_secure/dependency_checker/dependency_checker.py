@@ -203,12 +203,18 @@ async def check_dependencies(
         )
         return 3, console_outputs
 
-    if dependency_file_path.name == "uv.lock":
-        dependencies = await parse_uv_lock_file(dependency_file_path)
-    elif dependency_file_path.name == "requirements.txt":
-        dependencies = await parse_requirements_txt_file(dependency_file_path)
-    else:  # Assume dependency_file_path.name == "pyproject.toml"
-        dependencies = await parse_pylock_toml_file(dependency_file_path)
+    try:
+        if dependency_file_path.name == "uv.lock":
+            dependencies = await parse_uv_lock_file(dependency_file_path)
+        elif dependency_file_path.name == "requirements.txt":
+            dependencies = await parse_requirements_txt_file(dependency_file_path)
+        else:  # Assume dependency_file_path.name == "pyproject.toml"
+            dependencies = await parse_pylock_toml_file(dependency_file_path)
+    except Exception as e:
+        console_outputs.append(
+            f"[bold red]Error:[/] Failed to parse {dependency_file_path}: {e}"
+        )
+        return 3, console_outputs
 
     if len(dependencies) == 0:
         return 0, console_outputs

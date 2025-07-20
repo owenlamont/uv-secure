@@ -2,6 +2,7 @@ import sys
 
 from anyio import Path
 from pydantic import BaseModel
+import stamina
 import typer
 
 
@@ -17,6 +18,7 @@ class Dependency(BaseModel):
     direct: bool | None = False
 
 
+@stamina.retry(on=Exception, attempts=3)
 async def parse_pylock_toml_file(file_path: Path) -> list[Dependency]:
     """Parses a PEP751 pylock.toml file and extracts package PyPi dependencies"""
     data = await file_path.read_text()
@@ -41,6 +43,7 @@ async def parse_pylock_toml_file(file_path: Path) -> list[Dependency]:
     return dependencies
 
 
+@stamina.retry(on=Exception, attempts=3)
 async def parse_requirements_txt_file(file_path: Path) -> list[Dependency]:
     """Parse a requirements.txt file and extracts package PyPi dependencies"""
     data = await file_path.read_text()
@@ -70,6 +73,7 @@ async def parse_requirements_txt_file(file_path: Path) -> list[Dependency]:
     return dependencies
 
 
+@stamina.retry(on=Exception, attempts=3)
 async def parse_uv_lock_file(file_path: Path) -> list[Dependency]:
     """Parses a uv.lock TOML file and extracts package PyPi dependencies"""
     data = toml.loads(await file_path.read_text())
