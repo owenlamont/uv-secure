@@ -18,6 +18,10 @@ class Dependency(BaseModel):
     direct: bool | None = False
 
 
+# Disable stamina retry hooks to silence retry warnings in the console
+stamina.instrumentation.set_on_retry_hooks([])
+
+
 @stamina.retry(on=Exception, attempts=3)
 async def parse_pylock_toml_file(file_path: Path) -> list[Dependency]:
     """Parses a PEP751 pylock.toml file and extracts package PyPi dependencies"""

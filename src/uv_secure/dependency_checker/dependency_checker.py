@@ -204,7 +204,9 @@ async def check_dependencies(
 
     if not await dependency_file_path.exists():
         console_outputs.append(
-            Text(f"[bold red]Error:[/] File {dependency_file_path} does not exist.")
+            Text.from_markup(
+                f"[bold red]Error:[/] File {dependency_file_path} does not exist."
+            )
         )
         return 3, console_outputs
 
@@ -217,7 +219,9 @@ async def check_dependencies(
             dependencies = await parse_pylock_toml_file(dependency_file_path)
     except Exception as e:
         console_outputs.append(
-            Text(f"[bold red]Error:[/] Failed to parse {dependency_file_path}: {e}")
+            Text.from_markup(
+                f"[bold red]Error:[/] Failed to parse {dependency_file_path}: {e}"
+            )
         )
         return 3, console_outputs
 
@@ -225,7 +229,7 @@ async def check_dependencies(
         return 0, console_outputs
 
     console_outputs.append(
-        Text(
+        Text.from_markup(
             f"[bold cyan]Checking {dependency_file_path} dependencies for "
             "vulnerabilities ...[/]\n"
         )
@@ -254,7 +258,7 @@ async def check_dependencies(
         or config.maintainability_criteria.check_direct_dependencies_only
     ):
         console_outputs.append(
-            Text(
+            Text.from_markup(
                 f"[bold yellow]Warning:[/] {dependency_file_path} doesn't contain "
                 "the necessary information to determine direct dependencies."
             )
@@ -263,7 +267,7 @@ async def check_dependencies(
     for idx, package in enumerate(packages):
         if isinstance(package, BaseException):
             console_outputs.append(
-                Text(
+                Text.from_markup(
                     f"[bold red]Error:[/] {dependencies[idx]} raised exception: "
                     f"{package}"
                 )
@@ -276,7 +280,7 @@ async def check_dependencies(
                 specifier.contains(package.info.version) for specifier in specifiers
             ):
                 console_outputs.append(
-                    Text(
+                    Text.from_markup(
                         f"[bold yellow]Skipping {package.info.name} "
                         f"({package.info.version}) as it is ignored[/]"
                     )

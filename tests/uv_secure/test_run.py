@@ -23,12 +23,14 @@ def test_app_version() -> None:
     assert re.search(pattern, result.output), (
         f"Expected semantic version pattern, got: {result.output!r}"
     )
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_bad_file_name() -> None:
     result = runner.invoke(app, "i_dont_exist.txt")
     assert result.exit_code == 3
     assert "Error" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_bad_pyproject_toml_config_file(tmp_path: Path) -> None:
@@ -41,6 +43,7 @@ def test_bad_pyproject_toml_config_file(tmp_path: Path) -> None:
     pyproject_toml_path.write_text(dedent(pyproject_toml_contents).strip())
     result = runner.invoke(app, [str(tmp_path / "uv.lock")])
     assert "Error: Parsing uv-secure configuration at: " in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_bad_uv_secure_toml_config_file(tmp_path: Path) -> None:
@@ -52,12 +55,14 @@ def test_bad_uv_secure_toml_config_file(tmp_path: Path) -> None:
     uv_secure_toml_path.write_text(dedent(uv_secure_toml).strip())
     result = runner.invoke(app, [str(tmp_path / "uv.lock")])
     assert "Error: Parsing uv-secure configuration at: " in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_missing_file(tmp_path: Path) -> None:
     result = runner.invoke(app, [str(tmp_path / "uv.lock")])
     assert result.exit_code == 3
     assert "Error" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_non_uv_requirements_txt_file(temp_non_uv_requirements_txt_file: Path) -> None:
@@ -65,6 +70,7 @@ def test_non_uv_requirements_txt_file(temp_non_uv_requirements_txt_file: Path) -
 
     assert result.exit_code == 0
     assert "doesn't appear to be a uv generated requirements.txt file" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_no_vulnerabilities(
@@ -76,6 +82,7 @@ def test_app_no_vulnerabilities(
     assert "No vulnerabilities or maintenance issues detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "All dependencies appear safe!" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_agent_headers(
@@ -83,6 +90,7 @@ def test_app_agent_headers(
 ) -> None:
     result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
     assert result.exit_code == 0
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_no_vulnerabilities_requirements_txt(
@@ -94,6 +102,7 @@ def test_app_no_vulnerabilities_requirements_txt(
     assert "No vulnerabilities or maintenance issues detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "All dependencies appear safe!" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_no_vulnerabilities_pylock_toml(
@@ -105,6 +114,7 @@ def test_app_no_vulnerabilities_pylock_toml(
     assert "No vulnerabilities or maintenance issues detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "All dependencies appear safe!" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_vulnerabilities_pylock_toml(
@@ -121,6 +131,7 @@ def test_app_vulnerabilities_pylock_toml(
     assert "1.0.0" in result.output
     assert "VULN-123" in result.output
     assert "1.0.1" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_empty_requirements_txt(temp_uv_empty_requirements_txt_file: Path) -> None:
@@ -130,6 +141,7 @@ def test_app_empty_requirements_txt(temp_uv_empty_requirements_txt_file: Path) -
 
     assert result.exit_code == 0
     assert result.output == "\n"
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_empty_pylock_toml(temp_uv_empty_pylock_toml_file: Path) -> None:
@@ -139,6 +151,7 @@ def test_app_empty_pylock_toml(temp_uv_empty_pylock_toml_file: Path) -> None:
 
     assert result.exit_code == 0
     assert result.output == "\n"
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_no_vulnerabilities_requirements_txt_no_specified_path(
@@ -153,6 +166,7 @@ def test_app_no_vulnerabilities_requirements_txt_no_specified_path(
     assert "No vulnerabilities or maintenance issues detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "All dependencies appear safe!" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_no_vulnerabilities_pylock_toml_no_specified_path(
@@ -167,6 +181,7 @@ def test_app_no_vulnerabilities_pylock_toml_no_specified_path(
     assert "No vulnerabilities or maintenance issues detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "All dependencies appear safe!" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_no_vulnerabilities_relative_lock_file_path(
@@ -179,6 +194,7 @@ def test_app_no_vulnerabilities_relative_lock_file_path(
     assert "No vulnerabilities or maintenance issues detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "All dependencies appear safe!" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_no_vulnerabilities_relative_no_specified_path(
@@ -191,6 +207,7 @@ def test_app_no_vulnerabilities_relative_no_specified_path(
     assert "No vulnerabilities or maintenance issues detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "All dependencies appear safe!" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 @freeze_time(datetime(2025, 1, 30, tzinfo=timezone.utc))
@@ -215,6 +232,7 @@ def test_app_maintenance_issues_cli_args(
     assert "Maintenance Issues" in result.output
     assert "Broken API" in result.output
     assert "4 years and 11.01 days" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 @freeze_time(datetime(2025, 1, 30, tzinfo=timezone.utc))
@@ -232,6 +250,7 @@ def test_app_yanked_no_reason_cli_args(
     assert "Maintenance Issues" in result.output
     assert "Unknown" in result.output
     assert "1 year and 11.01 days" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_failed_vulnerability_request(
@@ -241,9 +260,10 @@ def test_app_failed_vulnerability_request(
 
     assert result.exit_code == 3
     assert (
-        "Error:[/] name='example-package' version='1.0.0' direct=False raised "
+        "Error: name='example-package' version='1.0.0' direct=False raised "
         "exception: Request failed"
     ) in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_package_not_found(
@@ -253,10 +273,11 @@ def test_app_package_not_found(
 
     assert result.exit_code == 3
     assert (
-        "Error:[/] name='example-package' version='1.0.0' direct=False raised "
+        "Error: name='example-package' version='1.0.0' direct=False raised "
         "exception: Client error '404 Not Found' for url "
         "'https://pypi.org/pypi/example-package/1.0.0/json'"
     ) in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 @pytest.mark.parametrize(
@@ -290,6 +311,7 @@ def test_check_dependencies_with_vulnerability(
     assert "1.0.0" in result.output
     assert "VULN-123" in result.output
     assert "1.0.1" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
     if "--aliases" in extra_cli_args:
         assert "Aliases" in result.output
         assert "CVE-2024-12345" in result.output
@@ -312,6 +334,7 @@ def test_check_dependencies_with_vulnerability_narrow_console_vulnerability_ids_
     assert result.exit_code == 2
     assert "GHSA-q2x7-8rv6-6q7h" in result.output
     assert "GHSA-gmj6-6f8f-6699" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_check_dependencies_with_two_longer_vulnerabilities(
@@ -329,6 +352,7 @@ def test_check_dependencies_with_two_longer_vulnerabilities(
     assert result.output.count("3.1.5") == 2
     assert "GHSA-q2x7-8rv6-6q7h" in result.output
     assert "GHSA-gmj6-6f8f-6699" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_with_arg_ignored_vulnerability(
@@ -342,6 +366,7 @@ def test_app_with_arg_ignored_vulnerability(
     assert "No vulnerabilities or maintenance issues detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "All dependencies appear safe!" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_with_arg_ignored_package_no_specifiers(
@@ -356,6 +381,7 @@ def test_app_with_arg_ignored_package_no_specifiers(
     assert "No vulnerabilities or maintenance issues detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "All dependencies appear safe!" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_with_arg_ignored_package_with_specifiers(
@@ -375,6 +401,7 @@ def test_app_with_arg_ignored_package_with_specifiers(
     assert "No vulnerabilities or maintenance issues detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "All dependencies appear safe!" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_with_arg_ignored_package_with_specifiers_no_match(
@@ -395,6 +422,7 @@ def test_app_with_arg_ignored_package_with_specifiers_no_match(
     assert "Checked: 1 dependency" in result.output
     assert "Vulnerable: 1 vulnerability" in result.output
     assert "example-package" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_with_arg_withdrawn_vulnerability(
@@ -406,6 +434,7 @@ def test_app_with_arg_withdrawn_vulnerability(
     assert "No vulnerabilities or maintenance issues detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "All dependencies appear safe!" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_check_dependencies_with_vulnerability_pyproject_all_columns_configured(
@@ -428,6 +457,7 @@ def test_check_dependencies_with_vulnerability_pyproject_all_columns_configured(
     assert "CVE-2024-12345" in result.output
     assert "Details" in result.output
     assert "A critical vulnerability in example-package.  " in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_check_dependencies_with_vulnerability_uv_secure_all_columns_configured(
@@ -449,6 +479,7 @@ def test_check_dependencies_with_vulnerability_uv_secure_all_columns_configured(
     assert "CVE-2024-12345" in result.output
     assert "Details" in result.output
     assert "A critical vulnerability in example-package.  " in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 @freeze_time(datetime(2025, 1, 30, tzinfo=timezone.utc))
@@ -477,6 +508,7 @@ def test_check_dependencies_with_vulnerability_and_maintenance_issues_uv_secure(
     assert "Maintenance Issues" in result.output
     assert "Broken API" in result.output
     assert "4 years and 11.01 days" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_check_dependencies_with_custom_caching(
@@ -499,6 +531,7 @@ def test_check_dependencies_with_custom_caching(
     assert "Checked: 1 dependency" in result.output
     assert "All dependencies appear safe!" in result.output
     assert "error" not in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
     cache_files = set(cache_dir.iterdir())
     assert len(cache_files) == 2
@@ -538,6 +571,7 @@ def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_overr
     assert "CVE-2024-12345" in result.output
     assert "Details" in result.output
     assert "A critical vulnerability in example-package.  " in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_pkg_override(
@@ -568,6 +602,7 @@ def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_pkg_o
     assert "CVE-2024-12345" in result.output
     assert "Details" in result.output
     assert "A critical vulnerability in example-package.  " in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_with_uv_secure_toml_ignored_vulnerability(
@@ -589,6 +624,7 @@ def test_app_with_uv_secure_toml_ignored_vulnerability(
     assert "No vulnerabilities or maintenance issues detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "All dependencies appear safe!" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_with_uv_secure_toml_ignored_package(
@@ -610,6 +646,7 @@ def test_app_with_uv_secure_toml_ignored_package(
     assert "No vulnerabilities or maintenance issues detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "All dependencies appear safe!" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_with_pyproject_toml_ignored_vulnerability(
@@ -631,6 +668,7 @@ def test_app_with_pyproject_toml_ignored_vulnerability(
     assert "No vulnerabilities or maintenance issues detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "All dependencies appear safe!" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_with_pyproject_toml_ignored_package(
@@ -652,6 +690,7 @@ def test_app_with_pyproject_toml_ignored_package(
     assert "No vulnerabilities or maintenance issues detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "All dependencies appear safe!" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_multiple_lock_files_no_vulnerabilities(
@@ -715,6 +754,7 @@ def test_app_multiple_lock_files_no_vulnerabilities(
     assert result.output.count("Checked: 1 dependency") == 2
     assert result.output.count("All dependencies appear safe!") == 2
     assert result.output.count("nested_project") == 1
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_multiple_lock_files_one_vulnerabilities(
@@ -731,6 +771,7 @@ def test_app_multiple_lock_files_one_vulnerabilities(
         result.output.count("No vulnerabilities or maintenance issues detected!") == 1
     )
     assert result.output.count("Vulnerabilities detected!") == 1
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_multiple_lock_files_one_nested_ignored_vulnerability(
@@ -751,6 +792,7 @@ def test_app_multiple_lock_files_one_nested_ignored_vulnerability(
     assert result.output.count("Checked: 1 dependency") == 2
     assert result.output.count("All dependencies appear safe!") == 2
     assert result.output.count("nested_project") == 1
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_multiple_lock_files_no_root_config_one_nested_ignored_vulnerability(
@@ -770,6 +812,7 @@ def test_app_multiple_lock_files_no_root_config_one_nested_ignored_vulnerability
     assert result.output.count("Checked: 1 dependency") == 2
     assert result.output.count("All dependencies appear safe!") == 2
     assert result.output.count("nested_project") == 2
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_multiple_lock_files_one_nested_ignored_vulnerability_pass_lock_files(
@@ -793,6 +836,7 @@ def test_app_multiple_lock_files_one_nested_ignored_vulnerability_pass_lock_file
     assert result.output.count("Checked: 1 dependency") == 2
     assert result.output.count("All dependencies appear safe!") == 2
     assert result.output.count("nested_project") == 2
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_multiple_lock_files_one_vulnerabilities_ignored_nested_pyproject_toml(
@@ -811,6 +855,7 @@ def test_app_multiple_lock_files_one_vulnerabilities_ignored_nested_pyproject_to
         result.output.count("No vulnerabilities or maintenance issues detected!") == 1
     )
     assert result.output.count("Vulnerabilities detected!") == 1
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_lock_vulnerability_full_dependencies_one_vulnerability(
@@ -823,6 +868,7 @@ def test_lock_vulnerability_full_dependencies_one_vulnerability(
     assert result.exit_code == 2
     assert result.output.count("Vulnerable: 1 vulnerability") == 1
     assert result.output.count("indirect-dependency") == 1
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_lock_vulnerability_uv_secure_toml_direct_dependencies_one_vulnerability(
@@ -836,6 +882,7 @@ def test_lock_vulnerability_uv_secure_toml_direct_dependencies_one_vulnerability
     assert (
         result.output.count("No vulnerabilities or maintenance issues detected!") == 1
     )
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_lock_vulnerability_pyproject_toml_direct_dependencies_one_vulnerability(
@@ -849,6 +896,7 @@ def test_lock_vulnerability_pyproject_toml_direct_dependencies_one_vulnerability
     assert (
         result.output.count("No vulnerabilities or maintenance issues detected!") == 1
     )
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_lock_maintenance_full_dependencies_one_issue(
@@ -861,6 +909,7 @@ def test_lock_maintenance_full_dependencies_one_issue(
     assert result.exit_code == 1
     assert result.output.count("Issues: 1 issue") == 1
     assert result.output.count("indirect-dependency") == 1
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_lock_maintenance_uv_secure_toml_direct_dependencies_one_issue(
@@ -874,6 +923,7 @@ def test_lock_maintenance_uv_secure_toml_direct_dependencies_one_issue(
     assert (
         result.output.count("No vulnerabilities or maintenance issues detected!") == 1
     )
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_lock_maintenance_pyproject_toml_direct_dependencies_one_issue(
@@ -887,6 +937,7 @@ def test_lock_maintenance_pyproject_toml_direct_dependencies_one_issue(
     assert (
         result.output.count("No vulnerabilities or maintenance issues detected!") == 1
     )
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_reqs_vulnerability_full_dependencies_one_vuln(
@@ -901,6 +952,7 @@ def test_reqs_vulnerability_full_dependencies_one_vuln(
     assert result.exit_code == 2
     assert result.output.count("Vulnerable: 1 vulnerability") == 1
     assert result.output.count("indirect-dependency") == 1
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_reqs_vulnerability_uv_secure_toml_direct_dependencies_one_vuln(
@@ -916,6 +968,7 @@ def test_reqs_vulnerability_uv_secure_toml_direct_dependencies_one_vuln(
     assert (
         result.output.count("No vulnerabilities or maintenance issues detected!") == 1
     )
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_reqs_vulnerability_pyproject_toml_direct_dependencies_one_vuln(
@@ -931,6 +984,7 @@ def test_reqs_vulnerability_pyproject_toml_direct_dependencies_one_vuln(
     assert (
         result.output.count("No vulnerabilities or maintenance issues detected!") == 1
     )
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_reqs_vulnerability_uv_secure_toml_cli_override_direct_dependencies_one_vuln(
@@ -950,6 +1004,7 @@ def test_reqs_vulnerability_uv_secure_toml_cli_override_direct_dependencies_one_
     assert (
         result.output.count("No vulnerabilities or maintenance issues detected!") == 1
     )
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_reqs_vulnerability_pyproject_toml_cli_override_direct_dependencies_one_vuln(
@@ -969,6 +1024,7 @@ def test_reqs_vulnerability_pyproject_toml_cli_override_direct_dependencies_one_
     assert (
         result.output.count("No vulnerabilities or maintenance issues detected!") == 1
     )
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_reqs_maintenance_full_dependencies_one_issue(
@@ -983,6 +1039,7 @@ def test_reqs_maintenance_full_dependencies_one_issue(
     assert result.exit_code == 1
     assert result.output.count("Issues: 1 issue") == 1
     assert result.output.count("indirect-dependency") == 1
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_reqs_maintenance_uv_secure_toml_direct_dependencies_one_issue(
@@ -998,6 +1055,7 @@ def test_reqs_maintenance_uv_secure_toml_direct_dependencies_one_issue(
     assert (
         result.output.count("No vulnerabilities or maintenance issues detected!") == 1
     )
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_reqs_maintenance_pyproject_toml_direct_dependencies_one_issue(
@@ -1013,6 +1071,7 @@ def test_reqs_maintenance_pyproject_toml_direct_dependencies_one_issue(
     assert (
         result.output.count("No vulnerabilities or maintenance issues detected!") == 1
     )
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_reqs_maintenance_uv_secure_toml_cli_override_direct_dependencies_one_issue(
@@ -1032,6 +1091,7 @@ def test_reqs_maintenance_uv_secure_toml_cli_override_direct_dependencies_one_is
     assert (
         result.output.count("No vulnerabilities or maintenance issues detected!") == 1
     )
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_reqs_maintenance_pyproject_toml_cli_override_direct_dependencies_one_issue(
@@ -1051,6 +1111,7 @@ def test_reqs_maintenance_pyproject_toml_cli_override_direct_dependencies_one_is
     assert (
         result.output.count("No vulnerabilities or maintenance issues detected!") == 1
     )
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_pylock_toml_check_direct_dependency_vulnerabilities_only_warning(
@@ -1073,6 +1134,7 @@ def test_pylock_toml_check_direct_dependency_vulnerabilities_only_warning(
         in result.output
     )
     assert "Checked: 1 dependency" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_pylock_toml_check_direct_dependency_maintenance_issues_only_warning(
@@ -1095,6 +1157,7 @@ def test_pylock_toml_check_direct_dependency_maintenance_issues_only_warning(
         in result.output
     )
     assert "Checked: 1 dependency" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 # Tests for retry logic and file parsing error handling
@@ -1115,6 +1178,7 @@ def test_uv_lock_file_parsing_with_corrupted_file(
     assert "Error" in result.output
     assert "Failed to parse" in result.output
     assert str(temp_corrupted_uv_lock_file) in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_requirements_txt_file_parsing_with_corrupted_file(
@@ -1132,6 +1196,7 @@ def test_requirements_txt_file_parsing_with_corrupted_file(
     assert "Error" in result.output
     assert "Failed to parse" in result.output
     assert str(temp_corrupted_requirements_txt_file) in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_pylock_toml_file_parsing_with_corrupted_file(
@@ -1149,3 +1214,4 @@ def test_pylock_toml_file_parsing_with_corrupted_file(
     assert "Error" in result.output
     assert "Failed to parse" in result.output
     assert str(temp_corrupted_pylock_toml_file) in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
