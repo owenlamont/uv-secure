@@ -65,11 +65,28 @@ def test_missing_file(tmp_path: Path) -> None:
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
-def test_non_uv_requirements_txt_file(temp_non_uv_requirements_txt_file: Path) -> None:
-    result = runner.invoke(app, [str(temp_non_uv_requirements_txt_file)])
+def test_non_uv_requirements_txt_file(
+    temp_non_uv_requirements_txt_file: Path, no_vulnerabilities_response: HTTPXMock
+) -> None:
+    result = runner.invoke(
+        app, [str(temp_non_uv_requirements_txt_file), "--disable-cache"]
+    )
 
     assert result.exit_code == 0
-    assert "doesn't appear to be a uv generated requirements.txt file" in result.output
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
+
+
+def test_unpinned_requirements_txt_file(
+    temp_unpinned_requirements_txt_file: Path,
+) -> None:
+    result = runner.invoke(app, [str(temp_unpinned_requirements_txt_file)])
+
+    assert result.exit_code == 3
+    assert "Failed to parse" in result.output
+    assert "dependencies must be fully pinned" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
