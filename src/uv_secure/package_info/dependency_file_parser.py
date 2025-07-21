@@ -6,9 +6,9 @@ import stamina
 
 
 if sys.version_info >= (3, 11):
-    import tomllib as toml  # pragma: no cover
+    import tomllib as toml
 else:
-    import tomli as toml  # pragma: no cover
+    import tomli as toml
 
 
 class Dependency(BaseModel):
