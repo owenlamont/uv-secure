@@ -285,6 +285,24 @@ async def test_parse_requirements_txt_file_unpinned(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_parse_requirements_txt_file_wildcard(tmp_path: Path) -> None:
+    requirements_txt_path = tmp_path / "requirements.txt"
+    requirements_txt_path.write_text("example==1.*")
+
+    with pytest.raises(ValueError, match="fully pinned"):
+        await parse_requirements_txt_file(APath(requirements_txt_path))
+
+
+@pytest.mark.asyncio
+async def test_parse_requirements_txt_file_empty(tmp_path: Path) -> None:
+    requirements_txt_path = tmp_path / "requirements.txt"
+    requirements_txt_path.write_text("")
+
+    dependencies = await parse_requirements_txt_file(APath(requirements_txt_path))
+    assert dependencies == []
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("uv_lock_contents", "expected_dependencies"),
     [

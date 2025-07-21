@@ -90,6 +90,17 @@ def test_unpinned_requirements_txt_file(
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
+def test_wildcard_requirements_txt_file(
+    temp_wildcard_requirements_txt_file: Path,
+) -> None:
+    result = runner.invoke(app, [str(temp_wildcard_requirements_txt_file)])
+
+    assert result.exit_code == 3
+    assert "Failed to parse" in result.output
+    assert "dependencies must be fully pinned" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
+
+
 def test_app_no_vulnerabilities(
     temp_uv_lock_file: Path, no_vulnerabilities_response: HTTPXMock
 ) -> None:

@@ -116,6 +116,23 @@ def temp_unpinned_requirements_txt_file(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def temp_wildcard_requirements_txt_file(tmp_path: Path) -> Path:
+    uv_requirements_txt_path = tmp_path / "requirements.txt"
+    requirements_txt_data = """
+        example-package==1.*
+    """
+    uv_requirements_txt_path.write_text(dedent(requirements_txt_data).strip())
+    return uv_requirements_txt_path
+
+
+@pytest.fixture
+def temp_empty_requirements_txt_file(tmp_path: Path) -> Path:
+    uv_requirements_txt_path = tmp_path / "requirements.txt"
+    uv_requirements_txt_path.write_text("")
+    return uv_requirements_txt_path
+
+
+@pytest.fixture
 def temp_uv_secure_toml_file_ignored_vulnerability(tmp_path: Path) -> Path:
     uv_secure_toml_path = tmp_path / "uv-secure.toml"
     uv_lock_data = """
