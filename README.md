@@ -107,10 +107,10 @@ After installation, you can run uv-secure --help to see the options.
  Parse uv.lock files, check vulnerabilities, and display summary.
 
 ╭─ Arguments ──────────────────────────────────────────────────────────────────────────╮
-│   file_paths      [FILE_PATHS]...  Paths to the uv.lock, PEP751 pylock.toml, or   │
-│                                    requirements.txt files or a single      │
-│                                    project root level directory (defaults to working │
-│                                    directory if not set)                             │
+│   file_paths      [FILE_PATHS]...  Paths to the uv.lock, PEP751 pylock.toml, or      │
+│                                    requirements.txt files or a single project root   │
+│                                    level directory (defaults to working directory if │
+│                                    not set)                                          │
 │                                    [default: None]                                   │
 ╰──────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ────────────────────────────────────────────────────────────────────────────╮
