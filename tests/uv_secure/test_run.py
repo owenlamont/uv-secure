@@ -101,6 +101,54 @@ def test_wildcard_requirements_txt_file(
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
+def test_comment_requirements_txt_file(
+    temp_comment_requirements_txt_file: Path, no_vulnerabilities_response: HTTPXMock
+) -> None:
+    result = runner.invoke(
+        app, [str(temp_comment_requirements_txt_file), "--disable-cache"]
+    )
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
+
+
+def test_extras_requirements_txt_file(
+    temp_extras_requirements_txt_file: Path, no_vulnerabilities_response: HTTPXMock
+) -> None:
+    result = runner.invoke(
+        app, [str(temp_extras_requirements_txt_file), "--disable-cache"]
+    )
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "All dependencies appear safe!" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
+
+
+def test_env_marker_requirements_txt_file(
+    temp_env_marker_requirements_txt_file: Path,
+) -> None:
+    result = runner.invoke(app, [str(temp_env_marker_requirements_txt_file)])
+
+    assert result.exit_code == 3
+    assert "Failed to parse" in result.output
+    assert "dependencies must be fully pinned" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
+
+
+def test_hash_requirements_txt_file(temp_hash_requirements_txt_file: Path) -> None:
+    result = runner.invoke(app, [str(temp_hash_requirements_txt_file)])
+
+    assert result.exit_code == 3
+    assert "Failed to parse" in result.output
+    assert "dependencies must be fully pinned" in result.output
+    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
+
+
 def test_app_no_vulnerabilities(
     temp_uv_lock_file: Path, no_vulnerabilities_response: HTTPXMock
 ) -> None:

@@ -294,6 +294,42 @@ async def test_parse_requirements_txt_file_wildcard(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_parse_requirements_txt_file_comment(tmp_path: Path) -> None:
+    requirements_txt_path = tmp_path / "requirements.txt"
+    requirements_txt_path.write_text("example==1.0  # comment")
+
+    dependencies = await parse_requirements_txt_file(APath(requirements_txt_path))
+    assert dependencies == [Dependency(name="example", version="1.0")]
+
+
+@pytest.mark.asyncio
+async def test_parse_requirements_txt_file_extras(tmp_path: Path) -> None:
+    requirements_txt_path = tmp_path / "requirements.txt"
+    requirements_txt_path.write_text("example[foo]==1.0")
+
+    dependencies = await parse_requirements_txt_file(APath(requirements_txt_path))
+    assert dependencies == [Dependency(name="example", version="1.0")]
+
+
+@pytest.mark.asyncio
+async def test_parse_requirements_txt_file_env_marker(tmp_path: Path) -> None:
+    requirements_txt_path = tmp_path / "requirements.txt"
+    requirements_txt_path.write_text("example==1.0; python_version<'3.8'")
+
+    with pytest.raises(ValueError, match="fully pinned"):
+        await parse_requirements_txt_file(APath(requirements_txt_path))
+
+
+@pytest.mark.asyncio
+async def test_parse_requirements_txt_file_hash(tmp_path: Path) -> None:
+    requirements_txt_path = tmp_path / "requirements.txt"
+    requirements_txt_path.write_text("example==1.0 --hash=sha256:abcdef")
+
+    with pytest.raises(ValueError, match="fully pinned"):
+        await parse_requirements_txt_file(APath(requirements_txt_path))
+
+
+@pytest.mark.asyncio
 async def test_parse_requirements_txt_file_empty(
     temp_empty_requirements_txt_file: Path,
 ) -> None:

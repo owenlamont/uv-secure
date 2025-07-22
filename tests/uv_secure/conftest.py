@@ -126,6 +126,46 @@ def temp_wildcard_requirements_txt_file(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def temp_comment_requirements_txt_file(tmp_path: Path) -> Path:
+    uv_requirements_txt_path = tmp_path / "requirements.txt"
+    requirements_txt_data = """
+        example-package==1.0.0  # pinned version
+    """
+    uv_requirements_txt_path.write_text(dedent(requirements_txt_data).strip())
+    return uv_requirements_txt_path
+
+
+@pytest.fixture
+def temp_extras_requirements_txt_file(tmp_path: Path) -> Path:
+    uv_requirements_txt_path = tmp_path / "requirements.txt"
+    requirements_txt_data = """
+        example-package[extra]==1.0.0
+    """
+    uv_requirements_txt_path.write_text(dedent(requirements_txt_data).strip())
+    return uv_requirements_txt_path
+
+
+@pytest.fixture
+def temp_env_marker_requirements_txt_file(tmp_path: Path) -> Path:
+    uv_requirements_txt_path = tmp_path / "requirements.txt"
+    requirements_txt_data = """
+        example-package==1.0.0; python_version < '3.8'
+    """
+    uv_requirements_txt_path.write_text(dedent(requirements_txt_data).strip())
+    return uv_requirements_txt_path
+
+
+@pytest.fixture
+def temp_hash_requirements_txt_file(tmp_path: Path) -> Path:
+    uv_requirements_txt_path = tmp_path / "requirements.txt"
+    requirements_txt_data = """
+        example-package==1.0.0 --hash=sha256:1234567890abcdef
+    """
+    uv_requirements_txt_path.write_text(dedent(requirements_txt_data).strip())
+    return uv_requirements_txt_path
+
+
+@pytest.fixture
 def temp_empty_requirements_txt_file(tmp_path: Path) -> Path:
     uv_requirements_txt_path = tmp_path / "requirements.txt"
     uv_requirements_txt_path.write_text("")

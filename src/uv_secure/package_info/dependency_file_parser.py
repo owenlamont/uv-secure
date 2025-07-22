@@ -1,6 +1,7 @@
 import sys
 
 from anyio import Path
+from packaging.requirements import Requirement
 from pydantic import BaseModel
 import stamina
 
@@ -53,30 +54,46 @@ async def parse_requirements_txt_file(file_path: Path) -> list[Dependency]:
     lines = data.splitlines()
     if len(lines) == 0:
         return []
-    dependencies = []
+
+    dependencies: list[Dependency] = []
     dependency: Dependency | None = None
+
     for line in lines:
-        if "==" in line:
-            if dependency is not None:
-                dependencies.append(dependency)
-            if line.count("==") != 1:
-                raise ValueError(
-                    f"dependencies must be fully pinned, found: {line.strip()}"
-                )
-            name, version = line.split("==", 1)
-            if "*" in version:
-                raise ValueError(
-                    f"dependencies must be fully pinned, found: {line.strip()}"
-                )
-            dependency = Dependency(name=name.strip(), version=version.strip())
-        elif (" -r " in line or " (pyproject.toml)" in line) and dependency is not None:
+        if (" -r " in line or " (pyproject.toml)" in line) and dependency is not None:
             dependency.direct = True
-        elif line.strip() and not line.strip().startswith("#"):
+            continue
+
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+
+        if dependency is not None:
+            dependencies.append(dependency)
+
+        requirement_str = line.split("#", 1)[0].strip()
+        try:
+            requirement = Requirement(requirement_str)
+        except Exception as exc:  # pragma: no cover - packaging raises various errors
             raise ValueError(
-                f"dependencies must be fully pinned, found: {line.strip()}"
-            )
+                f"dependencies must be fully pinned, found: {stripped}"
+            ) from exc
+
+        if requirement.marker is not None or requirement.url is not None:
+            raise ValueError(f"dependencies must be fully pinned, found: {stripped}")
+
+        specifiers = list(requirement.specifier)
+        if (
+            len(specifiers) != 1
+            or specifiers[0].operator != "=="
+            or "*" in specifiers[0].version
+        ):
+            raise ValueError(f"dependencies must be fully pinned, found: {stripped}")
+
+        dependency = Dependency(name=requirement.name, version=specifiers[0].version)
+
     if dependency is not None:
         dependencies.append(dependency)
+
     return dependencies
 
 
