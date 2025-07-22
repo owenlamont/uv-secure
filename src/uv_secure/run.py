@@ -22,8 +22,8 @@ def _version_callback(value: bool) -> None:
 _file_path_args = typer.Argument(
     None,
     help=(
-        "Paths to the uv.lock, PEP751 pylock.toml, or uv generated requirements.txt "
-        "files or a single project root level directory (defaults to working directory "
+        "Paths to the uv.lock, PEP751 pylock.toml, or requirements.txt files "
+        "or a single project root level directory (defaults to working directory "
         "if not set)"
     ),
 )
