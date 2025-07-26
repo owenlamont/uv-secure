@@ -9,6 +9,13 @@ uv-secure is an async CLI tool that scans PyPI dependencies in `uv.lock`,
 maintenance issues. It fetches vulnerability data from PyPI's JSON API
 concurrently and supports hierarchical configuration discovery.
 
+## Code Change Requirements
+
+- Whenever code is changed ensure all pre-commit linters pass and all pytests pass and
+  that all newly added code has full branch coverage.
+- For any behaviour or feature changes ensure all documentation is updated
+  appropriately.
+
 ## Project Structure
 
 - **/src/** – All application code lives here.
