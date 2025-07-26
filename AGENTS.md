@@ -17,7 +17,7 @@ concurrently and supports hierarchical configuration discovery.
   according to the src module they are testing (just with a `test_` prefix) except for
   rarer tests checking functionality spanning several modules.
 - **pyproject.toml** - Package configuration and most linter configuration
-- **markdownlinst.yaml** - Markdown linter configuration
+- **markdownlint.yaml** - Markdown linter configuration
 - **.pre-commit-config.yaml** - Pre-commit linters and some configuration
 - **.yamllint** - Yaml linter configuration
 
@@ -39,6 +39,16 @@ concurrently and supports hierarchical configuration discovery.
   can't support duplicate test file names without sub-packages.
 - Use the most modern Python idioms and syntax allowed by the minimum supported Python
   version (currently this is Python 3.10).
+- Comments should be kept to an absolute minimum, try to achieve code readability
+  through meaningful class, function, and variable names. Public functions should have
+  docstrings - parameters only need to be documented if the name and typehint don't
+  convey the full semantics of them. Private functions used within a module don't need
+  docstrings (unless their names and typehints aren't sufficient to convey they
+  semantics).
+- Comments should only be used to explain unavoidable code smells (arising from third
+  party package use), or the reason for temporary dependency version pinning (e.g.
+  linking an unresolved GitHub issues) or lastly explaining opaque code or non-obvious
+  trade offs or workarounds.
 
 ## Testing
 
@@ -52,6 +62,9 @@ concurrently and supports hierarchical configuration discovery.
 - uv-secure runs on Mac, Linux, and Windows. Don't make assumptions about the shell
   you're running on without checking first (it could be a Posix shell like Bash or
   Windows Powershell).
+- Warnings are treated with errors in tests. Warnings emitted from code in this repo
+  must be addressed. Warnings emitted from third party packages can be ignored (using
+  the most specific ignores practical).
 
 ## PR Guidelines
 
