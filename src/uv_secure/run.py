@@ -149,9 +149,9 @@ def main(
     # Use uvloop or winloop if present
     try:
         if sys.platform in {"win32", "cygwin", "cli"}:
-            from winloop import run
+            from winloop import run  # type: ignore[import-not-found, unused-ignore]
         else:
-            from uvloop import run  # type: ignore[no-redef, unused-ignore]
+            from uvloop import run  # type: ignore[no-redef, import-not-found, unused-ignore]  # noqa: I001
     except ImportError:
         from asyncio import run  # type: ignore[assignment, unused-ignore]
 

@@ -84,10 +84,9 @@ plugins = [
   "pydantic.mypy"
 ]
 
-python_version = "3.10"
-files = ["src"]
+files = ["src", "tests"]
 
-ignore_missing_imports = true
+ignore_missing_imports = false
 follow_imports = "silent"
 
 check_untyped_defs = true
@@ -132,7 +131,6 @@ select = [
     "B",
     "C4",
     "D",
-    "DOC",
     "E",
     "ERA",
     "F",

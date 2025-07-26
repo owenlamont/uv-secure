@@ -58,8 +58,8 @@ concurrently and supports hierarchical configuration discovery.
 - Being a uv project you should never need to activate a virtual environment or call pip
   or python directly. Use `uv add` to add dependencies and `uv run` to run Python
   scripts or code.
-- pre-commit should be installed as a global uv tool, it doesn't require a `uv run`
-  prefix.
+- pre-commit, ruff, and complexipy should be installed as a global uv tool, they don't
+  require a `uv run` prefix.
 
 ## Testing
 
