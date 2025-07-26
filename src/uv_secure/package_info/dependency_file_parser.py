@@ -47,6 +47,45 @@ async def parse_pylock_toml_file(file_path: Path) -> list[Dependency]:
     return dependencies
 
 
+def _validate_requirement_line(line: str, requirement: Requirement) -> None:
+    """Validate that a requirement line is properly pinned"""
+    stripped = line.strip()
+
+    if requirement.marker is not None or requirement.url is not None:
+        raise ValueError(f"dependencies must be fully pinned, found: {stripped}")
+
+    specifiers = list(requirement.specifier)
+    if (
+        len(specifiers) != 1
+        or specifiers[0].operator != "=="
+        or "*" in specifiers[0].version
+    ):
+        raise ValueError(f"dependencies must be fully pinned, found: {stripped}")
+
+
+def _parse_requirement_line(line: str) -> Requirement | None:
+    """Parse a single requirement line and return Requirement object if valid"""
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#"):
+        return None
+
+    requirement_str = line.split("#", 1)[0].strip()
+    try:
+        requirement = Requirement(requirement_str)
+    except Exception as exc:  # pragma: no cover - packaging raises various errors
+        raise ValueError(
+            f"dependencies must be fully pinned, found: {stripped}"
+        ) from exc
+
+    _validate_requirement_line(line, requirement)
+    return requirement
+
+
+def _is_direct_dependency_marker(line: str) -> bool:
+    """Check if line contains markers indicating direct dependencies"""
+    return " -r " in line or " (pyproject.toml)" in line
+
+
 @stamina.retry(on=Exception, attempts=3)
 async def parse_requirements_txt_file(file_path: Path) -> list[Dependency]:
     """Parse a requirements.txt file and extracts package PyPi dependencies"""
@@ -59,36 +98,18 @@ async def parse_requirements_txt_file(file_path: Path) -> list[Dependency]:
     dependency: Dependency | None = None
 
     for line in lines:
-        if (" -r " in line or " (pyproject.toml)" in line) and dependency is not None:
+        if _is_direct_dependency_marker(line) and dependency is not None:
             dependency.direct = True
             continue
 
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
+        requirement = _parse_requirement_line(line)
+        if requirement is None:
             continue
 
         if dependency is not None:
             dependencies.append(dependency)
 
-        requirement_str = line.split("#", 1)[0].strip()
-        try:
-            requirement = Requirement(requirement_str)
-        except Exception as exc:  # pragma: no cover - packaging raises various errors
-            raise ValueError(
-                f"dependencies must be fully pinned, found: {stripped}"
-            ) from exc
-
-        if requirement.marker is not None or requirement.url is not None:
-            raise ValueError(f"dependencies must be fully pinned, found: {stripped}")
-
         specifiers = list(requirement.specifier)
-        if (
-            len(specifiers) != 1
-            or specifiers[0].operator != "=="
-            or "*" in specifiers[0].version
-        ):
-            raise ValueError(f"dependencies must be fully pinned, found: {stripped}")
-
         dependency = Dependency(name=requirement.name, version=specifiers[0].version)
 
     if dependency is not None:

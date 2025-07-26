@@ -21,10 +21,10 @@ repos:
         exclude: '\.ipynb$'
       - id: mixed-line-ending
         args: [--fix=lf]
-  # - repo: https://github.com/rohaquinlop/complexipy-pre-commit
-  #   rev: v3.3.0
-  #   hooks:
-  #     - id: complexipy
+  - repo: https://github.com/rohaquinlop/complexipy-pre-commit
+    rev: v3.3.0
+    hooks:
+      - id: complexipy
   - repo: https://github.com/igorshubovych/markdownlint-cli
     rev: v0.45.0
     hooks:
@@ -33,9 +33,10 @@ repos:
   - repo: local
     hooks:
       - id: mypy
-        name: mypy (local)
+        name: mypy (dev local)
         language: system
-        entry: uv run mypy
+        entry: uv run mypy .
+        pass_filenames: false
         types: [python]
   - repo: https://github.com/charliermarsh/ruff-pre-commit
     rev: v0.12.5

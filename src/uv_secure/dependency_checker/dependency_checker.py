@@ -34,6 +34,7 @@ from uv_secure.package_info import (
     parse_requirements_txt_file,
     parse_uv_lock_file,
 )
+from uv_secure.package_info.package_info_downloader import Vulnerability
 
 
 if sys.version_info < (3, 11):
@@ -41,6 +42,92 @@ if sys.version_info < (3, 11):
 
 
 USER_AGENT = f"uv-secure/{__version__} (contact: owenrlamont@gmail.com)"
+
+
+def _create_package_hyperlink(package_name: str) -> Text:
+    """Create hyperlink for package name"""
+    return Text.assemble(
+        (package_name, f"link https://pypi.org/project/{package_name}")
+    )
+
+
+def _create_version_hyperlink(package_name: str, version: str) -> Text:
+    """Create hyperlink for package version"""
+    return Text.assemble(
+        (version, f"link https://pypi.org/project/{package_name}/{version}/")
+    )
+
+
+def _create_vulnerability_id_hyperlink(vuln: Vulnerability) -> Text:
+    """Create hyperlink for vulnerability ID"""
+    return Text.assemble((vuln.id, f"link {vuln.link}")) if vuln.link else Text(vuln.id)
+
+
+def _create_fix_versions_text(package_name: str, vuln: Vulnerability) -> Text:
+    """Create text with fix version hyperlinks"""
+    if not vuln.fixed_in:
+        return Text("")
+
+    return Text(", ").join(
+        [
+            Text.assemble(
+                (fix_ver, f"link https://pypi.org/project/{package_name}/{fix_ver}/")
+            )
+            for fix_ver in vuln.fixed_in
+        ]
+    )
+
+
+def _get_alias_hyperlink(alias: str, package_name: str) -> str | None:
+    """Get hyperlink URL for vulnerability alias"""
+    if alias.startswith("CVE-"):
+        return f"https://cve.mitre.org/cgi-bin/cvename.cgi?name={alias}"
+    if alias.startswith("GHSA-"):
+        return f"https://github.com/advisories/{alias}"
+    if alias.startswith("PYSEC-"):
+        return (
+            "https://github.com/pypa/advisory-database/blob/main/"
+            f"vulns/{package_name}/{alias}.yaml"
+        )
+    if alias.startswith("OSV-"):
+        return f"https://osv.dev/vulnerability/{alias}"
+    return None
+
+
+def _create_aliases_text(vuln: Vulnerability, package_name: str) -> Text:
+    """Create text with alias hyperlinks"""
+    if not vuln.aliases:
+        return Text("")
+
+    alias_links = []
+    for alias in vuln.aliases:
+        hyperlink = _get_alias_hyperlink(alias, package_name)
+        if hyperlink:
+            alias_links.append(Text.assemble((alias, f"link {hyperlink}")))
+        else:
+            alias_links.append(Text(alias))
+
+    return Text(", ").join(alias_links) if alias_links else Text("")
+
+
+def _create_vulnerability_row_renderables(
+    package: PackageInfo, vuln: Vulnerability, config: Configuration
+) -> list[Text]:
+    """Create renderables for a vulnerability table row"""
+    renderables = [
+        _create_package_hyperlink(package.info.name),
+        _create_version_hyperlink(package.info.name, package.info.version),
+        _create_vulnerability_id_hyperlink(vuln),
+        _create_fix_versions_text(package.info.name, vuln),
+    ]
+
+    if config.vulnerability_criteria.aliases:
+        renderables.append(_create_aliases_text(vuln, package.info.name))
+
+    if config.vulnerability_criteria.desc:
+        renderables.append(Text(vuln.details))
+
+    return renderables
 
 
 def _render_vulnerability_table(
@@ -61,70 +148,12 @@ def _render_vulnerability_table(
         table.add_column("Aliases", min_width=20, max_width=24)
     if config.vulnerability_criteria.desc:
         table.add_column("Details", min_width=8)
+
     for package in vulnerable_packages:
         for vuln in package.vulnerabilities:
-            vuln_id_hyperlink = (
-                Text.assemble((vuln.id, f"link {vuln.link}"))
-                if vuln.link
-                else Text(vuln.id)
-            )
-            renderables: list[Text] = [
-                Text.assemble(
-                    (
-                        package.info.name,
-                        f"link https://pypi.org/project/{package.info.name}",
-                    )
-                ),
-                Text.assemble(
-                    (
-                        package.info.version,
-                        f"link https://pypi.org/project/{package.info.name}/"
-                        f"{package.info.version}/",
-                    )
-                ),
-                vuln_id_hyperlink,
-                Text(", ").join(
-                    [
-                        Text.assemble(
-                            (
-                                fix_ver,
-                                f"link https://pypi.org/project/{package.info.name}/"
-                                f"{fix_ver}/",
-                            )
-                        )
-                        for fix_ver in vuln.fixed_in
-                    ]
-                )
-                if vuln.fixed_in
-                else Text(""),
-            ]
-            if config.vulnerability_criteria.aliases:
-                alias_links = []
-                for alias in vuln.aliases or []:
-                    hyperlink = None
-                    if alias.startswith("CVE-"):
-                        hyperlink = (
-                            f"https://cve.mitre.org/cgi-bin/cvename.cgi?name={alias}"
-                        )
-                    elif alias.startswith("GHSA-"):
-                        hyperlink = f"https://github.com/advisories/{alias}"
-                    elif alias.startswith("PYSEC-"):
-                        hyperlink = (
-                            "https://github.com/pypa/advisory-database/blob/main/"
-                            f"vulns/{package.info.name}/{alias}.yaml"
-                        )
-                    elif alias.startswith("OSV-"):
-                        hyperlink = f"https://osv.dev/vulnerability/{alias}"
-                    if hyperlink:
-                        alias_links.append(Text.assemble((alias, f"link {hyperlink}")))
-                    else:
-                        alias_links.append(Text(alias))
-                renderables.append(
-                    Text(", ").join(alias_links) if alias_links else Text("")
-                )
-            if config.vulnerability_criteria.desc:
-                renderables.append(Text(vuln.details))
+            renderables = _create_vulnerability_row_renderables(package, vuln, config)
             table.add_row(*renderables)
+
     return table
 
 
@@ -183,144 +212,82 @@ def get_specifier_sets(specifiers: tuple[str, ...]) -> tuple[SpecifierSet, ...]:
     return tuple(SpecifierSet(spec) for spec in specifiers)
 
 
-async def check_dependencies(
-    dependency_file_path: APath,
+def _should_skip_package(
+    package: PackageInfo, ignore_packages: dict[str, tuple[SpecifierSet, ...]]
+) -> bool:
+    """Check if package should be skipped based on ignore configuration"""
+    if package.info.name not in ignore_packages:
+        return False
+
+    specifiers = ignore_packages[package.info.name]
+    return len(specifiers) == 0 or any(
+        specifier.contains(package.info.version) for specifier in specifiers
+    )
+
+
+def _should_check_vulnerabilities(package: PackageInfo, config: Configuration) -> bool:
+    """Check if package should be checked for vulnerabilities"""
+    return (
+        package.direct_dependency is not False
+        or not config.vulnerability_criteria.check_direct_dependencies_only
+    )
+
+
+def _should_check_maintenance_issues(
+    package: PackageInfo, config: Configuration
+) -> bool:
+    """Check if package should be checked for maintenance issues"""
+    return (
+        package.direct_dependency is not False
+        or not config.maintainability_criteria.check_direct_dependencies_only
+    )
+
+
+def _filter_vulnerabilities(package: PackageInfo, config: Configuration) -> None:
+    """Filter out ignored and withdrawn vulnerabilities from package"""
+    package.vulnerabilities = [
+        vuln
+        for vuln in package.vulnerabilities
+        if (
+            config.vulnerability_criteria.ignore_vulnerabilities is None
+            or vuln.id not in config.vulnerability_criteria.ignore_vulnerabilities
+        )
+        and vuln.withdrawn is None
+    ]
+
+
+def _has_maintenance_issues(package: PackageInfo, config: Configuration) -> bool:
+    """Check if package has maintenance issues"""
+    found_rejected_yanked_package = (
+        config.maintainability_criteria.forbid_yanked and package.info.yanked
+    )
+    found_over_age_package = (
+        config.maintainability_criteria.max_package_age is not None
+        and package.age is not None
+        and package.age > config.maintainability_criteria.max_package_age
+    )
+    return found_rejected_yanked_package or found_over_age_package
+
+
+async def _parse_dependency_file(dependency_file_path: APath) -> list:
+    """Parse dependency file based on its type"""
+    if dependency_file_path.name == "uv.lock":
+        return await parse_uv_lock_file(dependency_file_path)
+    if dependency_file_path.name == "requirements.txt":
+        return await parse_requirements_txt_file(dependency_file_path)
+    # Assume dependency_file_path.name == "pyproject.toml"
+    return await parse_pylock_toml_file(dependency_file_path)
+
+
+def _generate_summary_outputs(
+    vulnerable_count: int,
+    maintenance_issue_packages: list[PackageInfo],
+    total_dependencies: int,
     config: Configuration,
-    http_client: AsyncCacheClient,
-    disable_cache: bool,
-) -> tuple[int, Iterable[ConsoleRenderable]]:
-    """Checks dependencies for vulnerabilities and summarizes the results
-
-    Args:
-        dependency_file_path: PEP751 pylock.toml, requirements.txt, or uv.lock file path
-        config: uv-secure configuration object
-        http_client: HTTP client for making requests
-        disable_cache: flag whether to disable cache for HTTP requests
-
-    Returns:
-        tuple with status code and output for console to render
-    """
+    vulnerable_packages: list[PackageInfo],
+) -> tuple[int, list[ConsoleRenderable]]:
+    """Generate summary outputs and determine status"""
     console_outputs: list[ConsoleRenderable] = []
-
-    if not await dependency_file_path.exists():
-        console_outputs.append(
-            Text.from_markup(
-                f"[bold red]Error:[/] File {dependency_file_path} does not exist."
-            )
-        )
-        return 3, console_outputs
-
-    try:
-        if dependency_file_path.name == "uv.lock":
-            dependencies = await parse_uv_lock_file(dependency_file_path)
-        elif dependency_file_path.name == "requirements.txt":
-            dependencies = await parse_requirements_txt_file(dependency_file_path)
-        else:  # Assume dependency_file_path.name == "pyproject.toml"
-            dependencies = await parse_pylock_toml_file(dependency_file_path)
-    except Exception as e:
-        console_outputs.append(
-            Text.from_markup(
-                f"[bold red]Error:[/] Failed to parse {dependency_file_path}: {e}"
-            )
-        )
-        return 3, console_outputs
-
-    if len(dependencies) == 0:
-        return 0, console_outputs
-
-    console_outputs.append(
-        Text.from_markup(
-            f"[bold cyan]Checking {dependency_file_path} dependencies for "
-            "vulnerabilities ...[/]\n"
-        )
-    )
-
-    packages = await download_packages(dependencies, http_client, disable_cache)
-
-    total_dependencies = len(packages)
-    vulnerable_count = 0
-    vulnerable_packages = []
-    maintenance_issue_packages = []
-
-    ignore_packages = {}
-    if config.ignore_packages is not None:
-        ignore_packages = {
-            name: get_specifier_sets(tuple(specifiers))
-            for name, specifiers in config.ignore_packages.items()
-        }
-
-    has_none_direct_dependency = any(
-        isinstance(package, PackageInfo) and package.direct_dependency is None
-        for package in packages
-    )
-    if has_none_direct_dependency and (
-        config.vulnerability_criteria.check_direct_dependencies_only
-        or config.maintainability_criteria.check_direct_dependencies_only
-    ):
-        console_outputs.append(
-            Text.from_markup(
-                f"[bold yellow]Warning:[/] {dependency_file_path} doesn't contain "
-                "the necessary information to determine direct dependencies."
-            )
-        )
-
-    for idx, package in enumerate(packages):
-        if isinstance(package, BaseException):
-            console_outputs.append(
-                Text.from_markup(
-                    f"[bold red]Error:[/] {dependencies[idx]} raised exception: "
-                    f"{package}"
-                )
-            )
-            return 3, console_outputs
-
-        if package.info.name in ignore_packages:
-            specifiers: tuple[SpecifierSet, ...] = ignore_packages[package.info.name]
-            if len(specifiers) == 0 or any(
-                specifier.contains(package.info.version) for specifier in specifiers
-            ):
-                console_outputs.append(
-                    Text.from_markup(
-                        f"[bold yellow]Skipping {package.info.name} "
-                        f"({package.info.version}) as it is ignored[/]"
-                    )
-                )
-                continue
-
-        if (
-            package.direct_dependency is not False
-            or not config.vulnerability_criteria.check_direct_dependencies_only
-        ):
-            # Filter out ignored vulnerabilities
-            package.vulnerabilities = [
-                vuln
-                for vuln in package.vulnerabilities
-                if (
-                    config.vulnerability_criteria.ignore_vulnerabilities is None
-                    or vuln.id
-                    not in config.vulnerability_criteria.ignore_vulnerabilities
-                )
-                and vuln.withdrawn is None
-            ]
-            if len(package.vulnerabilities) > 0:
-                vulnerable_count += len(package.vulnerabilities)
-                vulnerable_packages.append(package)
-
-        if (
-            package.direct_dependency is not False
-            or not config.maintainability_criteria.check_direct_dependencies_only
-        ):
-            found_rejected_yanked_package = (
-                config.maintainability_criteria.forbid_yanked and package.info.yanked
-            )
-            found_over_age_package = (
-                config.maintainability_criteria.max_package_age is not None
-                and package.age is not None
-                and package.age > config.maintainability_criteria.max_package_age
-            )
-            if found_rejected_yanked_package or found_over_age_package:
-                maintenance_issue_packages.append(package)
-
     inf = inflect.engine()
     total_plural = inf.plural("dependency", total_dependencies)
     vulnerable_plural = inf.plural("vulnerability", vulnerable_count)
@@ -360,6 +327,157 @@ async def check_dependencies(
                 f"All dependencies appear safe!"
             )
         )
+
+    return status, console_outputs
+
+
+def _process_package_for_vulnerabilities(
+    package: PackageInfo,
+    config: Configuration,
+    ignore_packages: dict[str, tuple[SpecifierSet, ...]],
+) -> int:
+    """Process a single package for vulnerabilities and return count found"""
+    if not _should_check_vulnerabilities(package, config):
+        return 0
+
+    _filter_vulnerabilities(package, config)
+    return len(package.vulnerabilities)
+
+
+def _process_package_for_maintenance_issues(
+    package: PackageInfo, config: Configuration
+) -> bool:
+    """Process a single package for maintenance issues and return if found"""
+    return _should_check_maintenance_issues(
+        package, config
+    ) and _has_maintenance_issues(package, config)
+
+
+def _warn_about_direct_dependencies(
+    dependency_file_path: APath, packages: list, config: Configuration
+) -> Text | None:
+    """Check if we need to warn about missing direct dependency information"""
+    has_none_direct_dependency = any(
+        isinstance(package, PackageInfo) and package.direct_dependency is None
+        for package in packages
+    )
+    if has_none_direct_dependency and (
+        config.vulnerability_criteria.check_direct_dependencies_only
+        or config.maintainability_criteria.check_direct_dependencies_only
+    ):
+        return Text.from_markup(
+            f"[bold yellow]Warning:[/] {dependency_file_path} doesn't contain "
+            "the necessary information to determine direct dependencies."
+        )
+    return None
+
+
+async def check_dependencies(
+    dependency_file_path: APath,
+    config: Configuration,
+    http_client: AsyncCacheClient,
+    disable_cache: bool,
+) -> tuple[int, Iterable[ConsoleRenderable]]:
+    """Checks dependencies for vulnerabilities and summarizes the results
+
+    Args:
+        dependency_file_path: PEP751 pylock.toml, requirements.txt, or uv.lock file path
+        config: uv-secure configuration object
+        http_client: HTTP client for making requests
+        disable_cache: flag whether to disable cache for HTTP requests
+
+    Returns:
+        tuple with status code and output for console to render
+    """
+    console_outputs: list[ConsoleRenderable] = []
+
+    if not await dependency_file_path.exists():
+        console_outputs.append(
+            Text.from_markup(
+                f"[bold red]Error:[/] File {dependency_file_path} does not exist."
+            )
+        )
+        return 3, console_outputs
+
+    try:
+        dependencies = await _parse_dependency_file(dependency_file_path)
+    except Exception as e:
+        console_outputs.append(
+            Text.from_markup(
+                f"[bold red]Error:[/] Failed to parse {dependency_file_path}: {e}"
+            )
+        )
+        return 3, console_outputs
+
+    if len(dependencies) == 0:
+        return 0, console_outputs
+
+    console_outputs.append(
+        Text.from_markup(
+            f"[bold cyan]Checking {dependency_file_path} dependencies for "
+            "vulnerabilities ...[/]\n"
+        )
+    )
+
+    packages = await download_packages(dependencies, http_client, disable_cache)
+
+    total_dependencies = len(packages)
+    vulnerable_count = 0
+    vulnerable_packages = []
+    maintenance_issue_packages = []
+
+    ignore_packages = {}
+    if config.ignore_packages is not None:
+        ignore_packages = {
+            name: get_specifier_sets(tuple(specifiers))
+            for name, specifiers in config.ignore_packages.items()
+        }
+
+    # Check if we need to warn about direct dependencies
+    warning = _warn_about_direct_dependencies(dependency_file_path, packages, config)
+    if warning:
+        console_outputs.append(warning)
+
+    for idx, package in enumerate(packages):
+        if isinstance(package, BaseException):
+            console_outputs.append(
+                Text.from_markup(
+                    f"[bold red]Error:[/] {dependencies[idx]} raised exception: "
+                    f"{package}"
+                )
+            )
+            return 3, console_outputs
+
+        if _should_skip_package(package, ignore_packages):
+            console_outputs.append(
+                Text.from_markup(
+                    f"[bold yellow]Skipping {package.info.name} "
+                    f"({package.info.version}) as it is ignored[/]"
+                )
+            )
+            continue
+
+        # Process vulnerabilities
+        vuln_count = _process_package_for_vulnerabilities(
+            package, config, ignore_packages
+        )
+        if vuln_count > 0:
+            vulnerable_count += vuln_count
+            vulnerable_packages.append(package)
+
+        # Process maintenance issues
+        if _process_package_for_maintenance_issues(package, config):
+            maintenance_issue_packages.append(package)
+
+    status, summary_outputs = _generate_summary_outputs(
+        vulnerable_count,
+        maintenance_issue_packages,
+        total_dependencies,
+        config,
+        vulnerable_packages,
+    )
+    console_outputs.extend(summary_outputs)
+
     return status, console_outputs
 
 
@@ -368,6 +486,101 @@ class RunStatus(Enum):
     MAINTENANCE_ISSUES_FOUND = 1
     VULNERABILITIES_FOUND = 2
     RUNTIME_ERROR = 3
+
+
+async def _resolve_file_paths_and_configs(
+    file_paths: Sequence[Path] | None, config_path: Path | None
+) -> tuple[tuple[APath, ...], dict[APath, Configuration]]:
+    """Resolve file paths and their associated configurations"""
+    file_apaths: tuple[APath, ...] = (
+        (APath(),) if not file_paths else tuple(APath(file) for file in file_paths)
+    )
+
+    if len(file_apaths) == 1 and await file_apaths[0].is_dir():
+        lock_to_config_map = await get_dependency_file_to_config_map(file_apaths[0])
+        file_apaths = tuple(lock_to_config_map.keys())
+    else:
+        if config_path is not None:
+            possible_config = await config_file_factory(APath(config_path))
+            config = possible_config if possible_config is not None else Configuration()
+            lock_to_config_map = dict.fromkeys(file_apaths, config)
+        elif all(
+            file_path.name in {"pylock.toml", "requirements.txt", "uv.lock"}
+            for file_path in file_apaths
+        ):
+            lock_to_config_map = await get_dependency_files_to_config_map(file_apaths)
+            file_apaths = tuple(lock_to_config_map.keys())
+        else:
+            raise ValueError(
+                "file_paths must either reference a single project root directory "
+                "or a sequence of uv.lock / pylock.toml / requirements.txt file paths"
+            )
+
+    return file_apaths, lock_to_config_map
+
+
+def _apply_cli_config_overrides(
+    lock_to_config_map: dict[APath, Configuration],
+    aliases: bool | None,
+    desc: bool | None,
+    ignore_vulns: str | None,
+    ignore_pkgs: list[str] | None,
+    forbid_yanked: bool | None,
+    check_direct_dependency_vulnerabilities_only: bool | None,
+    check_direct_dependency_maintenance_issues_only: bool | None,
+    max_package_age: int | None,
+) -> dict[APath, Configuration]:
+    """Apply CLI configuration overrides to lock-to-config mapping"""
+    if any(
+        (
+            aliases,
+            desc,
+            ignore_vulns,
+            ignore_pkgs,
+            forbid_yanked,
+            check_direct_dependency_vulnerabilities_only,
+            check_direct_dependency_maintenance_issues_only,
+            max_package_age is not None,
+        )
+    ):
+        cli_config = config_cli_arg_factory(
+            aliases,
+            check_direct_dependency_maintenance_issues_only,
+            check_direct_dependency_vulnerabilities_only,
+            desc,
+            forbid_yanked,
+            max_package_age,
+            ignore_vulns,
+            ignore_pkgs,
+        )
+        return {
+            lock_file: override_config(config, cli_config)
+            for lock_file, config in lock_to_config_map.items()
+        }
+    return lock_to_config_map
+
+
+def _determine_final_status(status_outputs: list[tuple[int, Iterable]]) -> RunStatus:
+    """Determine final run status from individual check results"""
+    maintenance_issues_found = False
+    vulnerabilities_found = False
+    runtime_error = False
+
+    for status, _ in status_outputs:
+        if status == 1:
+            maintenance_issues_found = True
+        elif status == 2:
+            vulnerabilities_found = True
+        elif status == 3:
+            runtime_error = True
+
+    if runtime_error:
+        return RunStatus.RUNTIME_ERROR
+    if vulnerabilities_found:
+        return RunStatus.VULNERABILITIES_FOUND
+    if maintenance_issues_found:
+        return RunStatus.MAINTENANCE_ISSUES_FOUND
+    return RunStatus.NO_VULNERABILITIES
 
 
 async def check_lock_files(
@@ -411,69 +624,35 @@ async def check_lock_files(
     Returns:
         True if vulnerabilities were found, False otherwise.
     """
-    file_apaths: tuple[APath, ...] = (
-        (APath(),) if not file_paths else tuple(APath(file) for file in file_paths)
-    )
-
     console = Console()
 
     try:
-        if len(file_apaths) == 1 and await file_apaths[0].is_dir():
-            lock_to_config_map = await get_dependency_file_to_config_map(file_apaths[0])
-            file_apaths = tuple(lock_to_config_map.keys())
+        file_apaths, lock_to_config_map = await _resolve_file_paths_and_configs(
+            file_paths, config_path
+        )
+    except (ExceptionGroup, ValueError) as e:
+        if isinstance(e, ExceptionGroup):
+            for exc in e.exceptions:
+                console.print(f"[bold red]Error:[/] {exc}")
         else:
-            if config_path is not None:
-                possible_config = await config_file_factory(APath(config_path))
-                config = (
-                    possible_config if possible_config is not None else Configuration()
-                )
-                lock_to_config_map = dict.fromkeys(file_apaths, config)
-            elif all(
-                file_path.name in {"pylock.toml", "requirements.txt", "uv.lock"}
-                for file_path in file_apaths
-            ):
-                lock_to_config_map = await get_dependency_files_to_config_map(
-                    file_apaths
-                )
-                file_apaths = tuple(lock_to_config_map.keys())
-            else:
-                console.print(
-                    "[bold red]Error:[/] file_paths must either reference a single "
-                    "project root directory or a sequence of uv.lock / pylock.toml / "
-                    "requirements.txt file paths"
-                )
-                return RunStatus.RUNTIME_ERROR
-    except ExceptionGroup as eg:
-        for e in eg.exceptions:
-            console.print(f"[bold red]Error:[/] {e}")
+            console.print(
+                "[bold red]Error:[/] file_paths must either reference a single "
+                "project root directory or a sequence of uv.lock / pylock.toml / "
+                "requirements.txt file paths"
+            )
         return RunStatus.RUNTIME_ERROR
 
-    if any(
-        (
-            aliases,
-            desc,
-            ignore_vulns,
-            ignore_pkgs,
-            forbid_yanked,
-            check_direct_dependency_vulnerabilities_only,
-            check_direct_dependency_maintenance_issues_only,
-            max_package_age is not None,
-        )
-    ):
-        cli_config = config_cli_arg_factory(
-            aliases,
-            check_direct_dependency_maintenance_issues_only,
-            check_direct_dependency_vulnerabilities_only,
-            desc,
-            forbid_yanked,
-            max_package_age,
-            ignore_vulns,
-            ignore_pkgs,
-        )
-        lock_to_config_map = {
-            lock_file: override_config(config, cli_config)
-            for lock_file, config in lock_to_config_map.items()
-        }
+    lock_to_config_map = _apply_cli_config_overrides(
+        lock_to_config_map,
+        aliases,
+        desc,
+        ignore_vulns,
+        ignore_pkgs,
+        forbid_yanked,
+        check_direct_dependency_vulnerabilities_only,
+        check_direct_dependency_maintenance_issues_only,
+        max_package_age,
+    )
 
     # I found antivirus programs (specifically Windows Defender) can almost fully
     # negate the benefits of using a file cache if you don't exclude the virus checker
@@ -492,21 +671,8 @@ async def check_lock_files(
             for dependency_file_path in file_apaths
         ]
         status_outputs = await asyncio.gather(*status_output_tasks)
-    maintenance_issues_found = False
-    vulnerabilities_found = False
-    runtime_error = False
-    for status, console_output in status_outputs:
+
+    for _, console_output in status_outputs:
         console.print(*console_output)
-        if status == 1:
-            maintenance_issues_found = True
-        elif status == 2:
-            vulnerabilities_found = True
-        elif status == 3:
-            runtime_error = True
-    if runtime_error:
-        return RunStatus.RUNTIME_ERROR
-    if vulnerabilities_found:
-        return RunStatus.VULNERABILITIES_FOUND
-    if maintenance_issues_found:
-        return RunStatus.MAINTENANCE_ISSUES_FOUND
-    return RunStatus.NO_VULNERABILITIES
+
+    return _determine_final_status(status_outputs)
