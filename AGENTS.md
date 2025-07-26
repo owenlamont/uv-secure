@@ -2,6 +2,13 @@
 
 Guidance on how to navigate and modify this codebase.
 
+## What This Tool Does
+
+uv-secure is an async CLI tool that scans PyPI dependencies in `uv.lock`,
+`pylock.toml`, and `requirements.txt` files for known vulnerabilities and
+maintenance issues. It fetches vulnerability data from PyPI's JSON API
+concurrently and supports hierarchical configuration discovery.
+
 ## Project Structure
 
 - **/src/** – All application code lives here.
