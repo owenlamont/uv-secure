@@ -84,10 +84,9 @@ plugins = [
   "pydantic.mypy"
 ]
 
-python_version = "3.10"
-files = ["src"]
+files = ["src", "tests"]
 
-ignore_missing_imports = true
+ignore_missing_imports = false
 follow_imports = "silent"
 
 check_untyped_defs = true
@@ -133,13 +132,12 @@ select = [
     "C4",
     "D",
     "E",
+    "ERA",
     "F",
     "FURB",
     "I",
     "ISC",
     "N",
-    "NPY",
-    "PD",
     "PERF",
     "PT",
     "PTH",
@@ -213,11 +211,11 @@ dev = [
     "coverage>=7.6.9",
     "freezegun>=1.5.1",
     "mypy>=1.17.0",
-    "pip>=25.0",
+    "pip>=25.0", # Only used for PyCharm debugging
     "pytest>=8.3.4",
     "pytest-asyncio>=0.25.2",
     "pytest-cov>=6.0.0",
     "pytest-httpx>=0.35.0",
     "pytest-mock>=3.14.0",
-    "setuptools>=75.8.0",
+    "setuptools>=75.8.0", # Only used for PyCharm debugging
 ]

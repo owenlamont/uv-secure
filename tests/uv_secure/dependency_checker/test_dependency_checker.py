@@ -99,3 +99,113 @@ async def test_check_dependencies_alias_hyperlinks(
             assert alias in cell.plain
             if expected_hyperlink is not None:
                 assert expected_hyperlink in cell.markup
+
+
+@pytest.mark.asyncio
+async def test_check_dependencies_no_fix_versions(
+    temp_uv_lock_file: Path, httpx_mock: HTTPXMock
+) -> None:
+    """Test vulnerability with no fix versions available."""
+    # Mock the response with vulnerability that has no fixed_in versions
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "Example package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "Example package for testing",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
+            "vulnerabilities": [
+                {
+                    "id": "VULN-NO-FIX",
+                    "details": "Vulnerability with no fix available",
+                    "fixed_in": None,  # No fix available
+                    "aliases": ["CVE-2024-99999"],
+                    "link": "https://example.com/vuln-no-fix",
+                }
+            ],
+        },
+    )
+
+    storage = AsyncFileStorage(base_path=Path.home() / ".cache/uv-secure", ttl=86400.0)
+    async with AsyncCacheClient(
+        timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
+    ) as http_client:
+        status, renderables = await check_dependencies(
+            APath(temp_uv_lock_file),
+            Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),
+            http_client,
+            True,
+        )
+
+    assert status == 2
+    renderables_list = list(renderables)
+    assert len(renderables_list) == 3
+    assert isinstance(renderables_list[2], Table)
+
+
+@pytest.mark.asyncio
+async def test_check_dependencies_no_aliases(
+    temp_uv_lock_file: Path, httpx_mock: HTTPXMock
+) -> None:
+    """Test vulnerability with no aliases available."""
+    # Mock the response with vulnerability that has no aliases
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "Example package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "Example package for testing",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
+            "vulnerabilities": [
+                {
+                    "id": "VULN-NO-ALIASES",
+                    "details": "Vulnerability with no aliases",
+                    "fixed_in": ["2.0.0"],
+                    "aliases": None,  # No aliases available
+                    "link": "https://example.com/vuln-no-aliases",
+                }
+            ],
+        },
+    )
+
+    storage = AsyncFileStorage(base_path=Path.home() / ".cache/uv-secure", ttl=86400.0)
+    async with AsyncCacheClient(
+        timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
+    ) as http_client:
+        status, renderables = await check_dependencies(
+            APath(temp_uv_lock_file),
+            Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),
+            http_client,
+            True,
+        )
+
+    assert status == 2
+    renderables_list = list(renderables)
+    assert len(renderables_list) == 3
+    assert isinstance(renderables_list[2], Table)
