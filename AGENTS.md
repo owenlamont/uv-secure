@@ -50,6 +50,17 @@ concurrently and supports hierarchical configuration discovery.
   linking an unresolved GitHub issues) or lastly explaining opaque code or non-obvious
   trade offs or workarounds.
 
+## Development Environment / Terminal
+
+- uv-secure runs on Mac, Linux, and Windows. Don't make assumptions about the shell
+  you're running on without checking first (it could be a Posix shell like Bash or
+  Windows Powershell).
+- Being a uv project you should never need to activate a virtual environment or call pip
+  or python directly. Use `uv add` to add dependencies and `uv run` to run Python
+  scripts or code.
+- pre-commit should be installed as a global uv tool, it doesn't require a `uv run`
+  prefix.
+
 ## Testing
 
 - Always run `uv run pytest --cov=uv_secure --cov-branch --cov-report term-missing` (
@@ -59,9 +70,6 @@ concurrently and supports hierarchical configuration discovery.
   versions. Inspect any missing coverage though, and if not attributable to a Python
   or platform version difference add new tests to cover the missing branch coverage.
 - Prefer system tests at the CLI interface level for exercising new functionality.
-- uv-secure runs on Mac, Linux, and Windows. Don't make assumptions about the shell
-  you're running on without checking first (it could be a Posix shell like Bash or
-  Windows Powershell).
 - Warnings are treated with errors in tests. Warnings emitted from code in this repo
   must be addressed. Warnings emitted from third party packages can be ignored (using
   the most specific ignores practical).
