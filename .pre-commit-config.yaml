@@ -25,10 +25,10 @@ repos:
     rev: v3.3.0
     hooks:
       - id: complexipy
-  - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.45.0
+  - repo: https://github.com/rvben/rumdl-pre-commit
+    rev: v0.0.99  # Use the latest release tag
     hooks:
-      - id: markdownlint
+      - id: rumdl
         args: [--fix]
   - repo: local
     hooks:

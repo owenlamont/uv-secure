@@ -24,7 +24,6 @@ concurrently and supports hierarchical configuration discovery.
   according to the src module they are testing (just with a `test_` prefix) except for
   rarer tests checking functionality spanning several modules.
 - **pyproject.toml** - Package configuration and most linter configuration
-- **markdownlint.yaml** - Markdown linter configuration
 - **.pre-commit-config.yaml** - Pre-commit linters and some configuration
 - **.yamllint** - Yaml linter configuration
 

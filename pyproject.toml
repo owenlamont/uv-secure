@@ -204,6 +204,24 @@ split-on-trailing-comma=false
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+[tool.rumdl]
+# Global configuration options
+line-length = 88
+disable = []
+exclude = []
+respect-gitignore = true
+
+[tool.rumdl.MD013]
+line_length = 88
+code_blocks = true
+tables = true
+headings = true
+strict = false
+stern = false
+
+[tool.rumdl.MD035]
+style = "---"
+
 [tool.typos]
 
 [dependency-groups]
