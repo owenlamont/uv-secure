@@ -396,6 +396,106 @@ def _warn_about_direct_dependencies(
     return None
 
 
+def _build_ignore_packages(
+    config: Configuration,
+) -> dict[str, tuple[SpecifierSet, ...]]:
+    """Build the ignore packages mapping from configuration"""
+    if config.ignore_packages is None:
+        return {}
+    return {
+        name: get_specifier_sets(tuple(specifiers))
+        for name, specifiers in config.ignore_packages.items()
+    }
+
+
+async def _load_dependencies_with_errors(
+    dependency_file_path: APath,
+) -> tuple[int, list, list[ConsoleRenderable]]:
+    """Load dependencies from a lock/requirements file and capture errors.
+
+    Returns a tuple of (status_code, dependencies, outputs). A status code of 3
+    indicates a runtime error; 0 indicates success (which may still result in an
+    empty dependency list).
+    """
+    outputs: list[ConsoleRenderable] = []
+    if not await dependency_file_path.exists():
+        outputs.append(
+            Text.from_markup(
+                f"[bold red]Error:[/] File {dependency_file_path} does not exist."
+            )
+        )
+        return 3, [], outputs
+
+    try:
+        dependencies = await _parse_dependency_file(dependency_file_path)
+    except Exception as e:  # pragma: no cover - defensive, surfaced to user
+        outputs.append(
+            Text.from_markup(
+                f"[bold red]Error:[/] Failed to parse {dependency_file_path}: {e}"
+            )
+        )
+        return 3, [], outputs
+
+    return 0, dependencies, outputs
+
+
+def _accumulate_from_metadata(
+    package_metadata: Iterable[
+        tuple[PackageInfo | BaseException, PackageIndex | BaseException]
+    ],
+    dependencies: Sequence,
+    config: Configuration,
+    ignore_packages: dict[str, tuple[SpecifierSet, ...]],
+) -> tuple[int, int, list[PackageInfo], list[PackageInfo], list[ConsoleRenderable]]:
+    """Accumulate vulnerability and maintenance results across all packages.
+
+    Returns (error_status, vuln_count, vulnerable_pkgs, maintenance_issue_pkgs,
+    outputs). If error_status is 3, an error occurred and outputs contain the
+    relevant message.
+    """
+    vuln_count = 0
+    vulnerable_pkgs: list[PackageInfo] = []
+    maintenance_issue_pkgs: list[PackageInfo] = []
+    outputs: list[ConsoleRenderable] = []
+
+    for idx, (package_info, package_index) in enumerate(package_metadata):
+        if isinstance(package_info, BaseException) or isinstance(
+            package_index, BaseException
+        ):
+            ex = (
+                package_info
+                if isinstance(package_info, BaseException)
+                else package_index
+            )
+            outputs.append(
+                Text.from_markup(
+                    f"[bold red]Error:[/] {dependencies[idx]} raised exception: {ex}"
+                )
+            )
+            return 3, 0, [], [], outputs
+
+        if _should_skip_package(package_info, ignore_packages):
+            outputs.append(
+                Text.from_markup(
+                    f"[bold yellow]Skipping {package_info.info.name} "
+                    f"({package_info.info.version}) as it is ignored[/]"
+                )
+            )
+            continue
+
+        added = _process_package_for_vulnerabilities(
+            package_info, config, ignore_packages
+        )
+        if added > 0:
+            vuln_count += added
+            vulnerable_pkgs.append(package_info)
+
+        if _process_package_for_maintenance_issues(package_index, package_info, config):
+            maintenance_issue_pkgs.append(package_info)
+
+    return 0, vuln_count, vulnerable_pkgs, maintenance_issue_pkgs, outputs
+
+
 async def check_dependencies(
     dependency_file_path: APath,
     config: Configuration,
@@ -415,24 +515,12 @@ async def check_dependencies(
     """
     console_outputs: list[ConsoleRenderable] = []
 
-    if not await dependency_file_path.exists():
-        console_outputs.append(
-            Text.from_markup(
-                f"[bold red]Error:[/] File {dependency_file_path} does not exist."
-            )
-        )
+    status, dependencies, initial_outputs = await _load_dependencies_with_errors(
+        dependency_file_path
+    )
+    console_outputs.extend(initial_outputs)
+    if status == 3:
         return 3, console_outputs
-
-    try:
-        dependencies = await _parse_dependency_file(dependency_file_path)
-    except Exception as e:
-        console_outputs.append(
-            Text.from_markup(
-                f"[bold red]Error:[/] Failed to parse {dependency_file_path}: {e}"
-            )
-        )
-        return 3, console_outputs
-
     if len(dependencies) == 0:
         return 0, console_outputs
 
@@ -460,12 +548,7 @@ async def check_dependencies(
     vulnerable_packages = []
     maintenance_issue_packages = []
 
-    ignore_packages = {}
-    if config.ignore_packages is not None:
-        ignore_packages = {
-            name: get_specifier_sets(tuple(specifiers))
-            for name, specifiers in config.ignore_packages.items()
-        }
+    ignore_packages = _build_ignore_packages(config)
 
     # Check if we need to warn about direct dependencies
     warning = _warn_about_direct_dependencies(
@@ -474,45 +557,21 @@ async def check_dependencies(
     if warning:
         console_outputs.append(warning)
 
-    for idx, (package_info, package_index) in enumerate(package_metadata):
-        if isinstance(package_info, BaseException):
-            console_outputs.append(
-                Text.from_markup(
-                    f"[bold red]Error:[/] {dependencies[idx]} raised exception: "
-                    f"{package_info}"
-                )
-            )
-            return 3, console_outputs
-
-        if isinstance(package_index, BaseException):
-            console_outputs.append(
-                Text.from_markup(
-                    f"[bold red]Error:[/] {dependencies[idx]} raised exception: "
-                    f"{package_index}"
-                )
-            )
-            return 3, console_outputs
-
-        if _should_skip_package(package_info, ignore_packages):
-            console_outputs.append(
-                Text.from_markup(
-                    f"[bold yellow]Skipping {package_info.info.name} "
-                    f"({package_info.info.version}) as it is ignored[/]"
-                )
-            )
-            continue
-
-        # Process vulnerabilities
-        vuln_count = _process_package_for_vulnerabilities(
-            package_info, config, ignore_packages
-        )
-        if vuln_count > 0:
-            vulnerable_count += vuln_count
-            vulnerable_packages.append(package_info)
-
-        # Process maintenance issues
-        if _process_package_for_maintenance_issues(package_index, package_info, config):
-            maintenance_issue_packages.append(package_info)
+    (
+        err_status,
+        vuln_added,
+        newly_vulnerable_packages,
+        newly_maintenance_issue_packages,
+        loop_outputs,
+    ) = _accumulate_from_metadata(
+        package_metadata, dependencies, config, ignore_packages
+    )
+    console_outputs.extend(loop_outputs)
+    if err_status == 3:
+        return 3, console_outputs
+    vulnerable_count += vuln_added
+    vulnerable_packages.extend(newly_vulnerable_packages)
+    maintenance_issue_packages.extend(newly_maintenance_issue_packages)
 
     status, summary_outputs = _generate_summary_outputs(
         vulnerable_count,
