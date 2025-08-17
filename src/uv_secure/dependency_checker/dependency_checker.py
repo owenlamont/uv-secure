@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 
 from anyio import Path as APath
+from asyncer import create_task_group
 from hishel import AsyncCacheClient, AsyncFileStorage
 from httpx import Headers
 import humanize
@@ -28,13 +29,16 @@ from uv_secure.directory_scanner.directory_scanner import (
     get_dependency_files_to_config_map,
 )
 from uv_secure.package_info import (
+    download_package_indexes,
     download_packages,
+    PackageIndex,
     PackageInfo,
     parse_pylock_toml_file,
     parse_requirements_txt_file,
     parse_uv_lock_file,
+    ProjectState,
+    Vulnerability,
 )
-from uv_secure.package_info.package_info_downloader import Vulnerability
 
 
 if sys.version_info < (3, 11):
@@ -234,11 +238,11 @@ def _should_check_vulnerabilities(package: PackageInfo, config: Configuration) -
 
 
 def _should_check_maintenance_issues(
-    package: PackageInfo, config: Configuration
+    package_info: PackageInfo, config: Configuration
 ) -> bool:
     """Check if package should be checked for maintenance issues"""
     return (
-        package.direct_dependency is not False
+        package_info.direct_dependency is not False
         or not config.maintainability_criteria.check_direct_dependencies_only
     )
 
@@ -256,17 +260,37 @@ def _filter_vulnerabilities(package: PackageInfo, config: Configuration) -> None
     ]
 
 
-def _has_maintenance_issues(package: PackageInfo, config: Configuration) -> bool:
+def _has_maintenance_issues(
+    package_index: PackageIndex, package_info: PackageInfo, config: Configuration
+) -> bool:
     """Check if package has maintenance issues"""
+    found_rejected_archived_package = (
+        config.maintainability_criteria.forbid_archived
+        and package_index.project_status.status == ProjectState.ARCHIVED
+    )
+    found_rejected_deprecated_package = (
+        config.maintainability_criteria.forbid_deprecated
+        and package_index.project_status.status == ProjectState.DEPRECATED
+    )
+    found_rejected_quarantined_package = (
+        config.maintainability_criteria.forbid_quarantined
+        and package_index.project_status.status == ProjectState.QUARANTINED
+    )
     found_rejected_yanked_package = (
-        config.maintainability_criteria.forbid_yanked and package.info.yanked
+        config.maintainability_criteria.forbid_yanked and package_info.info.yanked
     )
     found_over_age_package = (
         config.maintainability_criteria.max_package_age is not None
-        and package.age is not None
-        and package.age > config.maintainability_criteria.max_package_age
+        and package_info.age is not None
+        and package_info.age > config.maintainability_criteria.max_package_age
     )
-    return found_rejected_yanked_package or found_over_age_package
+    return (
+        found_rejected_archived_package
+        or found_rejected_deprecated_package
+        or found_rejected_quarantined_package
+        or found_rejected_yanked_package
+        or found_over_age_package
+    )
 
 
 async def _parse_dependency_file(dependency_file_path: APath) -> list:
@@ -345,12 +369,12 @@ def _process_package_for_vulnerabilities(
 
 
 def _process_package_for_maintenance_issues(
-    package: PackageInfo, config: Configuration
+    package_index: PackageIndex, package_info: PackageInfo, config: Configuration
 ) -> bool:
     """Process a single package for maintenance issues and return if found"""
     return _should_check_maintenance_issues(
-        package, config
-    ) and _has_maintenance_issues(package, config)
+        package_info, config
+    ) and _has_maintenance_issues(package_index, package_info, config)
 
 
 def _warn_about_direct_dependencies(
@@ -419,9 +443,19 @@ async def check_dependencies(
         )
     )
 
-    packages = await download_packages(dependencies, http_client, disable_cache)
+    async with create_task_group() as tg:
+        package_infos = tg.soonify(download_packages)(
+            dependencies, http_client, disable_cache
+        )
+        package_indexes = tg.soonify(download_package_indexes)(
+            dependencies, http_client, disable_cache
+        )
 
-    total_dependencies = len(packages)
+    package_metadata: list[
+        tuple[PackageInfo | BaseException, PackageIndex | BaseException]
+    ] = list(zip(package_infos.value, package_indexes.value, strict=True))
+
+    total_dependencies = len(package_metadata)
     vulnerable_count = 0
     vulnerable_packages = []
     maintenance_issue_packages = []
@@ -434,40 +468,51 @@ async def check_dependencies(
         }
 
     # Check if we need to warn about direct dependencies
-    warning = _warn_about_direct_dependencies(dependency_file_path, packages, config)
+    warning = _warn_about_direct_dependencies(
+        dependency_file_path, package_infos.value, config
+    )
     if warning:
         console_outputs.append(warning)
 
-    for idx, package in enumerate(packages):
-        if isinstance(package, BaseException):
+    for idx, (package_info, package_index) in enumerate(package_metadata):
+        if isinstance(package_info, BaseException):
             console_outputs.append(
                 Text.from_markup(
                     f"[bold red]Error:[/] {dependencies[idx]} raised exception: "
-                    f"{package}"
+                    f"{package_info}"
                 )
             )
             return 3, console_outputs
 
-        if _should_skip_package(package, ignore_packages):
+        if isinstance(package_index, BaseException):
             console_outputs.append(
                 Text.from_markup(
-                    f"[bold yellow]Skipping {package.info.name} "
-                    f"({package.info.version}) as it is ignored[/]"
+                    f"[bold red]Error:[/] {dependencies[idx]} raised exception: "
+                    f"{package_index}"
+                )
+            )
+            return 3, console_outputs
+
+        if _should_skip_package(package_info, ignore_packages):
+            console_outputs.append(
+                Text.from_markup(
+                    f"[bold yellow]Skipping {package_info.info.name} "
+                    f"({package_info.info.version}) as it is ignored[/]"
                 )
             )
             continue
 
         # Process vulnerabilities
         vuln_count = _process_package_for_vulnerabilities(
-            package, config, ignore_packages
+            package_info, config, ignore_packages
         )
         if vuln_count > 0:
             vulnerable_count += vuln_count
-            vulnerable_packages.append(package)
+            vulnerable_packages.append(package_info)
 
         # Process maintenance issues
-        if _process_package_for_maintenance_issues(package, config):
-            maintenance_issue_packages.append(package)
+        if _process_package_for_maintenance_issues(package_index, package_info, config):
+            maintenance_issue_packages.append(package_info)
 
     status, summary_outputs = _generate_summary_outputs(
         vulnerable_count,
@@ -525,6 +570,9 @@ def _apply_cli_config_overrides(
     desc: bool | None,
     ignore_vulns: str | None,
     ignore_pkgs: list[str] | None,
+    forbid_archived: bool | None,
+    forbid_deprecated: bool | None,
+    forbid_quarantined: bool | None,
     forbid_yanked: bool | None,
     check_direct_dependency_vulnerabilities_only: bool | None,
     check_direct_dependency_maintenance_issues_only: bool | None,
@@ -537,6 +585,9 @@ def _apply_cli_config_overrides(
             desc,
             ignore_vulns,
             ignore_pkgs,
+            forbid_archived,
+            forbid_deprecated,
+            forbid_quarantined,
             forbid_yanked,
             check_direct_dependency_vulnerabilities_only,
             check_direct_dependency_maintenance_issues_only,
@@ -548,6 +599,9 @@ def _apply_cli_config_overrides(
             check_direct_dependency_maintenance_issues_only,
             check_direct_dependency_vulnerabilities_only,
             desc,
+            forbid_archived,
+            forbid_deprecated,
+            forbid_quarantined,
             forbid_yanked,
             max_package_age,
             ignore_vulns,
@@ -590,6 +644,9 @@ async def check_lock_files(
     cache_path: Path,
     cache_ttl_seconds: float,
     disable_cache: bool,
+    forbid_archived: bool | None,
+    forbid_deprecated: bool | None,
+    forbid_quarantined: bool | None,
     forbid_yanked: bool | None,
     max_package_age: int | None,
     ignore_vulns: str | None,
@@ -610,6 +667,9 @@ async def check_lock_files(
         cache_path: path to cache directory
         cache_ttl_seconds: time in seconds to cache
         disable_cache: flag whether to disable cache
+        forbid_archived: flag whether to forbid archived dependencies
+        forbid_deprecated: flag whether to forbid deprecated dependencies
+        forbid_quarantined: flag whether to forbid quarantined dependencies
         forbid_yanked: flag whether to forbid yanked dependencies
         max_package_age: maximum age of dependencies in days
         ignore_vulns: Vulnerabilities IDs to ignore
@@ -648,6 +708,9 @@ async def check_lock_files(
         desc,
         ignore_vulns,
         ignore_pkgs,
+        forbid_archived,
+        forbid_deprecated,
+        forbid_quarantined,
         forbid_yanked,
         check_direct_dependency_vulnerabilities_only,
         check_direct_dependency_maintenance_issues_only,

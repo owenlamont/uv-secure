@@ -6,6 +6,9 @@ from pydantic import BaseModel, ConfigDict
 class MaintainabilityCriteria(BaseModel):
     model_config = ConfigDict(extra="forbid")
     max_package_age: timedelta | None = None
+    forbid_archived: bool = False
+    forbid_deprecated: bool = False
+    forbid_quarantined: bool = False
     forbid_yanked: bool = False
     check_direct_dependencies_only: bool = False
 
@@ -32,6 +35,9 @@ class OverrideConfiguration(BaseModel):
     desc: bool | None = None
     ignore_vulnerabilities: set[str] | None = None
     ignore_packages: dict[str, tuple[str, ...]] | None = None
+    forbid_archived: bool | None = None
+    forbid_deprecated: bool | None = None
+    forbid_quarantined: bool | None = None
     forbid_yanked: bool | None = None
     max_package_age: timedelta | None = None
 
@@ -68,6 +74,18 @@ def override_config(
         )
     if overrides.ignore_packages is not None:
         new_configuration.ignore_packages = overrides.ignore_packages
+    if overrides.forbid_archived is not None:
+        new_configuration.maintainability_criteria.forbid_archived = (
+            overrides.forbid_archived
+        )
+    if overrides.forbid_deprecated is not None:
+        new_configuration.maintainability_criteria.forbid_deprecated = (
+            overrides.forbid_deprecated
+        )
+    if overrides.forbid_quarantined is not None:
+        new_configuration.maintainability_criteria.forbid_quarantined = (
+            overrides.forbid_quarantined
+        )
     if overrides.forbid_yanked is not None:
         new_configuration.maintainability_criteria.forbid_yanked = (
             overrides.forbid_yanked

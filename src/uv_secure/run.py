@@ -64,6 +64,24 @@ _disable_cache_option = typer.Option(
     help="Flag whether to disable caching for vulnerability http requests",
 )
 
+_forbid_archived_option = typer.Option(
+    None,
+    "--forbid-archived",
+    help="Flag whether disallow archived package versions from being dependencies",
+)
+
+_forbid_deprecated_option = typer.Option(
+    None,
+    "--forbid-deprecated",
+    help="Flag whether disallow deprecated package versions from being dependencies",
+)
+
+_forbid_quarantined_option = typer.Option(
+    None,
+    "--forbid-quarantined",
+    help="Flag whether disallow quarantined package versions from being dependencies",
+)
+
 _forbid_yanked_option = typer.Option(
     None,
     "--forbid-yanked",
@@ -130,6 +148,9 @@ def main(
     cache_path: Path = _cache_path_option,
     cache_ttl_seconds: float = _cache_ttl_seconds_option,
     disable_cache: bool = _disable_cache_option,
+    forbid_archived: bool | None = _forbid_archived_option,
+    forbid_deprecated: bool | None = _forbid_deprecated_option,
+    forbid_quarantined: bool | None = _forbid_quarantined_option,
     forbid_yanked: bool | None = _forbid_yanked_option,
     max_package_age: int | None = _max_package_age_option,
     ignore_vulns: str | None = _ignore_vulns_option,
@@ -163,6 +184,9 @@ def main(
             cache_path,
             cache_ttl_seconds,
             disable_cache,
+            forbid_archived,
+            forbid_deprecated,
+            forbid_quarantined,
             forbid_yanked,
             max_package_age,
             ignore_vulns,

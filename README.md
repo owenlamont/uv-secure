@@ -202,7 +202,10 @@ check_direct_dependencies_only = true # Defaults to false (test transitive depen
 [maintainability_criteria]
 # max_package_age takes numeric seconds or an ISO8601 duration string
 max_package_age = "P1000D" # Defaults to None if not set (no age limit)
-forbid_yanked = true # Defaults to false (allow yanked package dependencies) if not set
+forbid_archived = true # Defaults to false (allow archived) if not set
+forbid_deprecated = true # Defaults to false (allow deprecated) if not set
+forbid_quarantined = true # Defaults to false (allow quarantined) if not set
+forbid_yanked = true # Defaults to false (allow yanked) if not set
 ```
 
 ### pyproject.toml

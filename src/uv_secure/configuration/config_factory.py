@@ -47,6 +47,9 @@ def config_cli_arg_factory(
     check_direct_dependency_maintenance_issues_only: bool | None,
     check_direct_dependency_vulnerabilities_only: bool | None,
     desc: bool | None,
+    forbid_archived: bool | None,
+    forbid_deprecated: bool | None,
+    forbid_quarantined: bool | None,
     forbid_yanked: bool | None,
     max_package_age: int | None,
     ignore_vulns: str | None,
@@ -58,6 +61,9 @@ def config_cli_arg_factory(
         aliases: Flag whether to show vulnerability aliases in results
         desc: Flag whether to show vulnerability descriptions in results
         disable_cache: Flag whether to disable cache
+        forbid_archived: flag whether to forbid archived dependencies
+        forbid_deprecated: flag whether to forbid deprecated dependencies
+        forbid_quarantined: flag whether to forbid quarantined dependencies
         forbid_yanked: flag whether to forbid yanked dependencies
         max_package_age: maximum age of dependencies in days
         ignore_vulns: comma separated string of vulnerability ids to ignore
@@ -77,6 +83,9 @@ def config_cli_arg_factory(
         check_direct_dependency_maintenance_issues_only=check_direct_dependency_maintenance_issues_only,
         check_direct_dependency_vulnerabilities_only=check_direct_dependency_vulnerabilities_only,
         desc=desc,
+        forbid_archived=forbid_archived,
+        forbid_deprecated=forbid_deprecated,
+        forbid_quarantined=forbid_quarantined,
         forbid_yanked=forbid_yanked,
         max_package_age=timedelta(days=max_package_age) if max_package_age else None,
         ignore_vulnerabilities=ignore_vulnerabilities,
