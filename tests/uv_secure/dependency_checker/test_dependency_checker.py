@@ -210,19 +210,18 @@ async def test_maintenance_issue_forbidden_status_triggers_issue(
             True,
         )
 
-    # Maintenance issues only => exit status 1 and include the issues table
     assert status == 1
     renderables_list = list(renderables)
     assert len(renderables_list) >= 3
     assert isinstance(renderables_list[-1], Table)
     issues_table = renderables_list[-1]
-    # Verify the new Status and Reason columns exist
     headers = [col.header for col in issues_table.columns]
     assert "Status" in headers
-    assert "Reason" in headers
-    # Extract the cells for those columns and validate values
+    assert "Status Reason" in headers
     status_col = next(col for col in issues_table.columns if col.header == "Status")
-    reason_col = next(col for col in issues_table.columns if col.header == "Reason")
+    reason_col = next(
+        col for col in issues_table.columns if col.header == "Status Reason"
+    )
     status_cells = list(status_col.cells)
     reason_cells = list(reason_col.cells)
     assert len(status_cells) == 1
@@ -265,13 +264,55 @@ async def test_maintenance_issue_not_reported_when_not_forbidden(
 
 
 @pytest.mark.asyncio
+async def test_maintenance_issue_forbidden_status_unknown_reason_shows_unknown(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    no_vulnerabilities_response: HTTPXMock,
+) -> None:
+    """Forbidden status without a reason should display 'Unknown' in Status Reason."""
+    httpx_mock.add_response(
+        url="https://pypi.org/simple/example-package/",
+        json={"name": "example-package", "project-status": {"status": "archived"}},
+        headers={"Content-Type": "application/vnd.pypi.simple.v1+json"},
+    )
+
+    storage = AsyncFileStorage(base_path=Path.home() / ".cache/uv-secure", ttl=86400.0)
+    async with AsyncCacheClient(
+        timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
+    ) as http_client:
+        status, renderables = await check_dependencies(
+            APath(temp_uv_lock_file),
+            Configuration(
+                maintainability_criteria=MaintainabilityCriteria(forbid_archived=True)
+            ),
+            http_client,
+            True,
+        )
+
+    assert status == 1
+    renderables_list = list(renderables)
+    assert len(renderables_list) >= 3
+    assert isinstance(renderables_list[-1], Table)
+    issues_table = renderables_list[-1]
+    headers = [col.header for col in issues_table.columns]
+    assert "Status" in headers
+    assert "Status Reason" in headers
+    reason_col = next(
+        col for col in issues_table.columns if col.header == "Status Reason"
+    )
+    reason_cells = list(reason_col.cells)
+    assert len(reason_cells) == 1
+    assert isinstance(reason_cells[0], Text)
+    assert reason_cells[0].plain == "Unknown"
+
+
+@pytest.mark.asyncio
 async def test_check_dependencies_no_aliases(
     temp_uv_lock_file: Path,
     httpx_mock: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
 ) -> None:
     """Test vulnerability with no aliases available."""
-    # Mock the response with vulnerability that has no aliases
     httpx_mock.add_response(
         url="https://pypi.org/pypi/example-package/1.0.0/json",
         json={

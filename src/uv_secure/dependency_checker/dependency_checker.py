@@ -178,7 +178,7 @@ def _render_issue_table(
     table.add_column("Yanked Reason", min_width=20, max_width=24)
     table.add_column("Age", min_width=20, max_width=24)
     table.add_column("Status", min_width=10, max_width=16)
-    table.add_column("Reason", min_width=20, max_width=40)
+    table.add_column("Status Reason", min_width=20, max_width=40)
     for package, pkg_index in maintenance_issue_packages:
         renderables: list[Text] = [
             Text.assemble(
@@ -202,7 +202,7 @@ def _render_issue_table(
             if package.age
             else Text("Unknown"),
             Text(pkg_index.status.value),
-            Text(pkg_index.project_status.reason or ""),
+            Text(pkg_index.project_status.reason or "Unknown"),
         ]
         table.add_row(*renderables)
     return table
