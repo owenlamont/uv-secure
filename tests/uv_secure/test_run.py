@@ -1377,3 +1377,51 @@ def test_pylock_toml_file_parsing_with_corrupted_file(
     assert "Failed to parse" in result.output
     assert str(temp_corrupted_pylock_toml_file) in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
+
+
+# Minimal tests for new CLI flags forbidding archived/deprecated/quarantined
+
+
+def _simple_status_response(httpx_mock: HTTPXMock, status: str) -> None:
+    httpx_mock.add_response(
+        url="https://pypi.org/simple/example-package/",
+        json={
+            "name": "example-package",
+            "project-status": {"status": status, "reason": "test"},
+        },
+        headers={"Content-Type": "application/vnd.pypi.simple.v1+json"},
+    )
+
+
+def test_cli_forbid_archived_triggers_maintenance_issue(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    no_vulnerabilities_response: HTTPXMock,
+) -> None:
+    _simple_status_response(httpx_mock, "archived")
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--forbid-archived"])
+    # Exit code 1 is used for maintenance issues
+    assert result.exit_code == 1
+    assert "Maintenance Issues" in result.stdout
+
+
+def test_cli_forbid_deprecated_triggers_maintenance_issue(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    no_vulnerabilities_response: HTTPXMock,
+) -> None:
+    _simple_status_response(httpx_mock, "deprecated")
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--forbid-deprecated"])
+    assert result.exit_code == 1
+    assert "Maintenance Issues" in result.stdout
+
+
+def test_cli_forbid_quarantined_triggers_maintenance_issue(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    no_vulnerabilities_response: HTTPXMock,
+) -> None:
+    _simple_status_response(httpx_mock, "quarantined")
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--forbid-quarantined"])
+    assert result.exit_code == 1
+    assert "Maintenance Issues" in result.stdout

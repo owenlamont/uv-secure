@@ -8,7 +8,11 @@ from pytest_httpx import HTTPXMock
 from rich.table import Table
 from rich.text import Text
 
-from uv_secure.configuration import Configuration, VulnerabilityCriteria
+from uv_secure.configuration import (
+    Configuration,
+    MaintainabilityCriteria,
+    VulnerabilityCriteria,
+)
 from uv_secure.dependency_checker import check_dependencies, USER_AGENT
 
 
@@ -160,6 +164,88 @@ async def test_check_dependencies_no_fix_versions(
     renderables_list = list(renderables)
     assert len(renderables_list) == 3
     assert isinstance(renderables_list[2], Table)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("proj_status", "flag_field"),
+    [
+        pytest.param("archived", "forbid_archived", id="Archived forbidden"),
+        pytest.param("deprecated", "forbid_deprecated", id="Deprecated forbidden"),
+        pytest.param("quarantined", "forbid_quarantined", id="Quarantined forbidden"),
+    ],
+)
+async def test_maintenance_issue_forbidden_status_triggers_issue(
+    proj_status: str,
+    flag_field: str,
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    no_vulnerabilities_response: HTTPXMock,
+) -> None:
+    """When a project status is forbidden, we report a maintenance issue."""
+    # Simple JSON API project status
+    httpx_mock.add_response(
+        url="https://pypi.org/simple/example-package/",
+        json={
+            "name": "example-package",
+            "project-status": {"status": proj_status, "reason": "test"},
+        },
+        headers={"Content-Type": "application/vnd.pypi.simple.v1+json"},
+    )
+
+    storage = AsyncFileStorage(base_path=Path.home() / ".cache/uv-secure", ttl=86400.0)
+    async with AsyncCacheClient(
+        timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
+    ) as http_client:
+        if flag_field == "forbid_archived":
+            maintain = MaintainabilityCriteria(forbid_archived=True)
+        elif flag_field == "forbid_deprecated":
+            maintain = MaintainabilityCriteria(forbid_deprecated=True)
+        else:
+            maintain = MaintainabilityCriteria(forbid_quarantined=True)
+        status, renderables = await check_dependencies(
+            APath(temp_uv_lock_file),
+            Configuration(maintainability_criteria=maintain),
+            http_client,
+            True,
+        )
+
+    # Maintenance issues only => exit status 1 and include the issues table
+    assert status == 1
+    renderables_list = list(renderables)
+    assert len(renderables_list) >= 3
+    assert isinstance(renderables_list[-1], Table)
+
+
+@pytest.mark.asyncio
+async def test_maintenance_issue_not_reported_when_not_forbidden(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    no_vulnerabilities_response: HTTPXMock,
+) -> None:
+    """Archived but not forbidden should not be reported as a maintenance issue."""
+    httpx_mock.add_response(
+        url="https://pypi.org/simple/example-package/",
+        json={
+            "name": "example-package",
+            "project-status": {"status": "archived", "reason": "test"},
+        },
+        headers={"Content-Type": "application/vnd.pypi.simple.v1+json"},
+    )
+
+    storage = AsyncFileStorage(base_path=Path.home() / ".cache/uv-secure", ttl=86400.0)
+    async with AsyncCacheClient(
+        timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
+    ) as http_client:
+        status, renderables = await check_dependencies(
+            APath(temp_uv_lock_file), Configuration(), http_client, True
+        )
+
+    # No vulnerabilities/issues => exit status 0 and success panel present
+    assert status == 0
+    renderables_list = list(renderables)
+    # Expect at least the "Checking ..." line and the success panel
+    assert len(renderables_list) >= 2
 
 
 @pytest.mark.asyncio
