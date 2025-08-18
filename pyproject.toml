@@ -1,6 +1,6 @@
 [project]
 name = "uv-secure"
-version = "0.12.2"
+version = "0.13.0"
 description = "Scan your uv.lock file for dependencies with known vulnerabilities"
 readme = "README.md"
 authors = [
@@ -205,19 +205,24 @@ split-on-trailing-comma=false
 convention = "google"
 
 [tool.rumdl]
-# Global configuration options
 line-length = 88
 disable = []
 exclude = []
 respect-gitignore = true
 
+[tool.rumdl.MD004]
+style = "dash"
+
 [tool.rumdl.MD013]
 line_length = 88
-code_blocks = true
+code_blocks = false
 tables = true
 headings = true
 strict = false
 stern = false
+
+[tool.rumdl.MD029]
+style = "ordered"
 
 [tool.rumdl.MD035]
 style = "---"

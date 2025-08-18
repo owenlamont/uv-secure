@@ -66,7 +66,9 @@ def test_missing_file(tmp_path: Path) -> None:
 
 
 def test_non_uv_requirements_txt_file(
-    temp_non_uv_requirements_txt_file: Path, no_vulnerabilities_response: HTTPXMock
+    temp_non_uv_requirements_txt_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app, [str(temp_non_uv_requirements_txt_file), "--disable-cache"]
@@ -102,7 +104,9 @@ def test_wildcard_requirements_txt_file(
 
 
 def test_comment_requirements_txt_file(
-    temp_comment_requirements_txt_file: Path, no_vulnerabilities_response: HTTPXMock
+    temp_comment_requirements_txt_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app, [str(temp_comment_requirements_txt_file), "--disable-cache"]
@@ -116,7 +120,9 @@ def test_comment_requirements_txt_file(
 
 
 def test_extras_requirements_txt_file(
-    temp_extras_requirements_txt_file: Path, no_vulnerabilities_response: HTTPXMock
+    temp_extras_requirements_txt_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app, [str(temp_extras_requirements_txt_file), "--disable-cache"]
@@ -150,7 +156,9 @@ def test_hash_requirements_txt_file(temp_hash_requirements_txt_file: Path) -> No
 
 
 def test_app_no_vulnerabilities(
-    temp_uv_lock_file: Path, no_vulnerabilities_response: HTTPXMock
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
 
@@ -162,7 +170,9 @@ def test_app_no_vulnerabilities(
 
 
 def test_app_agent_headers(
-    temp_uv_lock_file: Path, no_vulnerabilities_response_header_check: HTTPXMock
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response_header_check: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
     assert result.exit_code == 0
@@ -170,7 +180,9 @@ def test_app_agent_headers(
 
 
 def test_app_no_vulnerabilities_requirements_txt(
-    temp_uv_requirements_txt_file: Path, no_vulnerabilities_response: HTTPXMock
+    temp_uv_requirements_txt_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(app, [str(temp_uv_requirements_txt_file), "--disable-cache"])
 
@@ -182,7 +194,9 @@ def test_app_no_vulnerabilities_requirements_txt(
 
 
 def test_app_no_vulnerabilities_pylock_toml(
-    temp_uv_pylock_toml_file: Path, no_vulnerabilities_response: HTTPXMock
+    temp_uv_pylock_toml_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(app, [str(temp_uv_pylock_toml_file), "--disable-cache"])
 
@@ -194,9 +208,10 @@ def test_app_no_vulnerabilities_pylock_toml(
 
 
 def test_app_vulnerabilities_pylock_toml(
-    temp_uv_pylock_toml_file: Path, one_vulnerability_response: HTTPXMock
+    temp_uv_pylock_toml_file: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
-    """Test check_dependencies with pylock.toml file and a vulnerability detected."""
     result = runner.invoke(app, [str(temp_uv_pylock_toml_file), "--disable-cache"])
 
     assert result.exit_code == 2
@@ -234,6 +249,7 @@ def test_app_no_vulnerabilities_requirements_txt_no_specified_path(
     tmp_path: Path,
     temp_uv_requirements_txt_file: Path,
     no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     os.chdir(tmp_path)
     result = runner.invoke(app, "--disable-cache")
@@ -249,6 +265,7 @@ def test_app_no_vulnerabilities_pylock_toml_no_specified_path(
     tmp_path: Path,
     temp_uv_pylock_toml_file: Path,
     no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     os.chdir(tmp_path)
     result = runner.invoke(app, "--disable-cache")
@@ -261,7 +278,10 @@ def test_app_no_vulnerabilities_pylock_toml_no_specified_path(
 
 
 def test_app_no_vulnerabilities_relative_lock_file_path(
-    tmp_path: Path, temp_uv_lock_file: Path, no_vulnerabilities_response: HTTPXMock
+    tmp_path: Path,
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     os.chdir(tmp_path)
     result = runner.invoke(app, ["uv.lock", "--disable-cache"])
@@ -274,7 +294,10 @@ def test_app_no_vulnerabilities_relative_lock_file_path(
 
 
 def test_app_no_vulnerabilities_relative_no_specified_path(
-    tmp_path: Path, temp_uv_lock_file: Path, no_vulnerabilities_response: HTTPXMock
+    tmp_path: Path,
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     os.chdir(tmp_path)
     result = runner.invoke(app, "--disable-cache")
@@ -288,7 +311,9 @@ def test_app_no_vulnerabilities_relative_no_specified_path(
 
 @freeze_time(datetime(2025, 1, 30, tzinfo=timezone.utc))
 def test_app_maintenance_issues_cli_args(
-    temp_uv_lock_file: Path, old_yanked_package_response: HTTPXMock
+    temp_uv_lock_file: Path,
+    old_yanked_package_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app,
@@ -308,12 +333,18 @@ def test_app_maintenance_issues_cli_args(
     assert "Maintenance Issues" in result.output
     assert "Broken API" in result.output
     assert "4 years and 11.01 days" in result.output
+    # New columns present and values for project status
+    assert "Status" in result.output
+    assert "Reason" in result.output
+    assert "active" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 @freeze_time(datetime(2025, 1, 30, tzinfo=timezone.utc))
 def test_app_yanked_no_reason_cli_args(
-    temp_uv_lock_file: Path, yanked_package_no_reason_given_response: HTTPXMock
+    temp_uv_lock_file: Path,
+    yanked_package_no_reason_given_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app, [str(temp_uv_lock_file), "--forbid-yanked", "--disable-cache"]
@@ -326,11 +357,17 @@ def test_app_yanked_no_reason_cli_args(
     assert "Maintenance Issues" in result.output
     assert "Unknown" in result.output
     assert "1 year and 11.01 days" in result.output
+    # New columns present and values for project status
+    assert "Status" in result.output
+    assert "Reason" in result.output
+    assert "active" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_app_failed_vulnerability_request(
-    temp_uv_lock_file: Path, missing_vulnerability_response: HTTPXMock
+    temp_uv_lock_file: Path,
+    missing_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
 
@@ -343,7 +380,9 @@ def test_app_failed_vulnerability_request(
 
 
 def test_app_package_not_found(
-    temp_uv_lock_file: Path, package_version_not_found_response: HTTPXMock
+    temp_uv_lock_file: Path,
+    package_version_not_found_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
 
@@ -373,8 +412,8 @@ def test_check_dependencies_with_vulnerability(
     extra_cli_args: list[str],
     temp_uv_lock_file: Path,
     one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
-    """Test check_dependencies with a single dependency and a single vulnerability."""
     result = runner.invoke(
         app, [str(temp_uv_lock_file), *extra_cli_args, "--disable-cache"]
     )
@@ -399,9 +438,9 @@ def test_check_dependencies_with_vulnerability(
 def test_check_dependencies_with_vulnerability_narrow_console_vulnerability_ids_visible(
     temp_uv_lock_file_jinja2: Path,
     jinja2_two_longer_vulnerability_responses: HTTPXMock,
+    pypi_simple_jinja2: HTTPXMock,
     set_console_width: Callable[[int], None],
 ) -> None:
-    """Test check_dependencies with a single dependency and a single vulnerability."""
     set_console_width(80)
     result = runner.invoke(
         app, [str(temp_uv_lock_file_jinja2), "--aliases", "--desc", "--disable-cache"]
@@ -414,9 +453,10 @@ def test_check_dependencies_with_vulnerability_narrow_console_vulnerability_ids_
 
 
 def test_check_dependencies_with_two_longer_vulnerabilities(
-    temp_uv_lock_file_jinja2: Path, jinja2_two_longer_vulnerability_responses: HTTPXMock
+    temp_uv_lock_file_jinja2: Path,
+    jinja2_two_longer_vulnerability_responses: HTTPXMock,
+    pypi_simple_jinja2: HTTPXMock,
 ) -> None:
-    """Test check_dependencies with a single dependency and a single vulnerability."""
     result = runner.invoke(app, [str(temp_uv_lock_file_jinja2), "--disable-cache"])
 
     assert result.exit_code == 2
@@ -432,7 +472,9 @@ def test_check_dependencies_with_two_longer_vulnerabilities(
 
 
 def test_app_with_arg_ignored_vulnerability(
-    temp_uv_lock_file: Path, one_vulnerability_response: HTTPXMock
+    temp_uv_lock_file: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app, [str(temp_uv_lock_file), "--ignore-vulns", "VULN-123", "--disable-cache"]
@@ -446,7 +488,9 @@ def test_app_with_arg_ignored_vulnerability(
 
 
 def test_app_with_arg_ignored_package_no_specifiers(
-    temp_uv_lock_file: Path, one_vulnerability_response: HTTPXMock
+    temp_uv_lock_file: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app,
@@ -461,7 +505,9 @@ def test_app_with_arg_ignored_package_no_specifiers(
 
 
 def test_app_with_arg_ignored_package_with_specifiers(
-    temp_uv_lock_file: Path, one_vulnerability_response: HTTPXMock
+    temp_uv_lock_file: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app,
@@ -481,7 +527,9 @@ def test_app_with_arg_ignored_package_with_specifiers(
 
 
 def test_app_with_arg_ignored_package_with_specifiers_no_match(
-    temp_uv_lock_file: Path, one_vulnerability_response: HTTPXMock
+    temp_uv_lock_file: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app,
@@ -502,7 +550,9 @@ def test_app_with_arg_ignored_package_with_specifiers_no_match(
 
 
 def test_app_with_arg_withdrawn_vulnerability(
-    temp_uv_lock_file: Path, withdrawn_vulnerability_response: HTTPXMock
+    temp_uv_lock_file: Path,
+    withdrawn_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
 
@@ -517,8 +567,8 @@ def test_check_dependencies_with_vulnerability_pyproject_all_columns_configured(
     temp_uv_lock_file: Path,
     temp_pyproject_toml_file_extra_columns_enabled: Path,
     one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
-    """Test check_dependencies with a single dependency and a single vulnerability."""
     result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
 
     assert result.exit_code == 2
@@ -540,6 +590,7 @@ def test_check_dependencies_with_vulnerability_uv_secure_all_columns_configured(
     temp_uv_lock_file: Path,
     temp_uv_secure_toml_file_all_columns_enabled: Path,
     one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
 
@@ -563,6 +614,7 @@ def test_check_dependencies_with_vulnerability_and_maintenance_issues_uv_secure(
     temp_uv_lock_file: Path,
     temp_uv_secure_toml_file_all_columns_and_maintenance_issues_enabled: Path,
     old_yanked_package_with_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
 
@@ -588,7 +640,10 @@ def test_check_dependencies_with_vulnerability_and_maintenance_issues_uv_secure(
 
 
 def test_check_dependencies_with_custom_caching(
-    temp_uv_lock_file: Path, tmp_path: Path, no_vulnerabilities_response: HTTPXMock
+    temp_uv_lock_file: Path,
+    tmp_path: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     cache_dir = tmp_path / ".uv-secure"
     result = runner.invoke(
@@ -614,15 +669,12 @@ def test_check_dependencies_with_custom_caching(
     cache_files.remove(cache_dir / ".gitignore")
     assert len(cache_files) == 1
 
-    # Would like to run a second request and test the cache is actually used here, but
-    # pytest-httpx and hishel don't play well together. Might need an alternative
-    # approach to test caching that doesn't involve pytest-httpx.
-
 
 def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_override(
     temp_uv_lock_file: Path,
     temp_pyproject_toml_file_ignored_vulnerability: Path,
     one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app,
@@ -654,6 +706,7 @@ def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_pkg_o
     temp_uv_lock_file: Path,
     temp_pyproject_toml_file_ignored_package: Path,
     one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app,
@@ -685,6 +738,7 @@ def test_app_with_uv_secure_toml_ignored_vulnerability(
     temp_uv_lock_file: Path,
     temp_uv_secure_toml_file_ignored_vulnerability: Path,
     one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app,
@@ -707,6 +761,7 @@ def test_app_with_uv_secure_toml_ignored_package(
     temp_uv_lock_file: Path,
     temp_uv_secure_toml_file_ignored_package: Path,
     one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app,
@@ -729,6 +784,7 @@ def test_app_with_pyproject_toml_ignored_vulnerability(
     temp_uv_lock_file: Path,
     temp_pyproject_toml_file_ignored_vulnerability: Path,
     one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app,
@@ -751,6 +807,7 @@ def test_app_with_pyproject_toml_ignored_package(
     temp_uv_lock_file: Path,
     temp_pyproject_toml_file_ignored_package: Path,
     one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app,
@@ -770,7 +827,10 @@ def test_app_with_pyproject_toml_ignored_package(
 
 
 def test_app_multiple_lock_files_no_vulnerabilities(
-    temp_uv_lock_file: Path, temp_nested_uv_lock_file: Path, httpx_mock: HTTPXMock
+    temp_uv_lock_file: Path,
+    temp_nested_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    pypi_simple_example_package_twice: HTTPXMock,
 ) -> None:
     httpx_mock.add_response(
         url="https://pypi.org/pypi/example-package/1.0.0/json",
@@ -838,6 +898,7 @@ def test_app_multiple_lock_files_one_vulnerabilities(
     temp_nested_uv_lock_file: Path,
     no_vulnerabilities_response: HTTPXMock,
     one_vulnerability_response_v2: HTTPXMock,
+    pypi_simple_example_package_twice: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app, [str(temp_uv_lock_file), str(temp_nested_uv_lock_file), "--disable-cache"]
@@ -858,6 +919,7 @@ def test_app_multiple_lock_files_one_nested_ignored_vulnerability(
     temp_nested_uv_secure_toml_file_ignored_vulnerability: Path,
     no_vulnerabilities_response: HTTPXMock,
     one_vulnerability_response_v2: HTTPXMock,
+    pypi_simple_example_package_twice: HTTPXMock,
 ) -> None:
     result = runner.invoke(app, [str(tmp_path), "--disable-cache"])
 
@@ -878,6 +940,7 @@ def test_app_multiple_lock_files_no_root_config_one_nested_ignored_vulnerability
     temp_nested_uv_secure_toml_file_ignored_vulnerability: Path,
     no_vulnerabilities_response: HTTPXMock,
     one_vulnerability_response_v2: HTTPXMock,
+    pypi_simple_example_package_twice: HTTPXMock,
 ) -> None:
     result = runner.invoke(app, [str(tmp_path), "--disable-cache"])
 
@@ -898,6 +961,7 @@ def test_app_multiple_lock_files_one_nested_ignored_vulnerability_pass_lock_file
     temp_nested_uv_secure_toml_file_ignored_vulnerability: Path,
     no_vulnerabilities_response: HTTPXMock,
     one_vulnerability_response_v2: HTTPXMock,
+    pypi_simple_example_package_twice: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app,
@@ -922,6 +986,7 @@ def test_app_multiple_lock_files_one_vulnerabilities_ignored_nested_pyproject_to
     temp_nested_pyproject_toml_file_no_config: Path,
     no_vulnerabilities_response: HTTPXMock,
     one_vulnerability_response_v2: HTTPXMock,
+    pypi_simple_example_package_twice: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app, [str(temp_uv_lock_file), str(temp_nested_uv_lock_file), "--disable-cache"]
@@ -939,6 +1004,7 @@ def test_lock_vulnerability_full_dependencies_one_vulnerability(
     temp_uv_lock_file_direct_indirect_dependencies: Path,
     no_vulnerabilities_response_direct_dependency: HTTPXMock,
     one_vulnerability_response_indirect_dependency: HTTPXMock,
+    pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
     result = runner.invoke(app, [str(temp_uv_lock_file_direct_indirect_dependencies)])
     assert result.exit_code == 2
@@ -952,6 +1018,7 @@ def test_lock_vulnerability_uv_secure_toml_direct_dependencies_one_vulnerability
     temp_uv_lock_file_direct_indirect_dependencies: Path,
     no_vulnerabilities_response_direct_dependency: HTTPXMock,
     one_vulnerability_response_indirect_dependency: HTTPXMock,
+    pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
     result = runner.invoke(app, [str(temp_uv_lock_file_direct_indirect_dependencies)])
     assert result.exit_code == 0
@@ -966,6 +1033,7 @@ def test_lock_vulnerability_pyproject_toml_direct_dependencies_one_vulnerability
     temp_uv_lock_file_direct_indirect_dependencies: Path,
     no_vulnerabilities_response_direct_dependency: HTTPXMock,
     one_vulnerability_response_indirect_dependency: HTTPXMock,
+    pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
     result = runner.invoke(app, [str(temp_uv_lock_file_direct_indirect_dependencies)])
     assert result.exit_code == 0
@@ -980,6 +1048,7 @@ def test_lock_maintenance_full_dependencies_one_issue(
     temp_uv_lock_file_direct_indirect_dependencies: Path,
     no_vulnerabilities_response_direct_dependency: HTTPXMock,
     one_maintenance_issue_response_indirect_dependency: HTTPXMock,
+    pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
     result = runner.invoke(app, [str(temp_uv_lock_file_direct_indirect_dependencies)])
     assert result.exit_code == 1
@@ -993,6 +1062,7 @@ def test_lock_maintenance_uv_secure_toml_direct_dependencies_one_issue(
     temp_uv_lock_file_direct_indirect_dependencies: Path,
     no_vulnerabilities_response_direct_dependency: HTTPXMock,
     one_maintenance_issue_response_indirect_dependency: HTTPXMock,
+    pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
     result = runner.invoke(app, [str(temp_uv_lock_file_direct_indirect_dependencies)])
     assert result.exit_code == 0
@@ -1007,6 +1077,7 @@ def test_lock_maintenance_pyproject_toml_direct_dependencies_one_issue(
     temp_uv_lock_file_direct_indirect_dependencies: Path,
     no_vulnerabilities_response_direct_dependency: HTTPXMock,
     one_maintenance_issue_response_indirect_dependency: HTTPXMock,
+    pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
     result = runner.invoke(app, [str(temp_uv_lock_file_direct_indirect_dependencies)])
     assert result.exit_code == 0
@@ -1021,6 +1092,7 @@ def test_reqs_vulnerability_full_dependencies_one_vuln(
     temp_uv_requirements_txt_file_direct_indirect_dependencies: Path,
     no_vulnerabilities_response_direct_dependency: HTTPXMock,
     one_vulnerability_response_indirect_dependency: HTTPXMock,
+    pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app, [str(temp_uv_requirements_txt_file_direct_indirect_dependencies)]
@@ -1036,6 +1108,7 @@ def test_reqs_vulnerability_uv_secure_toml_direct_dependencies_one_vuln(
     temp_uv_requirements_txt_file_direct_indirect_dependencies: Path,
     no_vulnerabilities_response_direct_dependency: HTTPXMock,
     one_vulnerability_response_indirect_dependency: HTTPXMock,
+    pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app, [str(temp_uv_requirements_txt_file_direct_indirect_dependencies)]
@@ -1052,6 +1125,7 @@ def test_reqs_vulnerability_pyproject_toml_direct_dependencies_one_vuln(
     temp_uv_requirements_txt_file_direct_indirect_dependencies: Path,
     no_vulnerabilities_response_direct_dependency: HTTPXMock,
     one_vulnerability_response_indirect_dependency: HTTPXMock,
+    pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app, [str(temp_uv_requirements_txt_file_direct_indirect_dependencies)]
@@ -1068,6 +1142,7 @@ def test_reqs_vulnerability_uv_secure_toml_cli_override_direct_dependencies_one_
     temp_uv_requirements_txt_file_direct_indirect_dependencies: Path,
     no_vulnerabilities_response_direct_dependency: HTTPXMock,
     one_vulnerability_response_indirect_dependency: HTTPXMock,
+    pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app,
@@ -1088,6 +1163,7 @@ def test_reqs_vulnerability_pyproject_toml_cli_override_direct_dependencies_one_
     temp_uv_requirements_txt_file_direct_indirect_dependencies: Path,
     no_vulnerabilities_response_direct_dependency: HTTPXMock,
     one_vulnerability_response_indirect_dependency: HTTPXMock,
+    pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app,
@@ -1108,6 +1184,7 @@ def test_reqs_maintenance_full_dependencies_one_issue(
     temp_uv_requirements_txt_file_direct_indirect_dependencies: Path,
     no_vulnerabilities_response_direct_dependency: HTTPXMock,
     one_maintenance_issue_response_indirect_dependency: HTTPXMock,
+    pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app, [str(temp_uv_requirements_txt_file_direct_indirect_dependencies)]
@@ -1123,6 +1200,7 @@ def test_reqs_maintenance_uv_secure_toml_direct_dependencies_one_issue(
     temp_uv_requirements_txt_file_direct_indirect_dependencies: Path,
     no_vulnerabilities_response_direct_dependency: HTTPXMock,
     one_maintenance_issue_response_indirect_dependency: HTTPXMock,
+    pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app, [str(temp_uv_requirements_txt_file_direct_indirect_dependencies)]
@@ -1139,6 +1217,7 @@ def test_reqs_maintenance_pyproject_toml_direct_dependencies_one_issue(
     temp_uv_requirements_txt_file_direct_indirect_dependencies: Path,
     no_vulnerabilities_response_direct_dependency: HTTPXMock,
     one_maintenance_issue_response_indirect_dependency: HTTPXMock,
+    pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app, [str(temp_uv_requirements_txt_file_direct_indirect_dependencies)]
@@ -1155,6 +1234,7 @@ def test_reqs_maintenance_uv_secure_toml_cli_override_direct_dependencies_one_is
     temp_uv_requirements_txt_file_direct_indirect_dependencies: Path,
     no_vulnerabilities_response_direct_dependency: HTTPXMock,
     one_maintenance_issue_response_indirect_dependency: HTTPXMock,
+    pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app,
@@ -1175,6 +1255,7 @@ def test_reqs_maintenance_pyproject_toml_cli_override_direct_dependencies_one_is
     temp_uv_requirements_txt_file_direct_indirect_dependencies: Path,
     no_vulnerabilities_response_direct_dependency: HTTPXMock,
     one_maintenance_issue_response_indirect_dependency: HTTPXMock,
+    pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
     result = runner.invoke(
         app,
@@ -1191,9 +1272,10 @@ def test_reqs_maintenance_pyproject_toml_cli_override_direct_dependencies_one_is
 
 
 def test_pylock_toml_check_direct_dependency_vulnerabilities_only_warning(
-    temp_uv_pylock_toml_file: Path, no_vulnerabilities_response: HTTPXMock
+    temp_uv_pylock_toml_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
-    """Test warning message when checking direct dependencies only with pylock.toml."""
     result = runner.invoke(
         app,
         [
@@ -1214,9 +1296,10 @@ def test_pylock_toml_check_direct_dependency_vulnerabilities_only_warning(
 
 
 def test_pylock_toml_check_direct_dependency_maintenance_issues_only_warning(
-    temp_uv_pylock_toml_file: Path, no_vulnerabilities_response: HTTPXMock
+    temp_uv_pylock_toml_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
-    """Test warning for direct dependencies maintenance issues with pylock.toml."""
     result = runner.invoke(
         app,
         [
@@ -1242,14 +1325,8 @@ def test_pylock_toml_check_direct_dependency_maintenance_issues_only_warning(
 def test_uv_lock_file_parsing_with_corrupted_file(
     temp_corrupted_uv_lock_file: Path,
 ) -> None:
-    """Test that file parsing fails gracefully with corrupted uv.lock files.
-
-    This test verifies that stamina retry logic is invoked and proper error
-    handling occurs.
-    """
     result = runner.invoke(app, [str(temp_corrupted_uv_lock_file)])
 
-    # Should fail with runtime error after all retry attempts
     assert result.exit_code == 3
     assert "Error" in result.output
     assert "Failed to parse" in result.output
@@ -1260,14 +1337,8 @@ def test_uv_lock_file_parsing_with_corrupted_file(
 def test_requirements_txt_file_parsing_with_corrupted_file(
     temp_corrupted_requirements_txt_file: Path,
 ) -> None:
-    """Test that file parsing fails gracefully with corrupted requirements.txt files.
-
-    This test verifies that stamina retry logic is invoked and proper error
-    handling occurs.
-    """
     result = runner.invoke(app, [str(temp_corrupted_requirements_txt_file)])
 
-    # Should fail with runtime error after all retry attempts
     assert result.exit_code == 3
     assert "Error" in result.output
     assert "Failed to parse" in result.output
@@ -1278,16 +1349,66 @@ def test_requirements_txt_file_parsing_with_corrupted_file(
 def test_pylock_toml_file_parsing_with_corrupted_file(
     temp_corrupted_pylock_toml_file: Path,
 ) -> None:
-    """Test that file parsing fails gracefully with corrupted pylock.toml files.
-
-    This test verifies that stamina retry logic is invoked and proper error
-    handling occurs.
-    """
     result = runner.invoke(app, [str(temp_corrupted_pylock_toml_file)])
 
-    # Should fail with runtime error after all retry attempts
     assert result.exit_code == 3
     assert "Error" in result.output
     assert "Failed to parse" in result.output
     assert str(temp_corrupted_pylock_toml_file) in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
+
+
+def _simple_status_response(httpx_mock: HTTPXMock, status: str) -> None:
+    httpx_mock.add_response(
+        url="https://pypi.org/simple/example-package/",
+        json={
+            "name": "example-package",
+            "project-status": {"status": status, "reason": "test"},
+        },
+        headers={"Content-Type": "application/vnd.pypi.simple.v1+json"},
+    )
+
+
+def test_cli_forbid_archived_triggers_maintenance_issue(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    no_vulnerabilities_response: HTTPXMock,
+) -> None:
+    _simple_status_response(httpx_mock, "archived")
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--forbid-archived"])
+    assert result.exit_code == 1
+    assert "Maintenance Issues" in result.stdout
+    assert "Status" in result.stdout
+    assert "Reason" in result.stdout
+    assert "archived" in result.stdout
+    assert "test" in result.stdout
+
+
+def test_cli_forbid_deprecated_triggers_maintenance_issue(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    no_vulnerabilities_response: HTTPXMock,
+) -> None:
+    _simple_status_response(httpx_mock, "deprecated")
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--forbid-deprecated"])
+    assert result.exit_code == 1
+    assert "Maintenance Issues" in result.stdout
+    assert "Status" in result.stdout
+    assert "Reason" in result.stdout
+    assert "deprecated" in result.stdout
+    assert "test" in result.stdout
+
+
+def test_cli_forbid_quarantined_triggers_maintenance_issue(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    no_vulnerabilities_response: HTTPXMock,
+) -> None:
+    _simple_status_response(httpx_mock, "quarantined")
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--forbid-quarantined"])
+    assert result.exit_code == 1
+    assert "Maintenance Issues" in result.stdout
+    assert "Status" in result.stdout
+    assert "Reason" in result.stdout
+    assert "quarantined" in result.stdout
+    assert "test" in result.stdout

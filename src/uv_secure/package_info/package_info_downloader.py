@@ -100,7 +100,7 @@ class PackageInfo(BaseModel):
         return datetime.now(tz=timezone.utc) - release_date
 
 
-def _canonicalize_name(name: str) -> str:
+def canonicalize_name(name: str) -> str:
     """Converts a package name to its canonical form for PyPI URLs"""
     return re.sub(r"[_.]+", "-", name).lower()
 
@@ -109,13 +109,15 @@ async def _download_package(
     http_client: AsyncCacheClient, dependency: Dependency, disable_cache: bool
 ) -> PackageInfo:
     """Queries the PyPi JSON API for vulnerabilities of a given dependency."""
-    canonical_name = _canonicalize_name(dependency.name)
+    canonical_name = canonicalize_name(dependency.name)
     url = f"https://pypi.org/pypi/{canonical_name}/{dependency.version}/json"
     response = await http_client.get(
         url, extensions={"cache_disabled": True} if disable_cache else None
     )
     response.raise_for_status()
-    return PackageInfo(**response.json(), direct_dependency=dependency.direct)
+    package_info = PackageInfo.model_validate_json(response.content)
+    package_info.direct_dependency = dependency.direct
+    return package_info
 
 
 async def download_packages(

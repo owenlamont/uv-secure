@@ -202,7 +202,10 @@ check_direct_dependencies_only = true # Defaults to false (test transitive depen
 [maintainability_criteria]
 # max_package_age takes numeric seconds or an ISO8601 duration string
 max_package_age = "P1000D" # Defaults to None if not set (no age limit)
-forbid_yanked = true # Defaults to false (allow yanked package dependencies) if not set
+forbid_archived = true # Defaults to false (allow archived) if not set
+forbid_deprecated = true # Defaults to false (allow deprecated) if not set
+forbid_quarantined = true # Defaults to false (allow quarantined) if not set
+forbid_yanked = true # Defaults to false (allow yanked) if not set
 ```
 
 ### pyproject.toml
@@ -395,6 +398,22 @@ neither of the main package options I found were as frictionless as I had hoped:
 I build uv-secure because I wanted a CLI tool I could run with pre-commit. Statically
 analyse the uv.lock file without needing to create a virtual environment, and finally
 doesn't require you to create (and pay for) an account with any service.
+
+### Related Work Updates
+
+Some interesting developments have happened since uv-secure was released which will
+possibly be better options in future to use:
+
+- [pysentry](https://github.com/nyudenkov/pysentry) was released after uv-secure and
+  looks like it supports a lot of pip-audit functionality plus parses multiple lock file
+  formats. This tool looks promising, implemented in Rust which I love and will possibly
+  subsume uv-secure features... but it's still early days so I will monitor its
+  adoption. May deprecate uv-secure in future in favour of pysentry if it overlaps
+  enough uv-secure features.
+- [pyx](https://astral.sh/blog/introducing-pyx) also revealed very recently is Astral's
+  pyx package repository service which indicates it will do vulnerability and package
+  status scanning for you. This looks really appealing, but uv-secure was motivated to
+  avoid relying on paid services so it doesn't fit the niche exactly.
 
 ## Contributing
 

@@ -1038,3 +1038,51 @@ def temp_corrupted_pylock_toml_file(tmp_path: Path) -> Path:
     """
     pylock_path.write_text(dedent(corrupted_data).strip())
     return pylock_path
+
+
+## Specific fixtures for PyPI Simple JSON API
+
+
+@pytest.fixture
+def pypi_simple_example_package(httpx_mock: HTTPXMock) -> HTTPXMock:
+    httpx_mock.add_response(
+        url="https://pypi.org/simple/example-package/",
+        json={"name": "example-package", "project-status": {"status": "active"}},
+    )
+    return httpx_mock
+
+
+@pytest.fixture
+def pypi_simple_example_package_twice(httpx_mock: HTTPXMock) -> HTTPXMock:
+    # Two calls expected in the same test (e.g. scanning two lock files)
+    httpx_mock.add_response(
+        url="https://pypi.org/simple/example-package/",
+        json={"name": "example-package", "project-status": {"status": "active"}},
+    )
+    httpx_mock.add_response(
+        url="https://pypi.org/simple/example-package/",
+        json={"name": "example-package", "project-status": {"status": "active"}},
+    )
+    return httpx_mock
+
+
+@pytest.fixture
+def pypi_simple_jinja2(httpx_mock: HTTPXMock) -> HTTPXMock:
+    httpx_mock.add_response(
+        url="https://pypi.org/simple/jinja2/",
+        json={"name": "jinja2", "project-status": {"status": "active"}},
+    )
+    return httpx_mock
+
+
+@pytest.fixture
+def pypi_simple_direct_and_indirect(httpx_mock: HTTPXMock) -> HTTPXMock:
+    httpx_mock.add_response(
+        url="https://pypi.org/simple/direct-dependency/",
+        json={"name": "direct-dependency", "project-status": {"status": "active"}},
+    )
+    httpx_mock.add_response(
+        url="https://pypi.org/simple/indirect-dependency/",
+        json={"name": "indirect-dependency", "project-status": {"status": "active"}},
+    )
+    return httpx_mock

@@ -8,7 +8,11 @@ from pytest_httpx import HTTPXMock
 from rich.table import Table
 from rich.text import Text
 
-from uv_secure.configuration import Configuration, VulnerabilityCriteria
+from uv_secure.configuration import (
+    Configuration,
+    MaintainabilityCriteria,
+    VulnerabilityCriteria,
+)
 from uv_secure.dependency_checker import check_dependencies, USER_AGENT
 
 
@@ -38,10 +42,12 @@ from uv_secure.dependency_checker import check_dependencies, USER_AGENT
     ],
 )
 async def test_check_dependencies_alias_hyperlinks(
-    alias: str, expected_hyperlink: str, temp_uv_lock_file: Path, httpx_mock: HTTPXMock
+    alias: str,
+    expected_hyperlink: str,
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
-    """Test that aliases generate the correct hyperlink in Rich renderables."""
-    # Mock the response to include the alias
     httpx_mock.add_response(
         url="https://pypi.org/pypi/example-package/1.0.0/json",
         json={
@@ -103,10 +109,10 @@ async def test_check_dependencies_alias_hyperlinks(
 
 @pytest.mark.asyncio
 async def test_check_dependencies_no_fix_versions(
-    temp_uv_lock_file: Path, httpx_mock: HTTPXMock
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
-    """Test vulnerability with no fix versions available."""
-    # Mock the response with vulnerability that has no fixed_in versions
     httpx_mock.add_response(
         url="https://pypi.org/pypi/example-package/1.0.0/json",
         json={
@@ -131,7 +137,7 @@ async def test_check_dependencies_no_fix_versions(
                 {
                     "id": "VULN-NO-FIX",
                     "details": "Vulnerability with no fix available",
-                    "fixed_in": None,  # No fix available
+                    "fixed_in": None,
                     "aliases": ["CVE-2024-99999"],
                     "link": "https://example.com/vuln-no-fix",
                 }
@@ -157,11 +163,145 @@ async def test_check_dependencies_no_fix_versions(
 
 
 @pytest.mark.asyncio
-async def test_check_dependencies_no_aliases(
-    temp_uv_lock_file: Path, httpx_mock: HTTPXMock
+@pytest.mark.parametrize(
+    ("proj_status", "flag_field"),
+    [
+        pytest.param("archived", "forbid_archived", id="Archived forbidden"),
+        pytest.param("deprecated", "forbid_deprecated", id="Deprecated forbidden"),
+        pytest.param("quarantined", "forbid_quarantined", id="Quarantined forbidden"),
+    ],
+)
+async def test_maintenance_issue_forbidden_status_triggers_issue(
+    proj_status: str,
+    flag_field: str,
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    no_vulnerabilities_response: HTTPXMock,
 ) -> None:
-    """Test vulnerability with no aliases available."""
-    # Mock the response with vulnerability that has no aliases
+    httpx_mock.add_response(
+        url="https://pypi.org/simple/example-package/",
+        json={
+            "name": "example-package",
+            "project-status": {"status": proj_status, "reason": "test"},
+        },
+        headers={"Content-Type": "application/vnd.pypi.simple.v1+json"},
+    )
+
+    storage = AsyncFileStorage(base_path=Path.home() / ".cache/uv-secure", ttl=86400.0)
+    async with AsyncCacheClient(
+        timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
+    ) as http_client:
+        if flag_field == "forbid_archived":
+            maintain = MaintainabilityCriteria(forbid_archived=True)
+        elif flag_field == "forbid_deprecated":
+            maintain = MaintainabilityCriteria(forbid_deprecated=True)
+        else:
+            maintain = MaintainabilityCriteria(forbid_quarantined=True)
+        status, renderables = await check_dependencies(
+            APath(temp_uv_lock_file),
+            Configuration(maintainability_criteria=maintain),
+            http_client,
+            True,
+        )
+
+    assert status == 1
+    renderables_list = list(renderables)
+    assert len(renderables_list) >= 3
+    assert isinstance(renderables_list[-1], Table)
+    issues_table = renderables_list[-1]
+    headers = [col.header for col in issues_table.columns]
+    assert "Status" in headers
+    assert "Status Reason" in headers
+    status_col = next(col for col in issues_table.columns if col.header == "Status")
+    reason_col = next(
+        col for col in issues_table.columns if col.header == "Status Reason"
+    )
+    status_cells = list(status_col.cells)
+    reason_cells = list(reason_col.cells)
+    assert len(status_cells) == 1
+    assert len(reason_cells) == 1
+    assert isinstance(status_cells[0], Text)
+    assert isinstance(reason_cells[0], Text)
+    assert status_cells[0].plain == proj_status
+    assert reason_cells[0].plain == "test"
+
+
+@pytest.mark.asyncio
+async def test_maintenance_issue_not_reported_when_not_forbidden(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    no_vulnerabilities_response: HTTPXMock,
+) -> None:
+    httpx_mock.add_response(
+        url="https://pypi.org/simple/example-package/",
+        json={
+            "name": "example-package",
+            "project-status": {"status": "archived", "reason": "test"},
+        },
+        headers={"Content-Type": "application/vnd.pypi.simple.v1+json"},
+    )
+
+    storage = AsyncFileStorage(base_path=Path.home() / ".cache/uv-secure", ttl=86400.0)
+    async with AsyncCacheClient(
+        timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
+    ) as http_client:
+        status, renderables = await check_dependencies(
+            APath(temp_uv_lock_file), Configuration(), http_client, True
+        )
+
+    assert status == 0
+    renderables_list = list(renderables)
+    assert len(renderables_list) >= 2
+
+
+@pytest.mark.asyncio
+async def test_maintenance_issue_forbidden_status_unknown_reason_shows_unknown(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    no_vulnerabilities_response: HTTPXMock,
+) -> None:
+    httpx_mock.add_response(
+        url="https://pypi.org/simple/example-package/",
+        json={"name": "example-package", "project-status": {"status": "archived"}},
+        headers={"Content-Type": "application/vnd.pypi.simple.v1+json"},
+    )
+
+    storage = AsyncFileStorage(base_path=Path.home() / ".cache/uv-secure", ttl=86400.0)
+    async with AsyncCacheClient(
+        timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
+    ) as http_client:
+        status, renderables = await check_dependencies(
+            APath(temp_uv_lock_file),
+            Configuration(
+                maintainability_criteria=MaintainabilityCriteria(forbid_archived=True)
+            ),
+            http_client,
+            True,
+        )
+
+    assert status == 1
+    renderables_list = list(renderables)
+    assert len(renderables_list) >= 3
+    assert isinstance(renderables_list[-1], Table)
+    issues_table = renderables_list[-1]
+    headers = [col.header for col in issues_table.columns]
+    assert "Status" in headers
+    assert "Status Reason" in headers
+    reason_col = next(
+        col for col in issues_table.columns if col.header == "Status Reason"
+    )
+    reason_cells = list(reason_col.cells)
+    assert len(reason_cells) == 1
+    assert isinstance(reason_cells[0], Text)
+    assert reason_cells[0].plain == "Unknown"
+
+
+@pytest.mark.asyncio
+async def test_check_dependencies_no_aliases(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
     httpx_mock.add_response(
         url="https://pypi.org/pypi/example-package/1.0.0/json",
         json={
@@ -187,7 +327,7 @@ async def test_check_dependencies_no_aliases(
                     "id": "VULN-NO-ALIASES",
                     "details": "Vulnerability with no aliases",
                     "fixed_in": ["2.0.0"],
-                    "aliases": None,  # No aliases available
+                    "aliases": None,
                     "link": "https://example.com/vuln-no-aliases",
                 }
             ],
