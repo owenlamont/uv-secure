@@ -201,7 +201,7 @@ def _render_issue_table(
             Text(humanize.precisedelta(package.age, minimum_unit="days"))
             if package.age
             else Text("Unknown"),
-            Text(pkg_index.project_status.status.value),
+            Text(pkg_index.status.value),
             Text(pkg_index.project_status.reason or ""),
         ]
         table.add_row(*renderables)
@@ -271,15 +271,15 @@ def _has_maintenance_issues(
     """Check if package has maintenance issues"""
     found_rejected_archived_package = (
         config.maintainability_criteria.forbid_archived
-        and package_index.project_status.status == ProjectState.ARCHIVED
+        and package_index.status == ProjectState.ARCHIVED
     )
     found_rejected_deprecated_package = (
         config.maintainability_criteria.forbid_deprecated
-        and package_index.project_status.status == ProjectState.DEPRECATED
+        and package_index.status == ProjectState.DEPRECATED
     )
     found_rejected_quarantined_package = (
         config.maintainability_criteria.forbid_quarantined
-        and package_index.project_status.status == ProjectState.QUARANTINED
+        and package_index.status == ProjectState.QUARANTINED
     )
     found_rejected_yanked_package = (
         config.maintainability_criteria.forbid_yanked and package_info.info.yanked
