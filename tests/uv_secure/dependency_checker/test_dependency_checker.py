@@ -48,8 +48,6 @@ async def test_check_dependencies_alias_hyperlinks(
     httpx_mock: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
 ) -> None:
-    """Test that aliases generate the correct hyperlink in Rich renderables."""
-    # Mock the response to include the alias
     httpx_mock.add_response(
         url="https://pypi.org/pypi/example-package/1.0.0/json",
         json={
@@ -115,8 +113,6 @@ async def test_check_dependencies_no_fix_versions(
     httpx_mock: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
 ) -> None:
-    """Test vulnerability with no fix versions available."""
-    # Mock the response with vulnerability that has no fixed_in versions
     httpx_mock.add_response(
         url="https://pypi.org/pypi/example-package/1.0.0/json",
         json={
@@ -141,7 +137,7 @@ async def test_check_dependencies_no_fix_versions(
                 {
                     "id": "VULN-NO-FIX",
                     "details": "Vulnerability with no fix available",
-                    "fixed_in": None,  # No fix available
+                    "fixed_in": None,
                     "aliases": ["CVE-2024-99999"],
                     "link": "https://example.com/vuln-no-fix",
                 }
@@ -182,8 +178,6 @@ async def test_maintenance_issue_forbidden_status_triggers_issue(
     httpx_mock: HTTPXMock,
     no_vulnerabilities_response: HTTPXMock,
 ) -> None:
-    """When a project status is forbidden, we report a maintenance issue."""
-    # Simple JSON API project status
     httpx_mock.add_response(
         url="https://pypi.org/simple/example-package/",
         json={
@@ -238,7 +232,6 @@ async def test_maintenance_issue_not_reported_when_not_forbidden(
     httpx_mock: HTTPXMock,
     no_vulnerabilities_response: HTTPXMock,
 ) -> None:
-    """Archived but not forbidden should not be reported as a maintenance issue."""
     httpx_mock.add_response(
         url="https://pypi.org/simple/example-package/",
         json={
@@ -256,10 +249,8 @@ async def test_maintenance_issue_not_reported_when_not_forbidden(
             APath(temp_uv_lock_file), Configuration(), http_client, True
         )
 
-    # No vulnerabilities/issues => exit status 0 and success panel present
     assert status == 0
     renderables_list = list(renderables)
-    # Expect at least the "Checking ..." line and the success panel
     assert len(renderables_list) >= 2
 
 
@@ -269,7 +260,6 @@ async def test_maintenance_issue_forbidden_status_unknown_reason_shows_unknown(
     httpx_mock: HTTPXMock,
     no_vulnerabilities_response: HTTPXMock,
 ) -> None:
-    """Forbidden status without a reason should display 'Unknown' in Status Reason."""
     httpx_mock.add_response(
         url="https://pypi.org/simple/example-package/",
         json={"name": "example-package", "project-status": {"status": "archived"}},
@@ -312,7 +302,6 @@ async def test_check_dependencies_no_aliases(
     httpx_mock: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
 ) -> None:
-    """Test vulnerability with no aliases available."""
     httpx_mock.add_response(
         url="https://pypi.org/pypi/example-package/1.0.0/json",
         json={
@@ -338,7 +327,7 @@ async def test_check_dependencies_no_aliases(
                     "id": "VULN-NO-ALIASES",
                     "details": "Vulnerability with no aliases",
                     "fixed_in": ["2.0.0"],
-                    "aliases": None,  # No aliases available
+                    "aliases": None,
                     "link": "https://example.com/vuln-no-aliases",
                 }
             ],

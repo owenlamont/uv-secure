@@ -212,7 +212,6 @@ def test_app_vulnerabilities_pylock_toml(
     one_vulnerability_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
 ) -> None:
-    """Test check_dependencies with pylock.toml file and a vulnerability detected."""
     result = runner.invoke(app, [str(temp_uv_pylock_toml_file), "--disable-cache"])
 
     assert result.exit_code == 2
@@ -415,7 +414,6 @@ def test_check_dependencies_with_vulnerability(
     one_vulnerability_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
 ) -> None:
-    """Test check_dependencies with a single dependency and a single vulnerability."""
     result = runner.invoke(
         app, [str(temp_uv_lock_file), *extra_cli_args, "--disable-cache"]
     )
@@ -443,7 +441,6 @@ def test_check_dependencies_with_vulnerability_narrow_console_vulnerability_ids_
     pypi_simple_jinja2: HTTPXMock,
     set_console_width: Callable[[int], None],
 ) -> None:
-    """Test check_dependencies with a single dependency and a single vulnerability."""
     set_console_width(80)
     result = runner.invoke(
         app, [str(temp_uv_lock_file_jinja2), "--aliases", "--desc", "--disable-cache"]
@@ -460,7 +457,6 @@ def test_check_dependencies_with_two_longer_vulnerabilities(
     jinja2_two_longer_vulnerability_responses: HTTPXMock,
     pypi_simple_jinja2: HTTPXMock,
 ) -> None:
-    """Test check_dependencies with a single dependency and a single vulnerability."""
     result = runner.invoke(app, [str(temp_uv_lock_file_jinja2), "--disable-cache"])
 
     assert result.exit_code == 2
@@ -573,7 +569,6 @@ def test_check_dependencies_with_vulnerability_pyproject_all_columns_configured(
     one_vulnerability_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
 ) -> None:
-    """Test check_dependencies with a single dependency and a single vulnerability."""
     result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
 
     assert result.exit_code == 2
@@ -673,10 +668,6 @@ def test_check_dependencies_with_custom_caching(
     assert len(cache_files) == 2
     cache_files.remove(cache_dir / ".gitignore")
     assert len(cache_files) == 1
-
-    # Would like to run a second request and test the cache is actually used here, but
-    # pytest-httpx and hishel don't play well together. Might need an alternative
-    # approach to test caching that doesn't involve pytest-httpx.
 
 
 def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_override(
@@ -1285,7 +1276,6 @@ def test_pylock_toml_check_direct_dependency_vulnerabilities_only_warning(
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
 ) -> None:
-    """Test warning message when checking direct dependencies only with pylock.toml."""
     result = runner.invoke(
         app,
         [
@@ -1310,7 +1300,6 @@ def test_pylock_toml_check_direct_dependency_maintenance_issues_only_warning(
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
 ) -> None:
-    """Test warning for direct dependencies maintenance issues with pylock.toml."""
     result = runner.invoke(
         app,
         [
@@ -1336,14 +1325,8 @@ def test_pylock_toml_check_direct_dependency_maintenance_issues_only_warning(
 def test_uv_lock_file_parsing_with_corrupted_file(
     temp_corrupted_uv_lock_file: Path,
 ) -> None:
-    """Test that file parsing fails gracefully with corrupted uv.lock files.
-
-    This test verifies that stamina retry logic is invoked and proper error
-    handling occurs.
-    """
     result = runner.invoke(app, [str(temp_corrupted_uv_lock_file)])
 
-    # Should fail with runtime error after all retry attempts
     assert result.exit_code == 3
     assert "Error" in result.output
     assert "Failed to parse" in result.output
@@ -1354,14 +1337,8 @@ def test_uv_lock_file_parsing_with_corrupted_file(
 def test_requirements_txt_file_parsing_with_corrupted_file(
     temp_corrupted_requirements_txt_file: Path,
 ) -> None:
-    """Test that file parsing fails gracefully with corrupted requirements.txt files.
-
-    This test verifies that stamina retry logic is invoked and proper error
-    handling occurs.
-    """
     result = runner.invoke(app, [str(temp_corrupted_requirements_txt_file)])
 
-    # Should fail with runtime error after all retry attempts
     assert result.exit_code == 3
     assert "Error" in result.output
     assert "Failed to parse" in result.output
@@ -1372,22 +1349,13 @@ def test_requirements_txt_file_parsing_with_corrupted_file(
 def test_pylock_toml_file_parsing_with_corrupted_file(
     temp_corrupted_pylock_toml_file: Path,
 ) -> None:
-    """Test that file parsing fails gracefully with corrupted pylock.toml files.
-
-    This test verifies that stamina retry logic is invoked and proper error
-    handling occurs.
-    """
     result = runner.invoke(app, [str(temp_corrupted_pylock_toml_file)])
 
-    # Should fail with runtime error after all retry attempts
     assert result.exit_code == 3
     assert "Error" in result.output
     assert "Failed to parse" in result.output
     assert str(temp_corrupted_pylock_toml_file) in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
-
-
-# Minimal tests for new CLI flags forbidding archived/deprecated/quarantined
 
 
 def _simple_status_response(httpx_mock: HTTPXMock, status: str) -> None:
@@ -1408,10 +1376,8 @@ def test_cli_forbid_archived_triggers_maintenance_issue(
 ) -> None:
     _simple_status_response(httpx_mock, "archived")
     result = runner.invoke(app, [str(temp_uv_lock_file), "--forbid-archived"])
-    # Exit code 1 is used for maintenance issues
     assert result.exit_code == 1
     assert "Maintenance Issues" in result.stdout
-    # New columns and values
     assert "Status" in result.stdout
     assert "Reason" in result.stdout
     assert "archived" in result.stdout
@@ -1427,7 +1393,6 @@ def test_cli_forbid_deprecated_triggers_maintenance_issue(
     result = runner.invoke(app, [str(temp_uv_lock_file), "--forbid-deprecated"])
     assert result.exit_code == 1
     assert "Maintenance Issues" in result.stdout
-    # New columns and values
     assert "Status" in result.stdout
     assert "Reason" in result.stdout
     assert "deprecated" in result.stdout
@@ -1443,7 +1408,6 @@ def test_cli_forbid_quarantined_triggers_maintenance_issue(
     result = runner.invoke(app, [str(temp_uv_lock_file), "--forbid-quarantined"])
     assert result.exit_code == 1
     assert "Maintenance Issues" in result.stdout
-    # New columns and values
     assert "Status" in result.stdout
     assert "Reason" in result.stdout
     assert "quarantined" in result.stdout
