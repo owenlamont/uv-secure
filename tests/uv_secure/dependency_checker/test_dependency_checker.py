@@ -38,7 +38,11 @@ from uv_secure.dependency_checker import check_dependencies, USER_AGENT
     ],
 )
 async def test_check_dependencies_alias_hyperlinks(
-    alias: str, expected_hyperlink: str, temp_uv_lock_file: Path, httpx_mock: HTTPXMock
+    alias: str,
+    expected_hyperlink: str,
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     """Test that aliases generate the correct hyperlink in Rich renderables."""
     # Mock the response to include the alias
@@ -103,7 +107,9 @@ async def test_check_dependencies_alias_hyperlinks(
 
 @pytest.mark.asyncio
 async def test_check_dependencies_no_fix_versions(
-    temp_uv_lock_file: Path, httpx_mock: HTTPXMock
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     """Test vulnerability with no fix versions available."""
     # Mock the response with vulnerability that has no fixed_in versions
@@ -158,7 +164,9 @@ async def test_check_dependencies_no_fix_versions(
 
 @pytest.mark.asyncio
 async def test_check_dependencies_no_aliases(
-    temp_uv_lock_file: Path, httpx_mock: HTTPXMock
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
 ) -> None:
     """Test vulnerability with no aliases available."""
     # Mock the response with vulnerability that has no aliases
