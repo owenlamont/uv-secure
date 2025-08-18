@@ -334,6 +334,10 @@ def test_app_maintenance_issues_cli_args(
     assert "Maintenance Issues" in result.output
     assert "Broken API" in result.output
     assert "4 years and 11.01 days" in result.output
+    # New columns present and values for project status
+    assert "Status" in result.output
+    assert "Reason" in result.output
+    assert "active" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
@@ -354,6 +358,10 @@ def test_app_yanked_no_reason_cli_args(
     assert "Maintenance Issues" in result.output
     assert "Unknown" in result.output
     assert "1 year and 11.01 days" in result.output
+    # New columns present and values for project status
+    assert "Status" in result.output
+    assert "Reason" in result.output
+    assert "active" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
@@ -1403,6 +1411,11 @@ def test_cli_forbid_archived_triggers_maintenance_issue(
     # Exit code 1 is used for maintenance issues
     assert result.exit_code == 1
     assert "Maintenance Issues" in result.stdout
+    # New columns and values
+    assert "Status" in result.stdout
+    assert "Reason" in result.stdout
+    assert "archived" in result.stdout
+    assert "test" in result.stdout
 
 
 def test_cli_forbid_deprecated_triggers_maintenance_issue(
@@ -1414,6 +1427,11 @@ def test_cli_forbid_deprecated_triggers_maintenance_issue(
     result = runner.invoke(app, [str(temp_uv_lock_file), "--forbid-deprecated"])
     assert result.exit_code == 1
     assert "Maintenance Issues" in result.stdout
+    # New columns and values
+    assert "Status" in result.stdout
+    assert "Reason" in result.stdout
+    assert "deprecated" in result.stdout
+    assert "test" in result.stdout
 
 
 def test_cli_forbid_quarantined_triggers_maintenance_issue(
@@ -1425,3 +1443,8 @@ def test_cli_forbid_quarantined_triggers_maintenance_issue(
     result = runner.invoke(app, [str(temp_uv_lock_file), "--forbid-quarantined"])
     assert result.exit_code == 1
     assert "Maintenance Issues" in result.stdout
+    # New columns and values
+    assert "Status" in result.stdout
+    assert "Reason" in result.stdout
+    assert "quarantined" in result.stdout
+    assert "test" in result.stdout

@@ -162,7 +162,8 @@ def _render_vulnerability_table(
 
 
 def _render_issue_table(
-    config: Configuration, maintenance_issue_packages: Iterable[PackageInfo]
+    config: Configuration,
+    maintenance_issue_packages: Iterable[tuple[PackageInfo, PackageIndex]],
 ) -> Table:
     table = Table(
         title="Maintenance Issues",
@@ -176,7 +177,9 @@ def _render_issue_table(
     table.add_column("Yanked", style="bold cyan", min_width=10, max_width=10)
     table.add_column("Yanked Reason", min_width=20, max_width=24)
     table.add_column("Age", min_width=20, max_width=24)
-    for package in maintenance_issue_packages:
+    table.add_column("Status", min_width=10, max_width=16)
+    table.add_column("Reason", min_width=20, max_width=40)
+    for package, pkg_index in maintenance_issue_packages:
         renderables: list[Text] = [
             Text.assemble(
                 (
@@ -198,6 +201,8 @@ def _render_issue_table(
             Text(humanize.precisedelta(package.age, minimum_unit="days"))
             if package.age
             else Text("Unknown"),
+            Text(pkg_index.project_status.status.value),
+            Text(pkg_index.project_status.reason or ""),
         ]
         table.add_row(*renderables)
     return table
@@ -305,7 +310,7 @@ async def _parse_dependency_file(dependency_file_path: APath) -> list:
 
 def _generate_summary_outputs(
     vulnerable_count: int,
-    maintenance_issue_packages: list[PackageInfo],
+    maintenance_issue_packages: list[tuple[PackageInfo, PackageIndex]],
     total_dependencies: int,
     config: Configuration,
     vulnerable_packages: list[PackageInfo],
@@ -446,7 +451,13 @@ def _accumulate_from_metadata(
     dependencies: Sequence,
     config: Configuration,
     ignore_packages: dict[str, tuple[SpecifierSet, ...]],
-) -> tuple[int, int, list[PackageInfo], list[PackageInfo], list[ConsoleRenderable]]:
+) -> tuple[
+    int,
+    int,
+    list[PackageInfo],
+    list[tuple[PackageInfo, PackageIndex]],
+    list[ConsoleRenderable],
+]:
     """Accumulate vulnerability and maintenance results across all packages.
 
     Returns (error_status, vuln_count, vulnerable_pkgs, maintenance_issue_pkgs,
@@ -455,7 +466,7 @@ def _accumulate_from_metadata(
     """
     vuln_count = 0
     vulnerable_pkgs: list[PackageInfo] = []
-    maintenance_issue_pkgs: list[PackageInfo] = []
+    maintenance_issue_pkgs: list[tuple[PackageInfo, PackageIndex]] = []
     outputs: list[ConsoleRenderable] = []
 
     for idx, (package_info, package_index) in enumerate(package_metadata):
@@ -491,7 +502,7 @@ def _accumulate_from_metadata(
             vulnerable_pkgs.append(package_info)
 
         if _process_package_for_maintenance_issues(package_index, package_info, config):
-            maintenance_issue_pkgs.append(package_info)
+            maintenance_issue_pkgs.append((package_info, package_index))
 
     return 0, vuln_count, vulnerable_pkgs, maintenance_issue_pkgs, outputs
 
@@ -546,7 +557,7 @@ async def check_dependencies(
     total_dependencies = len(package_metadata)
     vulnerable_count = 0
     vulnerable_packages = []
-    maintenance_issue_packages = []
+    maintenance_issue_packages: list[tuple[PackageInfo, PackageIndex]] = []
 
     ignore_packages = _build_ignore_packages(config)
 
@@ -783,16 +794,19 @@ async def check_lock_files(
     async with AsyncCacheClient(
         timeout=10, headers=Headers({"User-Agent": USER_AGENT}), storage=storage
     ) as http_client:
-        status_output_tasks = [
-            check_dependencies(
-                dependency_file_path,
-                lock_to_config_map[APath(dependency_file_path)],
-                http_client,
-                disable_cache,
+        status_outputs = list(
+            await asyncio.gather(
+                *[
+                    check_dependencies(
+                        dependency_file_path,
+                        lock_to_config_map[APath(dependency_file_path)],
+                        http_client,
+                        disable_cache,
+                    )
+                    for dependency_file_path in file_apaths
+                ]
             )
-            for dependency_file_path in file_apaths
-        ]
-        status_outputs = await asyncio.gather(*status_output_tasks)
+        )
 
     for _, console_output in status_outputs:
         console.print(*console_output)
