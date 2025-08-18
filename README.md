@@ -399,6 +399,22 @@ I build uv-secure because I wanted a CLI tool I could run with pre-commit. Stati
 analyse the uv.lock file without needing to create a virtual environment, and finally
 doesn't require you to create (and pay for) an account with any service.
 
+### Related Work Updates
+
+Some interesting developments have happened since uv-secure was released which will
+possibly be better options in future to use:
+
+- [pysentry](https://github.com/nyudenkov/pysentry) was released after uv-secure and
+  looks like it supports a lot of pip-audit functionality plus parses multiple lock file
+  formats. This tool looks promising, implemented in Rust which I love and will possibly
+  subsume uv-secure features... but it's still early days so I will monitor its
+  adoption. May deprecate uv-secure in future in favour of pysentry if it overlaps
+  enough uv-secure features.
+- [pyx](https://astral.sh/blog/introducing-pyx) also revealed very recently is Astral's
+  pyx package repository service which indicates it will do vulnerability and package
+  status scanning for you. This looks really appealing, but uv-secure was motivated to
+  avoid relying on paid services so it doesn't fit the niche exactly.
+
 ## Contributing
 
 Please raise issues for any bugs you discover with uv-secure. If practical and not too
