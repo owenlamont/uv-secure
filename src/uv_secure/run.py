@@ -124,7 +124,7 @@ _version_option = typer.Option(
     "--version",
     callback=_version_callback,
     is_eager=True,
-    help="Show the application's version",
+    help="Show the application version",
 )
 
 

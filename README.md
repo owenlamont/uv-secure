@@ -99,12 +99,14 @@ environment as itself.
 
 After installation, you can run uv-secure --help to see the options.
 
-```text
+```shell
 >> uv-secure --help
 
  Usage: run.py [OPTIONS] [FILE_PATHS]...
 
- Parse uv.lock files, check vulnerabilities, and display summary.
+ Parse uv.lock, pylock.toml, and requirements.txt files.
+
+ Check vulnerabilities and display summary.
 
 ╭─ Arguments ──────────────────────────────────────────────────────────────────────────╮
 │   file_paths      [FILE_PATHS]...  Paths to the uv.lock, PEP751 pylock.toml, or      │
@@ -133,6 +135,15 @@ After installation, you can run uv-secure --help to see the options.
 │ --disable-cache                                         Flag whether to disable      │
 │                                                         caching for vulnerability    │
 │                                                         http requests                │
+│ --forbid-archived                                       Flag whether disallow        │
+│                                                         archived package versions    │
+│                                                         from being dependencies      │
+│ --forbid-deprecated                                     Flag whether disallow        │
+│                                                         deprecated package versions  │
+│                                                         from being dependencies      │
+│ --forbid-quarantined                                    Flag whether disallow        │
+│                                                         quarantined package versions │
+│                                                         from being dependencies      │
 │ --forbid-yanked                                         Flag whether disallow yanked │
 │                                                         package versions from being  │
 │                                                         dependencies                 │
@@ -160,8 +171,7 @@ After installation, you can run uv-secure --help to see the options.
 │                                                         .uv-secure.toml, or          │
 │                                                         pyproject.toml)              │
 │                                                         [default: None]              │
-│ --version                                               Show the application's       │
-│                                                         version                      │
+│ --version                                               Show the application version │
 │ --install-completion                                    Install completion for the   │
 │                                                         current shell.               │
 │ --show-completion                                       Show completion for the      │
@@ -171,7 +181,7 @@ After installation, you can run uv-secure --help to see the options.
 ╰──────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-```text
+```shell
 >> uv-secure
 Checking dependencies for vulnerabilities...
 ╭────────────────────────────────────────────────────╮
@@ -226,6 +236,9 @@ check_direct_dependencies_only = true # Defaults to false (test transitive depen
 # max_package_age takes numeric seconds or an ISO8601 duration string
 max_package_age = "P1000D" # Defaults to None (no max age) if not set
 forbid_yanked = true # Defaults to false (allow yanked package dependencies) if not set
+forbid_archived = true # Defaults to false (allow archived) if not set
+forbid_deprecated = true # Defaults to false (allow deprecated) if not set
+forbid_quarantined = true # Defaults to false (allow quarantined) if not set
 check_direct_dependencies_only = true # Defaults to false (test transitive dependencies)
 ```
 
@@ -289,7 +302,7 @@ uv-secure can be run as a pre-commit hook by adding this configuration to your
 
 ```yaml
   - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.12.2
+    rev: 0.13.0
     hooks:
       - id: uv-secure
 ```

@@ -229,6 +229,19 @@ style = "---"
 
 [tool.typos]
 
+[tool.uv-secure.vulnerability_criteria]
+aliases = true
+desc = true
+check_direct_dependencies_only = true
+
+[tool.uv-secure.maintainability_criteria]
+max_package_age = "P730D"
+forbid_yanked = true
+forbid_archived = true
+forbid_deprecated = true
+forbid_quarantined = true
+check_direct_dependencies_only = true
+
 [dependency-groups]
 dev = [
     "coverage>=7.6.9",
