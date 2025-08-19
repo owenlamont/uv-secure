@@ -99,12 +99,14 @@ environment as itself.
 
 After installation, you can run uv-secure --help to see the options.
 
-```text
+```shell
 >> uv-secure --help
 
  Usage: run.py [OPTIONS] [FILE_PATHS]...
 
- Parse uv.lock files, check vulnerabilities, and display summary.
+ Parse uv.lock, pylock.toml, and requirements.txt files.
+
+ Check vulnerabilities and display summary.
 
 ╭─ Arguments ──────────────────────────────────────────────────────────────────────────╮
 │   file_paths      [FILE_PATHS]...  Paths to the uv.lock, PEP751 pylock.toml, or      │
@@ -133,6 +135,15 @@ After installation, you can run uv-secure --help to see the options.
 │ --disable-cache                                         Flag whether to disable      │
 │                                                         caching for vulnerability    │
 │                                                         http requests                │
+│ --forbid-archived                                       Flag whether disallow        │
+│                                                         archived package versions    │
+│                                                         from being dependencies      │
+│ --forbid-deprecated                                     Flag whether disallow        │
+│                                                         deprecated package versions  │
+│                                                         from being dependencies      │
+│ --forbid-quarantined                                    Flag whether disallow        │
+│                                                         quarantined package versions │
+│                                                         from being dependencies      │
 │ --forbid-yanked                                         Flag whether disallow yanked │
 │                                                         package versions from being  │
 │                                                         dependencies                 │
@@ -171,7 +182,7 @@ After installation, you can run uv-secure --help to see the options.
 ╰──────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-```text
+```shell
 >> uv-secure
 Checking dependencies for vulnerabilities...
 ╭────────────────────────────────────────────────────╮
