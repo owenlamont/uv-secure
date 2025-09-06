@@ -31,7 +31,7 @@ concurrently and supports hierarchical configuration discovery.
 
 ## Code Style
 
-- **Python**: run `pre-commit run --all-files` before committing.
+- **Python**: run `prek run --all-files` before committing.
 - Remember pre-commit won't scan any new modules until they are added to git so don't
   forget to git add any new modules you create before running pre-commit.
 - pre-commit will auto correct many lint and format issues, if it reports any file
