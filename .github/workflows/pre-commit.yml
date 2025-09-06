@@ -14,8 +14,8 @@ jobs:
       - name: Install the project
         run: uv sync
       - name: Install pre-commit globally
-        run: uv tool install pre-commit --with pre-commit-uv --force
+        run: uv tool install prek
       - name: Run pre-commit hooks
         env:
           SKIP: no-commit-to-branch  # Skip the main branch protection hook in CI
-        run: pre-commit run --all-files
+        run: prek run --all-files
