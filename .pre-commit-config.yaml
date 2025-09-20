@@ -39,7 +39,7 @@ repos:
         pass_filenames: false
         types: [python]
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.13.0
+    rev: v0.13.1
     hooks:
       - id: ruff-check
         args: [ --fix, --exit-non-zero-on-fix ]
