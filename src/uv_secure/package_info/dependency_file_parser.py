@@ -18,16 +18,22 @@ class Dependency(BaseModel):
     direct: bool | None = False
 
 
+class ParseResult(BaseModel):
+    dependencies: list[Dependency]
+    ignored_count: int
+
+
 # Disable stamina retry hooks to silence retry warnings in the console
 stamina.instrumentation.set_on_retry_hooks([])
 
 
 @stamina.retry(on=Exception, attempts=3)
-async def parse_pylock_toml_file(file_path: Path) -> list[Dependency]:
+async def parse_pylock_toml_file(file_path: Path) -> ParseResult:
     """Parses a PEP751 pylock.toml file and extracts package PyPi dependencies"""
     data = await file_path.read_text()
     toml_data = toml.loads(data)
     dependencies = []
+    ignored_count = 0
     packages = toml_data.get("packages", [])
 
     for package in packages:
@@ -35,16 +41,19 @@ async def parse_pylock_toml_file(file_path: Path) -> list[Dependency]:
         package_version = package.get("version")
         index = package.get("index", "")
 
-        # Only include packages from PyPI registry
-        if package_name and package_version and index == "https://pypi.org/simple":
-            dependency = Dependency(
-                name=package_name,
-                version=package_version,
-                direct=None,  # Cannot determine direct dependencies from pylock.toml
-            )
-            dependencies.append(dependency)
+        if package_name and package_version:
+            if index == "https://pypi.org/simple":
+                # Only include packages from PyPI registry
+                # Cannot determine direct dependencies from pylock.toml
+                dependency = Dependency(
+                    name=package_name, version=package_version, direct=None
+                )
+                dependencies.append(dependency)
+            else:
+                # Count non-PyPI packages as ignored
+                ignored_count += 1
 
-    return dependencies
+    return ParseResult(dependencies=dependencies, ignored_count=ignored_count)
 
 
 def _validate_requirement_line(line: str, requirement: Requirement) -> None:
@@ -87,12 +96,12 @@ def _is_direct_dependency_marker(line: str) -> bool:
 
 
 @stamina.retry(on=Exception, attempts=3)
-async def parse_requirements_txt_file(file_path: Path) -> list[Dependency]:
+async def parse_requirements_txt_file(file_path: Path) -> ParseResult:
     """Parse a requirements.txt file and extracts package PyPi dependencies"""
     data = await file_path.read_text()
     lines = data.splitlines()
     if len(lines) == 0:
-        return []
+        return ParseResult(dependencies=[], ignored_count=0)
 
     dependencies: list[Dependency] = []
     dependency: Dependency | None = None
@@ -115,32 +124,67 @@ async def parse_requirements_txt_file(file_path: Path) -> list[Dependency]:
     if dependency is not None:
         dependencies.append(dependency)
 
-    return dependencies
+    return ParseResult(dependencies=dependencies, ignored_count=0)
 
 
-@stamina.retry(on=Exception, attempts=3)
-async def parse_uv_lock_file(file_path: Path) -> list[Dependency]:
-    """Parses a uv.lock TOML file and extracts package PyPi dependencies"""
-    data = toml.loads(await file_path.read_text())
-
+def _extract_direct_dependencies_from_package(package: dict) -> set[str]:
+    """Extract direct dependencies from a package with editable/virtual source"""
     direct_dependencies: set[str] = set()
-    dependencies = {}
-    package_data = data.get("package", [])
-    for package in package_data:
-        source = package.get("source", {})
-        if source.get("registry") == "https://pypi.org/simple":
-            dependencies[package["name"]] = Dependency(
-                name=package["name"], version=package["version"]
-            )
-        elif source.get("editable") == "." or source.get("virtual") == ".":
-            for dependency in package.get("dependencies", []):
-                direct_dependencies.add(dependency["name"])
-            dev_dependencies = package.get("dev-dependencies", {})
-            for group_dependencies in dev_dependencies.values():
-                for dependency in group_dependencies:
-                    direct_dependencies.add(dependency["name"])
 
+    for dependency in package.get("dependencies", []):
+        direct_dependencies.add(dependency["name"])
+
+    dev_dependencies = package.get("dev-dependencies", {})
+    for group_dependencies in dev_dependencies.values():
+        for dependency in group_dependencies:
+            direct_dependencies.add(dependency["name"])
+
+    return direct_dependencies
+
+
+def _process_uv_lock_package(
+    package: dict, dependencies: dict[str, Dependency], direct_dependencies: set[str]
+) -> int:
+    """Process a single package from uv.lock and return ignored count"""
+    source = package.get("source", {})
+
+    if source.get("registry") == "https://pypi.org/simple":
+        dependencies[package["name"]] = Dependency(
+            name=package["name"], version=package["version"]
+        )
+        return 0
+    if source.get("editable") == "." or source.get("virtual") == ".":
+        extracted_deps = _extract_direct_dependencies_from_package(package)
+        direct_dependencies.update(extracted_deps)
+        return 0
+    # Count non-PyPI packages as ignored (has a source but not PyPI)
+    return 1 if "name" in package else 0
+
+
+def _mark_direct_dependencies(
+    dependencies: dict[str, Dependency], direct_dependencies: set[str]
+) -> list[Dependency]:
+    """Mark dependencies as direct and return as list"""
     dependency_list = list(dependencies.values())
     for dependency in dependency_list:
         dependency.direct = dependency.name in direct_dependencies
     return dependency_list
+
+
+@stamina.retry(on=Exception, attempts=3)
+async def parse_uv_lock_file(file_path: Path) -> ParseResult:
+    """Parses a uv.lock TOML file and extracts package PyPi dependencies"""
+    data = toml.loads(await file_path.read_text())
+
+    direct_dependencies: set[str] = set()
+    dependencies: dict[str, Dependency] = {}
+    ignored_count = 0
+
+    package_data = data.get("package", [])
+    for package in package_data:
+        ignored_count += _process_uv_lock_package(
+            package, dependencies, direct_dependencies
+        )
+
+    dependency_list = _mark_direct_dependencies(dependencies, direct_dependencies)
+    return ParseResult(dependencies=dependency_list, ignored_count=ignored_count)

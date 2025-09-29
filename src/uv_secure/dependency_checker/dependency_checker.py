@@ -36,6 +36,7 @@ from uv_secure.package_info import (
     parse_pylock_toml_file,
     parse_requirements_txt_file,
     parse_uv_lock_file,
+    ParseResult,
     ProjectState,
     Vulnerability,
 )
@@ -298,7 +299,7 @@ def _has_maintenance_issues(
     )
 
 
-async def _parse_dependency_file(dependency_file_path: APath) -> list:
+async def _parse_dependency_file(dependency_file_path: APath) -> ParseResult:
     """Parse dependency file based on its type"""
     if dependency_file_path.name == "uv.lock":
         return await parse_uv_lock_file(dependency_file_path)
@@ -312,6 +313,7 @@ def _generate_summary_outputs(
     vulnerable_count: int,
     maintenance_issue_packages: list[tuple[PackageInfo, PackageIndex]],
     total_dependencies: int,
+    ignored_count: int,
     config: Configuration,
     vulnerable_packages: list[PackageInfo],
 ) -> tuple[int, list[ConsoleRenderable]]:
@@ -320,16 +322,18 @@ def _generate_summary_outputs(
     inf = inflect.engine()
     total_plural = inf.plural("dependency", total_dependencies)
     vulnerable_plural = inf.plural("vulnerability", vulnerable_count)
+    ignored_plural = inf.plural("non-pypi dependency", ignored_count)
 
     status = 0
     if vulnerable_count > 0:
-        console_outputs.append(
-            Panel.fit(
-                f"[bold red]Vulnerabilities detected![/]\n"
-                f"Checked: [bold]{total_dependencies}[/] {total_plural}\n"
-                f"Vulnerable: [bold]{vulnerable_count}[/] {vulnerable_plural}"
-            )
+        base_message = (
+            f"[bold red]Vulnerabilities detected![/]\n"
+            f"Checked: [bold]{total_dependencies}[/] {total_plural}\n"
+            f"Vulnerable: [bold]{vulnerable_count}[/] {vulnerable_plural}"
         )
+        if ignored_count > 0:
+            base_message += f"\nIgnored: [bold]{ignored_count}[/] {ignored_plural}"
+        console_outputs.append(Panel.fit(base_message))
         table = _render_vulnerability_table(config, vulnerable_packages)
         console_outputs.append(table)
         status = 2
@@ -337,25 +341,27 @@ def _generate_summary_outputs(
     issue_count = len(maintenance_issue_packages)
     issue_plural = inf.plural("issue", issue_count)
     if len(maintenance_issue_packages) > 0:
-        console_outputs.append(
-            Panel.fit(
-                f"[bold yellow]Maintenance Issues detected![/]\n"
-                f"Checked: [bold]{total_dependencies}[/] {total_plural}\n"
-                f"Issues: [bold]{issue_count}[/] {issue_plural}"
-            )
+        base_message = (
+            f"[bold yellow]Maintenance Issues detected![/]\n"
+            f"Checked: [bold]{total_dependencies}[/] {total_plural}\n"
+            f"Issues: [bold]{issue_count}[/] {issue_plural}"
         )
+        if ignored_count > 0:
+            base_message += f"\nIgnored: [bold]{ignored_count}[/] {ignored_plural}"
+        console_outputs.append(Panel.fit(base_message))
         table = _render_issue_table(config, maintenance_issue_packages)
         console_outputs.append(table)
         status = max(status, 1)
 
     if status == 0:
-        console_outputs.append(
-            Panel.fit(
-                f"[bold green]No vulnerabilities or maintenance issues detected![/]\n"
-                f"Checked: [bold]{total_dependencies}[/] {total_plural}\n"
-                f"All dependencies appear safe!"
-            )
+        base_message = (
+            f"[bold green]No vulnerabilities or maintenance issues detected![/]\n"
+            f"Checked: [bold]{total_dependencies}[/] {total_plural}\n"
+            f"All dependencies appear safe!"
         )
+        if ignored_count > 0:
+            base_message += f"\nIgnored: [bold]{ignored_count}[/] {ignored_plural}"
+        console_outputs.append(Panel.fit(base_message))
 
     return status, console_outputs
 
@@ -415,12 +421,12 @@ def _build_ignore_packages(
 
 async def _load_dependencies_with_errors(
     dependency_file_path: APath,
-) -> tuple[int, list, list[ConsoleRenderable]]:
+) -> tuple[int, list, int, list[ConsoleRenderable]]:
     """Load dependencies from a lock/requirements file and capture errors.
 
-    Returns a tuple of (status_code, dependencies, outputs). A status code of 3
-    indicates a runtime error; 0 indicates success (which may still result in an
-    empty dependency list).
+    Returns a tuple of (status_code, dependencies, ignored_count, outputs). A status
+    code of 3 indicates a runtime error; 0 indicates success (which may still result
+    in an empty dependency list).
     """
     outputs: list[ConsoleRenderable] = []
     if not await dependency_file_path.exists():
@@ -429,19 +435,60 @@ async def _load_dependencies_with_errors(
                 f"[bold red]Error:[/] File {dependency_file_path} does not exist."
             )
         )
-        return 3, [], outputs
+        return 3, [], 0, outputs
 
     try:
-        dependencies = await _parse_dependency_file(dependency_file_path)
+        parse_result = await _parse_dependency_file(dependency_file_path)
     except Exception as e:  # pragma: no cover - defensive, surfaced to user
         outputs.append(
             Text.from_markup(
                 f"[bold red]Error:[/] Failed to parse {dependency_file_path}: {e}"
             )
         )
-        return 3, [], outputs
+        return 3, [], 0, outputs
 
-    return 0, dependencies, outputs
+    return 0, parse_result.dependencies, parse_result.ignored_count, outputs
+
+
+def _handle_package_exception(
+    package_info: PackageInfo | BaseException,
+    package_index: PackageIndex | BaseException,
+    dependency_name: str,
+) -> Text:
+    """Handle exception from package info/index retrieval"""
+    ex = package_info if isinstance(package_info, BaseException) else package_index
+    return Text.from_markup(
+        f"[bold red]Error:[/] {dependency_name} raised exception: {ex}"
+    )
+
+
+def _create_skip_message(package_info: PackageInfo) -> Text:
+    """Create message for skipped package"""
+    return Text.from_markup(
+        f"[bold yellow]Skipping {package_info.info.name} "
+        f"({package_info.info.version}) as it is ignored[/]"
+    )
+
+
+def _process_single_package(
+    package_info: PackageInfo,
+    package_index: PackageIndex,
+    config: Configuration,
+    ignore_packages: dict[str, tuple[SpecifierSet, ...]],
+    vuln_count: int,
+    vulnerable_pkgs: list[PackageInfo],
+    maintenance_issue_pkgs: list[tuple[PackageInfo, PackageIndex]],
+) -> int:
+    """Process a single package for vulnerabilities and maintenance issues"""
+    added = _process_package_for_vulnerabilities(package_info, config, ignore_packages)
+    if added > 0:
+        vuln_count += added
+        vulnerable_pkgs.append(package_info)
+
+    if _process_package_for_maintenance_issues(package_index, package_info, config):
+        maintenance_issue_pkgs.append((package_info, package_index))
+
+    return vuln_count
 
 
 def _accumulate_from_metadata(
@@ -473,36 +520,26 @@ def _accumulate_from_metadata(
         if isinstance(package_info, BaseException) or isinstance(
             package_index, BaseException
         ):
-            ex = (
-                package_info
-                if isinstance(package_info, BaseException)
-                else package_index
+            error_output = _handle_package_exception(
+                package_info, package_index, str(dependencies[idx])
             )
-            outputs.append(
-                Text.from_markup(
-                    f"[bold red]Error:[/] {dependencies[idx]} raised exception: {ex}"
-                )
-            )
+            outputs.append(error_output)
             return 3, 0, [], [], outputs
 
         if _should_skip_package(package_info, ignore_packages):
-            outputs.append(
-                Text.from_markup(
-                    f"[bold yellow]Skipping {package_info.info.name} "
-                    f"({package_info.info.version}) as it is ignored[/]"
-                )
-            )
+            skip_output = _create_skip_message(package_info)
+            outputs.append(skip_output)
             continue
 
-        added = _process_package_for_vulnerabilities(
-            package_info, config, ignore_packages
+        vuln_count = _process_single_package(
+            package_info,
+            package_index,
+            config,
+            ignore_packages,
+            vuln_count,
+            vulnerable_pkgs,
+            maintenance_issue_pkgs,
         )
-        if added > 0:
-            vuln_count += added
-            vulnerable_pkgs.append(package_info)
-
-        if _process_package_for_maintenance_issues(package_index, package_info, config):
-            maintenance_issue_pkgs.append((package_info, package_index))
 
     return 0, vuln_count, vulnerable_pkgs, maintenance_issue_pkgs, outputs
 
@@ -526,13 +563,26 @@ async def check_dependencies(
     """
     console_outputs: list[ConsoleRenderable] = []
 
-    status, dependencies, initial_outputs = await _load_dependencies_with_errors(
-        dependency_file_path
-    )
+    (
+        status,
+        dependencies,
+        ignored_count,
+        initial_outputs,
+    ) = await _load_dependencies_with_errors(dependency_file_path)
     console_outputs.extend(initial_outputs)
     if status == 3:
         return 3, console_outputs
     if len(dependencies) == 0:
+        if ignored_count > 0:
+            # Show ignored dependencies count even when no PyPI deps to check
+            inf = inflect.engine()
+            ignored_plural = inf.plural("non-pypi dependency", ignored_count)
+            console_outputs.append(
+                Panel.fit(
+                    f"[bold yellow]No PyPI dependencies to check[/]\n"
+                    f"Ignored: [bold]{ignored_count}[/] {ignored_plural}"
+                )
+            )
         return 0, console_outputs
 
     console_outputs.append(
@@ -588,6 +638,7 @@ async def check_dependencies(
         vulnerable_count,
         maintenance_issue_packages,
         total_dependencies,
+        ignored_count,
         config,
         vulnerable_packages,
     )

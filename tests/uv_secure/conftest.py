@@ -1086,3 +1086,81 @@ def pypi_simple_direct_and_indirect(httpx_mock: HTTPXMock) -> HTTPXMock:
         json={"name": "indirect-dependency", "project-status": {"status": "active"}},
     )
     return httpx_mock
+
+
+@pytest.fixture
+def temp_uv_lock_file_with_non_pypi_deps(tmp_path: Path) -> Path:
+    uv_lock_path = tmp_path / "uv.lock"
+    uv_lock_data = """
+        [[package]]
+        name = "example-package"
+        version = "1.0.0"
+        source = { registry = "https://pypi.org/simple" }
+
+        [[package]]
+        name = "git-package"
+        version = "0.1.0"
+        source = { git = "https://github.com/example/git-package.git", tag = "v0.1.0" }
+
+        [[package]]
+        name = "private-package"
+        version = "2.0.0"
+        source = { registry = "https://private-registry.com/simple" }
+
+        [[package]]
+        name = "local-package"
+        version = "0.1.0"
+        source = { editable = "." }
+    """
+    uv_lock_path.write_text(dedent(uv_lock_data).strip())
+    return uv_lock_path
+
+
+@pytest.fixture
+def temp_pylock_toml_file_with_non_pypi_deps(tmp_path: Path) -> Path:
+    pylock_toml_path = tmp_path / "pylock.toml"
+    pylock_toml_data = """
+        lock-version = "1.0"
+        created-by = "uv"
+        requires-python = ">=3.10"
+
+        [[packages]]
+        name = "example-package"
+        version = "1.0.0"
+        index = "https://pypi.org/simple"
+
+        [[packages]]
+        name = "git-package"
+        version = "0.1.0"
+        index = "https://github.com/example/git-package.git"
+
+        [[packages]]
+        name = "private-package"
+        version = "2.0.0"
+        index = "https://private-registry.com/simple"
+    """
+    pylock_toml_path.write_text(dedent(pylock_toml_data).strip())
+    return pylock_toml_path
+
+
+@pytest.fixture
+def temp_uv_lock_file_only_non_pypi_deps(tmp_path: Path) -> Path:
+    uv_lock_path = tmp_path / "uv.lock"
+    uv_lock_data = """
+        [[package]]
+        name = "git-package"
+        version = "0.1.0"
+        source = { git = "https://github.com/example/git-package.git", tag = "v0.1.0" }
+
+        [[package]]
+        name = "private-package"
+        version = "2.0.0"
+        source = { registry = "https://private-registry.com/simple" }
+
+        [[package]]
+        name = "local-package"
+        version = "0.1.0"
+        source = { editable = "." }
+    """
+    uv_lock_path.write_text(dedent(uv_lock_data).strip())
+    return uv_lock_path

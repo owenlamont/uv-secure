@@ -1412,3 +1412,73 @@ def test_cli_forbid_quarantined_triggers_maintenance_issue(
     assert "Reason" in result.stdout
     assert "quarantined" in result.stdout
     assert "test" in result.stdout
+
+
+def test_app_uv_lock_file_with_ignored_non_pypi_dependencies(
+    temp_uv_lock_file_with_non_pypi_deps: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    """Test that non-PyPI dependencies are ignored and count is reported"""
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file_with_non_pypi_deps), "--disable-cache"]
+    )
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    # git-package and private-package are ignored
+    assert "Ignored: 2 non-pypi dependencies" in result.output
+    assert "All dependencies appear safe!" in result.output
+    assert "[/]" not in result.output
+
+
+def test_app_pylock_toml_file_with_ignored_non_pypi_dependencies(
+    temp_pylock_toml_file_with_non_pypi_deps: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    """Test that non-PyPI dependencies are ignored and count is reported"""
+    result = runner.invoke(
+        app, [str(temp_pylock_toml_file_with_non_pypi_deps), "--disable-cache"]
+    )
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    # git-package and private-package are ignored
+    assert "Ignored: 2 non-pypi dependencies" in result.output
+    assert "All dependencies appear safe!" in result.output
+    assert "[/]" not in result.output
+
+
+def test_app_uv_lock_file_with_vulnerabilities_and_ignored_non_pypi_dependencies(
+    temp_uv_lock_file_with_non_pypi_deps: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    """Test that ignored non-PyPI dependencies count is reported with vulnerabilities"""
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file_with_non_pypi_deps), "--disable-cache"]
+    )
+
+    assert result.exit_code == 2
+    assert "Vulnerabilities detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "Vulnerable: 1 vulnerability" in result.output
+    assert "Ignored: 2 non-pypi dependencies" in result.output
+    assert "[/]" not in result.output
+
+
+def test_app_uv_lock_file_only_non_pypi_dependencies_shows_ignored_count(
+    temp_uv_lock_file_only_non_pypi_deps: Path,
+) -> None:
+    """Test that when only non-PyPI dependencies exist, ignored count is shown"""
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file_only_non_pypi_deps), "--disable-cache"]
+    )
+
+    assert result.exit_code == 0
+    assert "No PyPI dependencies to check" in result.output
+    assert "Ignored: 2 non-pypi dependencies" in result.output
+    assert "[/]" not in result.output
