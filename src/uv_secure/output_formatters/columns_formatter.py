@@ -90,6 +90,21 @@ class ColumnsFormatter(OutputFormatter):
         )
         output_parts.append(checking_msg.markup)
 
+        # Check if direct dependency info is missing when
+        # check_direct_dependencies_only is enabled
+        has_none_direct_dependency = any(
+            dep.direct is None for dep in file_result.dependencies
+        )
+        if has_none_direct_dependency and (
+            self.config.vulnerability_criteria.check_direct_dependencies_only
+            or self.config.maintainability_criteria.check_direct_dependencies_only
+        ):
+            warning_msg = Text.from_markup(
+                f"[bold yellow]Warning:[/] {file_result.file_path} doesn't contain "
+                "the necessary information to determine direct dependencies.\n"
+            )
+            output_parts.append(warning_msg.markup)
+
         # Separate vulnerabilities and maintenance issues
         vulnerable_deps = [dep for dep in file_result.dependencies if dep.vulns]
         maintenance_deps = [

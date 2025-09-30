@@ -115,9 +115,14 @@ def _process_package_metadata(
     if _should_skip_package(package_info, ignore_packages):
         return None
 
-    # Filter vulnerabilities based on config
+    # Filter and check vulnerabilities based on config
     if _should_check_vulnerabilities(package_info, config):
         _filter_vulnerabilities(package_info, config)
+        vulns = [
+            _convert_vulnerability_to_output(v) for v in package_info.vulnerabilities
+        ]
+    else:
+        vulns = []
 
     # Check if we should include maintenance issues
     pkg_index = (
@@ -125,9 +130,6 @@ def _process_package_metadata(
         if _should_check_maintenance_issues(package_info, config)
         else None
     )
-
-    # Build dependency output
-    vulns = [_convert_vulnerability_to_output(v) for v in package_info.vulnerabilities]
     maintenance_issues = (
         [_convert_maintenance_to_output(package_info, package_index)]
         if pkg_index is not None

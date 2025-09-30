@@ -231,7 +231,8 @@ def test_app_empty_requirements_txt(temp_uv_empty_requirements_txt_file: Path) -
     )
 
     assert result.exit_code == 0
-    assert result.output == "\n"
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "Checked: 0 dependencies" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
@@ -241,7 +242,8 @@ def test_app_empty_pylock_toml(temp_uv_empty_pylock_toml_file: Path) -> None:
     )
 
     assert result.exit_code == 0
-    assert result.output == "\n"
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "Checked: 0 dependencies" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
