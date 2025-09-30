@@ -1696,3 +1696,17 @@ def test_json_format_empty_file(temp_empty_requirements_txt_file: Path) -> None:
     file_result = output["files"][0]
     assert len(file_result["dependencies"]) == 0
     assert file_result["ignored_count"] == 0
+
+
+def test_columns_format_no_maintenance_issues(
+    temp_uv_lock_file: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    """Test columns format with vulnerabilities but no maintenance issues"""
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 2
+    assert "VULN-123" in result.output
+    assert "Yanked" not in result.output  # No maintenance table
+    assert "[/]" not in result.output

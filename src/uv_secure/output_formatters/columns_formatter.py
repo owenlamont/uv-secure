@@ -10,6 +10,7 @@ from uv_secure.output_formatters.formatter import OutputFormatter
 from uv_secure.output_models import (
     DependencyOutput,
     FileResultOutput,
+    MaintenanceIssueOutput,
     ScanResultsOutput,
     VulnerabilityOutput,
 )
@@ -72,8 +73,7 @@ class ColumnsFormatter(OutputFormatter):
                 continue
 
             file_output = self._format_file_result(file_result, console)
-            if file_output:
-                output_parts.append(file_output)
+            output_parts.append(file_output)
 
         return "\n".join(output_parts)
 
@@ -107,8 +107,9 @@ class ColumnsFormatter(OutputFormatter):
 
         # Separate vulnerabilities and maintenance issues
         vulnerable_deps = [dep for dep in file_result.dependencies if dep.vulns]
-        maintenance_deps = [
-            dep
+        # Create list of (dep, issue) tuples to preserve type information
+        maintenance_items = [
+            (dep, dep.maintenance_issues)
             for dep in file_result.dependencies
             if dep.maintenance_issues is not None
         ]
@@ -121,7 +122,7 @@ class ColumnsFormatter(OutputFormatter):
             total_deps,
             vuln_count,
             vulnerable_deps,
-            maintenance_deps,
+            maintenance_items,
             file_result.ignored_count,
             console,
         )
@@ -134,7 +135,7 @@ class ColumnsFormatter(OutputFormatter):
         total_deps: int,
         vuln_count: int,
         vulnerable_deps: list[DependencyOutput],
-        maintenance_deps: list[DependencyOutput],
+        maintenance_items: list[tuple[DependencyOutput, MaintenanceIssueOutput]],
         ignored_count: int,
         console: Console,
     ) -> str:
@@ -163,7 +164,7 @@ class ColumnsFormatter(OutputFormatter):
                 console.print(table)
             output_parts.append(capture.get())
 
-        issue_count = len(maintenance_deps)
+        issue_count = len(maintenance_items)
         issue_plural = inf.plural("issue", issue_count)
         if issue_count > 0:
             base_message = (
@@ -178,7 +179,7 @@ class ColumnsFormatter(OutputFormatter):
                 console.print(Panel.fit(base_message))
             output_parts.append(capture.get())
 
-            table = self._render_maintenance_table(maintenance_deps)
+            table = self._render_maintenance_table(maintenance_items)
             with console.capture() as capture:
                 console.print(table)
             output_parts.append(capture.get())
@@ -305,7 +306,7 @@ class ColumnsFormatter(OutputFormatter):
         return None
 
     def _render_maintenance_table(
-        self, maintenance_deps: list[DependencyOutput]
+        self, maintenance_items: list[tuple[DependencyOutput, MaintenanceIssueOutput]]
     ) -> Table:
         """Render maintenance issues table"""
         table = Table(
@@ -323,33 +324,29 @@ class ColumnsFormatter(OutputFormatter):
         table.add_column("Status", min_width=10, max_width=16)
         table.add_column("Status Reason", min_width=20, max_width=40)
 
-        for dep in maintenance_deps:
-            if dep.maintenance_issues:
-                renderables = [
-                    Text.assemble(
-                        (dep.name, f"link https://pypi.org/project/{dep.name}")
-                    ),
-                    Text.assemble(
-                        (
-                            dep.version,
-                            f"link https://pypi.org/project/{dep.name}/{dep.version}/",
-                        )
-                    ),
-                    Text(str(dep.maintenance_issues.yanked)),
-                    Text(dep.maintenance_issues.yanked_reason or "Unknown"),
+        for dep, issue in maintenance_items:
+            renderables = [
+                Text.assemble((dep.name, f"link https://pypi.org/project/{dep.name}")),
+                Text.assemble(
                     (
-                        Text(
-                            humanize.precisedelta(
-                                dep.maintenance_issues.age_days * 86400,
-                                minimum_unit="days",
-                            )
+                        dep.version,
+                        f"link https://pypi.org/project/{dep.name}/{dep.version}/",
+                    )
+                ),
+                Text(str(issue.yanked)),
+                Text(issue.yanked_reason or "Unknown"),
+                (
+                    Text(
+                        humanize.precisedelta(
+                            issue.age_days * 86400, minimum_unit="days"
                         )
-                        if dep.maintenance_issues.age_days is not None
-                        else Text("Unknown")
-                    ),
-                    Text(dep.maintenance_issues.status or "Unknown"),
-                    Text(dep.maintenance_issues.status_reason or "Unknown"),
-                ]
-                table.add_row(*renderables)
+                    )
+                    if issue.age_days is not None
+                    else Text("Unknown")
+                ),
+                Text(issue.status or "Unknown"),
+                Text(issue.status_reason or "Unknown"),
+            ]
+            table.add_row(*renderables)
 
         return table
