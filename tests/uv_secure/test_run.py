@@ -372,10 +372,7 @@ def test_app_failed_vulnerability_request(
     result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
 
     assert result.exit_code == 3
-    assert (
-        "Error: name='example-package' version='1.0.0' direct=False raised "
-        "exception: Request failed"
-    ) in result.output
+    assert "Error: example-package raised exception: Request failed" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
@@ -388,9 +385,8 @@ def test_app_package_not_found(
 
     assert result.exit_code == 3
     assert (
-        "Error: name='example-package' version='1.0.0' direct=False raised "
-        "exception: Client error '404 Not Found' for url "
-        "'https://pypi.org/pypi/example-package/1.0.0/json'"
+        "Error: example-package raised exception: Client error '404 Not Found' "
+        "for url 'https://pypi.org/pypi/example-package/1.0.0/json'"
     ) in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
@@ -499,7 +495,7 @@ def test_app_with_arg_ignored_package_no_specifiers(
 
     assert result.exit_code == 0
     assert "No vulnerabilities or maintenance issues detected!" in result.output
-    assert "Checked: 1 dependency" in result.output
+    assert "Checked: 0 dependencies" in result.output
     assert "All dependencies appear safe!" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
@@ -521,7 +517,7 @@ def test_app_with_arg_ignored_package_with_specifiers(
 
     assert result.exit_code == 0
     assert "No vulnerabilities or maintenance issues detected!" in result.output
-    assert "Checked: 1 dependency" in result.output
+    assert "Checked: 0 dependencies" in result.output
     assert "All dependencies appear safe!" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
@@ -775,7 +771,7 @@ def test_app_with_uv_secure_toml_ignored_package(
 
     assert result.exit_code == 0
     assert "No vulnerabilities or maintenance issues detected!" in result.output
-    assert "Checked: 1 dependency" in result.output
+    assert "Checked: 0 dependencies" in result.output
     assert "All dependencies appear safe!" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
@@ -821,7 +817,7 @@ def test_app_with_pyproject_toml_ignored_package(
 
     assert result.exit_code == 0
     assert "No vulnerabilities or maintenance issues detected!" in result.output
-    assert "Checked: 1 dependency" in result.output
+    assert "Checked: 0 dependencies" in result.output
     assert "All dependencies appear safe!" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 

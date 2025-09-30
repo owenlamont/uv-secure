@@ -5,8 +5,6 @@ from hishel import AsyncCacheClient, AsyncFileStorage
 from httpx import Headers
 import pytest
 from pytest_httpx import HTTPXMock
-from rich.table import Table
-from rich.text import Text
 
 from uv_secure.configuration import (
     Configuration,
@@ -84,27 +82,24 @@ async def test_check_dependencies_alias_hyperlinks(
     async with AsyncCacheClient(
         timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
     ) as http_client:
-        status, renderables = await check_dependencies(
+        result = await check_dependencies(
             APath(temp_uv_lock_file),
             Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),
             http_client,
             True,
         )
 
-    assert status == 2
-    for renderable in renderables:
-        if not isinstance(renderable, Table):
-            continue
-        for column in renderable.columns:
-            if column.header != "Aliases":
-                continue
-            cells = list(column.cells)
-            assert len(cells) == 1
-            cell = cells[0]
-            assert isinstance(cell, Text)
-            assert alias in cell.plain
-            if expected_hyperlink is not None:
-                assert expected_hyperlink in cell.markup
+    # Verify structured output
+    assert result.error is None
+    assert len(result.dependencies) == 1
+    dep = result.dependencies[0]
+    assert dep.name == "example-package"
+    assert dep.vulns is not None
+    assert len(dep.vulns) == 1
+    vuln = dep.vulns[0]
+    assert vuln.id == "VULN-123"
+    assert vuln.aliases is not None
+    assert alias in vuln.aliases
 
 
 @pytest.mark.asyncio
@@ -149,17 +144,22 @@ async def test_check_dependencies_no_fix_versions(
     async with AsyncCacheClient(
         timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
     ) as http_client:
-        status, renderables = await check_dependencies(
+        result = await check_dependencies(
             APath(temp_uv_lock_file),
             Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),
             http_client,
             True,
         )
 
-    assert status == 2
-    renderables_list = list(renderables)
-    assert len(renderables_list) == 3
-    assert isinstance(renderables_list[2], Table)
+    # Verify structured output
+    assert result.error is None
+    assert len(result.dependencies) == 1
+    dep = result.dependencies[0]
+    assert dep.vulns is not None
+    assert len(dep.vulns) == 1
+    vuln = dep.vulns[0]
+    assert vuln.id == "VULN-NO-FIX"
+    assert vuln.fix_versions is None
 
 
 @pytest.mark.asyncio
@@ -197,33 +197,20 @@ async def test_maintenance_issue_forbidden_status_triggers_issue(
             maintain = MaintainabilityCriteria(forbid_deprecated=True)
         else:
             maintain = MaintainabilityCriteria(forbid_quarantined=True)
-        status, renderables = await check_dependencies(
+        result = await check_dependencies(
             APath(temp_uv_lock_file),
             Configuration(maintainability_criteria=maintain),
             http_client,
             True,
         )
 
-    assert status == 1
-    renderables_list = list(renderables)
-    assert len(renderables_list) >= 3
-    assert isinstance(renderables_list[-1], Table)
-    issues_table = renderables_list[-1]
-    headers = [col.header for col in issues_table.columns]
-    assert "Status" in headers
-    assert "Status Reason" in headers
-    status_col = next(col for col in issues_table.columns if col.header == "Status")
-    reason_col = next(
-        col for col in issues_table.columns if col.header == "Status Reason"
-    )
-    status_cells = list(status_col.cells)
-    reason_cells = list(reason_col.cells)
-    assert len(status_cells) == 1
-    assert len(reason_cells) == 1
-    assert isinstance(status_cells[0], Text)
-    assert isinstance(reason_cells[0], Text)
-    assert status_cells[0].plain == proj_status
-    assert reason_cells[0].plain == "test"
+    # Verify structured output
+    assert result.error is None
+    assert len(result.dependencies) == 1
+    dep = result.dependencies[0]
+    assert dep.maintenance_issues is not None
+    assert dep.maintenance_issues.status == proj_status
+    assert dep.maintenance_issues.status_reason == "test"
 
 
 @pytest.mark.asyncio
@@ -245,13 +232,15 @@ async def test_maintenance_issue_not_reported_when_not_forbidden(
     async with AsyncCacheClient(
         timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
     ) as http_client:
-        status, renderables = await check_dependencies(
+        result = await check_dependencies(
             APath(temp_uv_lock_file), Configuration(), http_client, True
         )
 
-    assert status == 0
-    renderables_list = list(renderables)
-    assert len(renderables_list) >= 2
+    # Verify structured output - no maintenance issues reported
+    assert result.error is None
+    assert len(result.dependencies) == 1
+    dep = result.dependencies[0]
+    assert dep.maintenance_issues is None
 
 
 @pytest.mark.asyncio
@@ -270,7 +259,7 @@ async def test_maintenance_issue_forbidden_status_unknown_reason_shows_unknown(
     async with AsyncCacheClient(
         timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
     ) as http_client:
-        status, renderables = await check_dependencies(
+        result = await check_dependencies(
             APath(temp_uv_lock_file),
             Configuration(
                 maintainability_criteria=MaintainabilityCriteria(forbid_archived=True)
@@ -279,21 +268,13 @@ async def test_maintenance_issue_forbidden_status_unknown_reason_shows_unknown(
             True,
         )
 
-    assert status == 1
-    renderables_list = list(renderables)
-    assert len(renderables_list) >= 3
-    assert isinstance(renderables_list[-1], Table)
-    issues_table = renderables_list[-1]
-    headers = [col.header for col in issues_table.columns]
-    assert "Status" in headers
-    assert "Status Reason" in headers
-    reason_col = next(
-        col for col in issues_table.columns if col.header == "Status Reason"
-    )
-    reason_cells = list(reason_col.cells)
-    assert len(reason_cells) == 1
-    assert isinstance(reason_cells[0], Text)
-    assert reason_cells[0].plain == "Unknown"
+    # Verify structured output
+    assert result.error is None
+    assert len(result.dependencies) == 1
+    dep = result.dependencies[0]
+    assert dep.maintenance_issues is not None
+    assert dep.maintenance_issues.status == "archived"
+    assert dep.maintenance_issues.status_reason is None
 
 
 @pytest.mark.asyncio
@@ -338,14 +319,19 @@ async def test_check_dependencies_no_aliases(
     async with AsyncCacheClient(
         timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
     ) as http_client:
-        status, renderables = await check_dependencies(
+        result = await check_dependencies(
             APath(temp_uv_lock_file),
             Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),
             http_client,
             True,
         )
 
-    assert status == 2
-    renderables_list = list(renderables)
-    assert len(renderables_list) == 3
-    assert isinstance(renderables_list[2], Table)
+    # Verify structured output
+    assert result.error is None
+    assert len(result.dependencies) == 1
+    dep = result.dependencies[0]
+    assert dep.vulns is not None
+    assert len(dep.vulns) == 1
+    vuln = dep.vulns[0]
+    assert vuln.id == "VULN-NO-ALIASES"
+    assert vuln.aliases is None

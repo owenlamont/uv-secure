@@ -140,6 +140,15 @@ _ignore_pkg_options = typer.Option(
 )
 
 
+_format_option = typer.Option(
+    "columns",
+    "--format",
+    help=(
+        "Output format: 'columns' for table output (default) or 'json' for JSON output"
+    ),
+)
+
+
 @app.command()
 def main(
     file_paths: list[Path] | None = _file_path_args,
@@ -161,6 +170,7 @@ def main(
     | None = _check_direct_dependency_maintenance_issues_only_option,
     config_path: Path | None = _config_option,
     version: bool = _version_option,
+    format_type: str = _format_option,
 ) -> None:
     """Parse uv.lock, pylock.toml, and requirements.txt files.
 
@@ -194,6 +204,7 @@ def main(
             check_direct_dependency_vulnerabilities_only,
             check_direct_dependency_maintenance_issues_only,
             config_path,
+            format_type,
         )
     )
     if run_status == RunStatus.MAINTENANCE_ISSUES_FOUND:

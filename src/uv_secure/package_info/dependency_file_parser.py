@@ -21,6 +21,8 @@ class Dependency(BaseModel):
 class ParseResult(BaseModel):
     dependencies: list[Dependency]
     ignored_count: int
+    file_path: str | None = None
+    error: str | None = None
 
 
 # Disable stamina retry hooks to silence retry warnings in the console
