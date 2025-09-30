@@ -1611,15 +1611,16 @@ def test_json_format_with_maintenance_issues(
     file_result = output["files"][0]
     # Check structure exists
     assert "dependencies" in file_result
-    for dep in file_result["dependencies"]:
-        if dep.get("maintenance_issues"):
-            issue = dep["maintenance_issues"]
-            assert "yanked" in issue
-            assert isinstance(issue["yanked"], bool)
-            return  # Found one, test passed
 
-    # If no maintenance issues found, that's ok for this test
-    # (fixture behavior may vary)
+    # Find dependency with maintenance issues (fixture should always have one)
+    deps_with_maintenance = [
+        dep for dep in file_result["dependencies"] if dep.get("maintenance_issues")
+    ]
+    assert len(deps_with_maintenance) > 0, "Expected maintenance issues in fixture"
+
+    issue = deps_with_maintenance[0]["maintenance_issues"]
+    assert "yanked" in issue
+    assert isinstance(issue["yanked"], bool)
 
 
 def test_json_format_with_ignored_dependencies(
