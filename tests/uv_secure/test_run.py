@@ -394,6 +394,54 @@ def test_app_package_not_found(
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
+def test_json_format_failed_vulnerability_request(
+    temp_uv_lock_file: Path,
+    missing_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    """Test JSON format output is valid even when request fails"""
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--format", "json", "--disable-cache"]
+    )
+
+    assert result.exit_code == 3
+
+    output = json.loads(result.output)
+    assert "files" in output
+    assert len(output["files"]) == 1
+
+    file_result = output["files"][0]
+    assert "error" in file_result
+    assert "example-package" in file_result["error"]
+    assert "Request failed" in file_result["error"]
+    assert file_result["dependencies"] == []
+    assert file_result["ignored_count"] == 0
+
+
+def test_json_format_package_not_found(
+    temp_uv_lock_file: Path,
+    package_version_not_found_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    """Test JSON format output is valid even when package is not found"""
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--format", "json", "--disable-cache"]
+    )
+
+    assert result.exit_code == 3
+
+    output = json.loads(result.output)
+    assert "files" in output
+    assert len(output["files"]) == 1
+
+    file_result = output["files"][0]
+    assert "error" in file_result
+    assert "example-package" in file_result["error"]
+    assert "404 Not Found" in file_result["error"]
+    assert file_result["dependencies"] == []
+    assert file_result["ignored_count"] == 0
+
+
 @pytest.mark.parametrize(
     "extra_cli_args",
     [
