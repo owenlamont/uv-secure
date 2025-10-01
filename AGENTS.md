@@ -61,6 +61,8 @@ concurrently and supports hierarchical configuration discovery.
   party package use), or the reason for temporary dependency version pinning (e.g.
   linking an unresolved GitHub issues) or lastly explaining opaque code or non-obvious
   trade offs or workarounds.
+- Ensure all imports are at the beginning of Python modules unless they must be imported
+  later to avoid circular imports.
 
 ## Development Environment / Terminal
 

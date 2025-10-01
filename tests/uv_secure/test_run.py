@@ -1752,6 +1752,64 @@ def test_columns_format_no_maintenance_issues(
     one_vulnerability_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
 ) -> None:
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 2
+    assert "Vulnerabilities detected!" in result.output
+    # Columns format should have table output (not JSON)
+    assert "{" not in result.output or "Vulnerabilities" in result.output
+
+
+def test_format_configured_via_uv_secure_toml(
+    temp_uv_lock_file: Path,
+    temp_uv_secure_toml_file_json_format: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 0
+    # JSON format should output JSON
+    assert '"files"' in result.output
+    assert '"dependencies"' in result.output
+
+
+def test_format_configured_via_pyproject_toml(
+    temp_uv_lock_file: Path,
+    temp_pyproject_toml_file_json_format: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 0
+    # JSON format should output JSON
+    assert '"files"' in result.output
+    assert '"dependencies"' in result.output
+
+
+def test_format_cli_overrides_config_file(
+    temp_uv_lock_file: Path,
+    temp_uv_secure_toml_file_json_format: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    # Config file says JSON, but CLI says columns
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--format", "columns"]
+    )
+
+    assert result.exit_code == 0
+    # Should use columns format (CLI override)
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert '"files"' not in result.output  # Should not be JSON
+
+
+def test_columns_format_with_vulnerabilities_no_maintenance_issues(
+    temp_uv_lock_file: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
     """Test columns format with vulnerabilities but no maintenance issues"""
     result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
 

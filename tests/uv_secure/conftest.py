@@ -253,6 +253,27 @@ def temp_uv_secure_toml_file_all_columns_and_maintenance_issues_enabled(
 
 
 @pytest.fixture
+def temp_uv_secure_toml_file_json_format(tmp_path: Path) -> Path:
+    uv_secure_toml_path = tmp_path / "uv-secure.toml"
+    uv_lock_data = """
+        format = "json"
+    """
+    uv_secure_toml_path.write_text(dedent(uv_lock_data).strip())
+    return uv_secure_toml_path
+
+
+@pytest.fixture
+def temp_pyproject_toml_file_json_format(tmp_path: Path) -> Path:
+    pyproject_toml_path = tmp_path / "pyproject.toml"
+    pyproject_toml_data = """
+        [tool.uv-secure]
+        format = "json"
+    """
+    pyproject_toml_path.write_text(dedent(pyproject_toml_data).strip())
+    return pyproject_toml_path
+
+
+@pytest.fixture
 def temp_dot_uv_secure_toml_file(tmp_path: Path) -> Path:
     uv_secure_toml_path = tmp_path / ".uv-secure.toml"
     uv_lock_data = ""

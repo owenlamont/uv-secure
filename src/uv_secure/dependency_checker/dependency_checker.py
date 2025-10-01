@@ -17,6 +17,7 @@ from uv_secure.configuration import (
     config_cli_arg_factory,
     config_file_factory,
     Configuration,
+    OutputFormat,
     override_config,
 )
 from uv_secure.directory_scanner import get_dependency_file_to_config_map
@@ -375,6 +376,7 @@ def _apply_cli_config_overrides(
     check_direct_dependency_vulnerabilities_only: bool | None,
     check_direct_dependency_maintenance_issues_only: bool | None,
     max_package_age: int | None,
+    format_type: str | None,
 ) -> dict[APath, Configuration]:
     """Apply CLI configuration overrides to lock-to-config mapping"""
     if any(
@@ -390,6 +392,7 @@ def _apply_cli_config_overrides(
             check_direct_dependency_vulnerabilities_only,
             check_direct_dependency_maintenance_issues_only,
             max_package_age is not None,
+            format_type is not None,
         )
     ):
         cli_config = config_cli_arg_factory(
@@ -404,6 +407,7 @@ def _apply_cli_config_overrides(
             max_package_age,
             ignore_vulns,
             ignore_pkgs,
+            OutputFormat(format_type) if format_type else None,
         )
         return {
             lock_file: override_config(config, cli_config)
@@ -463,7 +467,7 @@ async def check_lock_files(
     check_direct_dependency_vulnerabilities_only: bool | None,
     check_direct_dependency_maintenance_issues_only: bool | None,
     config_path: Path | None,
-    format_type: str = "columns",
+    format_type: str | None,
 ) -> RunStatus:
     """Checks PEP751 pylock.toml, requirements.txt, and uv.lock files for issues
 
@@ -489,7 +493,8 @@ async def check_lock_files(
         check_direct_dependency_maintenance_issues_only: flag checking direct dependency
             maintenance issues only
         config_path: path to configuration file
-        format_type: output format type ("columns" or "json")
+        format_type: output format type ("columns" or "json") - for backwards
+            compatibility. None means use config file setting.
 
     Returns:
         RunStatus indicating the result of the scan
@@ -525,6 +530,7 @@ async def check_lock_files(
         check_direct_dependency_vulnerabilities_only,
         check_direct_dependency_maintenance_issues_only,
         max_package_age,
+        format_type,
     )
 
     # I found antivirus programs (specifically Windows Defender) can almost fully
@@ -551,13 +557,14 @@ async def check_lock_files(
     # Build scan results output
     scan_results = ScanResultsOutput(files=file_results)
 
-    # Choose formatter based on format_type
+    # Use first config for formatter (they should all have same display settings)
+    config = next(iter(lock_to_config_map.values()))
+
+    # Choose formatter based on format from configuration
     formatter: OutputFormatter
-    if format_type == "json":
+    if config.format.value == "json":
         formatter = JsonFormatter()
     else:
-        # Use first config for formatter (they should all have same display settings)
-        config = next(iter(lock_to_config_map.values()))
         formatter = ColumnsFormatter(config)
 
     # Format and print output

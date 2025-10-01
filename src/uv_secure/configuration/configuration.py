@@ -1,6 +1,14 @@
 from datetime import timedelta
+from enum import Enum
 
 from pydantic import BaseModel, ConfigDict
+
+
+class OutputFormat(str, Enum):
+    """Output format options for scan results"""
+
+    COLUMNS = "columns"
+    JSON = "json"
 
 
 class MaintainabilityCriteria(BaseModel):
@@ -26,6 +34,7 @@ class Configuration(BaseModel):
     maintainability_criteria: MaintainabilityCriteria = MaintainabilityCriteria()
     vulnerability_criteria: VulnerabilityCriteria = VulnerabilityCriteria()
     ignore_packages: dict[str, tuple[str, ...]] | None = None
+    format: OutputFormat = OutputFormat.COLUMNS
 
 
 class OverrideConfiguration(BaseModel):
@@ -40,6 +49,7 @@ class OverrideConfiguration(BaseModel):
     forbid_quarantined: bool | None = None
     forbid_yanked: bool | None = None
     max_package_age: timedelta | None = None
+    format: OutputFormat | None = None
 
 
 def override_config(
@@ -94,5 +104,7 @@ def override_config(
         new_configuration.maintainability_criteria.max_package_age = (
             overrides.max_package_age
         )
+    if overrides.format is not None:
+        new_configuration.format = overrides.format
 
     return new_configuration

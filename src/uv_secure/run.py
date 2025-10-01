@@ -1,21 +1,14 @@
-from enum import Enum
 from pathlib import Path
 import sys
 
 import typer
 
 from uv_secure import __version__
+from uv_secure.configuration import OutputFormat
 from uv_secure.dependency_checker import check_lock_files, RunStatus
 
 
 DEFAULT_HTTPX_CACHE_TTL_SECONDS = 24.0 * 60.0 * 60.0
-
-
-class OutputFormat(str, Enum):
-    """Output format options for scan results"""
-
-    COLUMNS = "columns"
-    JSON = "json"
 
 
 app = typer.Typer()
@@ -149,7 +142,7 @@ _ignore_pkg_options = typer.Option(
 
 
 _format_option = typer.Option(
-    OutputFormat.COLUMNS,
+    None,
     "--format",
     help=(
         "Output format: 'columns' for table output (default) or 'json' for JSON output"
@@ -178,7 +171,7 @@ def main(
     | None = _check_direct_dependency_maintenance_issues_only_option,
     config_path: Path | None = _config_option,
     version: bool = _version_option,
-    format_type: OutputFormat = _format_option,
+    format_type: OutputFormat | None = _format_option,
 ) -> None:
     """Parse uv.lock, pylock.toml, and requirements.txt files.
 
@@ -212,7 +205,7 @@ def main(
             check_direct_dependency_vulnerabilities_only,
             check_direct_dependency_maintenance_issues_only,
             config_path,
-            format_type,
+            format_type.value if format_type is not None else None,
         )
     )
     if run_status == RunStatus.MAINTENANCE_ISSUES_FOUND:

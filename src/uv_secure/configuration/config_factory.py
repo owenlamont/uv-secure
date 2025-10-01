@@ -4,7 +4,11 @@ import sys
 from anyio import Path
 from pydantic import ValidationError
 
-from uv_secure.configuration.configuration import Configuration, OverrideConfiguration
+from uv_secure.configuration.configuration import (
+    Configuration,
+    OutputFormat,
+    OverrideConfiguration,
+)
 from uv_secure.configuration.exceptions import UvSecureConfigurationError
 
 
@@ -54,6 +58,7 @@ def config_cli_arg_factory(
     max_package_age: int | None,
     ignore_vulns: str | None,
     ignore_pkgs: list[str] | None,
+    format_type: OutputFormat | None,
 ) -> OverrideConfiguration:
     """Factory to create a uv-secure configuration from its command line arguments
 
@@ -68,6 +73,7 @@ def config_cli_arg_factory(
         max_package_age: maximum age of dependencies in days
         ignore_vulns: comma separated string of vulnerability ids to ignore
         ignore_pkgs: list of package names and version specifiers to ignore
+        format_type: output format type (OutputFormat enum value)
 
     Returns:
         uv-secure override configuration object
@@ -90,6 +96,7 @@ def config_cli_arg_factory(
         max_package_age=timedelta(days=max_package_age) if max_package_age else None,
         ignore_vulnerabilities=ignore_vulnerabilities,
         ignore_packages=_parse_pkg_versions(ignore_pkgs),
+        format=format_type,
     )
 
 
