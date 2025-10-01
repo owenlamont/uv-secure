@@ -1595,7 +1595,7 @@ def test_json_format_no_vulnerabilities(
     assert len(output["files"]) == 1
 
     file_result = output["files"][0]
-    assert str(temp_uv_lock_file) in file_result["file_path"]
+    assert temp_uv_lock_file.as_posix() == file_result["file_path"]
     assert "dependencies" in file_result
     assert file_result["ignored_count"] == 0
 

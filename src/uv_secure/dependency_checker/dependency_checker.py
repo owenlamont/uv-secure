@@ -263,7 +263,7 @@ async def check_dependencies(
     Returns:
         FileResultOutput with structured dependency results
     """
-    file_path_str = str(dependency_file_path)
+    file_path_str = dependency_file_path.as_posix()
 
     # Load and parse dependencies
     if not await dependency_file_path.exists():
