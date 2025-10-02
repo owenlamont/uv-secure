@@ -17,6 +17,23 @@ from uv_secure import app
 runner = CliRunner()
 
 
+def assert_no_markup_escape_artifacts(output: str) -> None:
+    """Ensure Rich markup artifacts or double escapes are absent from output."""
+
+    assert "\x1b\x1b" not in output
+    assert "[/]" not in output
+
+
+def assert_table_rendered(output: str, title: str) -> None:
+    """Ensure a Rich table with the given title is present in output."""
+
+    assert title in output
+    top_left_candidates = {"┏", "┌", "╭"}
+    bottom_right_candidates = {"┘", "┛", "╯"}
+    assert any(char in output for char in top_left_candidates)
+    assert any(char in output for char in bottom_right_candidates)
+
+
 def test_app_version() -> None:
     result = runner.invoke(app, "--version")
     assert result.exit_code == 0
@@ -223,7 +240,8 @@ def test_app_vulnerabilities_pylock_toml(
     assert "1.0.0" in result.output
     assert "VULN-123" in result.output
     assert "1.0.1" in result.output
-    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
+    assert_table_rendered(result.output, "Vulnerable Dependencies")
+    assert_no_markup_escape_artifacts(result.output)
 
 
 def test_app_empty_requirements_txt(temp_uv_empty_requirements_txt_file: Path) -> None:
@@ -937,7 +955,8 @@ def test_app_multiple_lock_files_no_vulnerabilities(
     assert result.output.count("Checked: 1 dependency") == 2
     assert result.output.count("All dependencies appear safe!") == 2
     assert result.output.count("nested_project") == 1
-    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
+    assert result.output.count("Checking ") == 2
+    assert_no_markup_escape_artifacts(result.output)
 
 
 def test_app_multiple_lock_files_one_vulnerabilities(
@@ -955,7 +974,9 @@ def test_app_multiple_lock_files_one_vulnerabilities(
         result.output.count("No vulnerabilities or maintenance issues detected!") == 1
     )
     assert result.output.count("Vulnerabilities detected!") == 1
-    assert "[/]" not in result.output  # Ensure no rich text formatting in error message
+    assert result.output.count("Checking ") == 2
+    assert_table_rendered(result.output, "Vulnerable Dependencies")
+    assert_no_markup_escape_artifacts(result.output)
 
 
 def test_app_multiple_lock_files_one_nested_ignored_vulnerability(
@@ -1424,11 +1445,12 @@ def test_cli_forbid_archived_triggers_maintenance_issue(
     _simple_status_response(httpx_mock, "archived")
     result = runner.invoke(app, [str(temp_uv_lock_file), "--forbid-archived"])
     assert result.exit_code == 1
-    assert "Maintenance Issues" in result.stdout
+    assert_table_rendered(result.stdout, "Maintenance Issues")
     assert "Status" in result.stdout
     assert "Reason" in result.stdout
     assert "archived" in result.stdout
     assert "test" in result.stdout
+    assert_no_markup_escape_artifacts(result.stdout)
 
 
 def test_cli_forbid_deprecated_triggers_maintenance_issue(
@@ -1439,11 +1461,12 @@ def test_cli_forbid_deprecated_triggers_maintenance_issue(
     _simple_status_response(httpx_mock, "deprecated")
     result = runner.invoke(app, [str(temp_uv_lock_file), "--forbid-deprecated"])
     assert result.exit_code == 1
-    assert "Maintenance Issues" in result.stdout
+    assert_table_rendered(result.stdout, "Maintenance Issues")
     assert "Status" in result.stdout
     assert "Reason" in result.stdout
     assert "deprecated" in result.stdout
     assert "test" in result.stdout
+    assert_no_markup_escape_artifacts(result.stdout)
 
 
 def test_cli_forbid_quarantined_triggers_maintenance_issue(
@@ -1454,11 +1477,12 @@ def test_cli_forbid_quarantined_triggers_maintenance_issue(
     _simple_status_response(httpx_mock, "quarantined")
     result = runner.invoke(app, [str(temp_uv_lock_file), "--forbid-quarantined"])
     assert result.exit_code == 1
-    assert "Maintenance Issues" in result.stdout
+    assert_table_rendered(result.stdout, "Maintenance Issues")
     assert "Status" in result.stdout
     assert "Reason" in result.stdout
     assert "quarantined" in result.stdout
     assert "test" in result.stdout
+    assert_no_markup_escape_artifacts(result.stdout)
 
 
 def test_app_uv_lock_file_with_ignored_non_pypi_dependencies(
@@ -1514,7 +1538,8 @@ def test_app_uv_lock_file_with_vulnerabilities_and_ignored_non_pypi_dependencies
     assert "Checked: 1 dependency" in result.output
     assert "Vulnerable: 1 vulnerability" in result.output
     assert "Ignored: 2 non-pypi dependencies" in result.output
-    assert "[/]" not in result.output
+    assert_table_rendered(result.output, "Vulnerable Dependencies")
+    assert_no_markup_escape_artifacts(result.output)
 
 
 def test_app_uv_lock_file_only_non_pypi_dependencies_shows_ignored_count(
