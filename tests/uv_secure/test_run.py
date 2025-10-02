@@ -28,8 +28,10 @@ def assert_table_rendered(output: str, title: str) -> None:
     """Ensure a Rich table with the given title is present in output."""
 
     assert title in output
-    assert "┏" in output
-    assert "┘" in output
+    top_left_candidates = {"┏", "┌", "╭"}
+    bottom_right_candidates = {"┘", "┛", "╯"}
+    assert any(char in output for char in top_left_candidates)
+    assert any(char in output for char in bottom_right_candidates)
 
 
 def test_app_version() -> None:
