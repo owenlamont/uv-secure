@@ -2,6 +2,7 @@ import pytest
 
 from uv_secure.configuration import (
     Configuration,
+    OutputFormat,
     override_config,
     OverrideConfiguration,
     VulnerabilityCriteria,
@@ -30,6 +31,18 @@ from uv_secure.configuration import (
                 vulnerability_criteria=VulnerabilityCriteria(aliases=False, desc=False)
             ),
             id="aliases and desc override to False",
+        ),
+        pytest.param(
+            Configuration(format=OutputFormat.COLUMNS),
+            OverrideConfiguration(format=OutputFormat.JSON),
+            Configuration(format=OutputFormat.JSON),
+            id="format override to JSON",
+        ),
+        pytest.param(
+            Configuration(format=OutputFormat.JSON),
+            OverrideConfiguration(format=OutputFormat.COLUMNS),
+            Configuration(format=OutputFormat.COLUMNS),
+            id="format override to COLUMNS",
         ),
     ],
 )

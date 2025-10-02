@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from datetime import datetime, timezone
+import json
 import os
 from pathlib import Path
 import re
@@ -231,7 +232,8 @@ def test_app_empty_requirements_txt(temp_uv_empty_requirements_txt_file: Path) -
     )
 
     assert result.exit_code == 0
-    assert result.output == "\n"
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "Checked: 0 dependencies" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
@@ -241,7 +243,8 @@ def test_app_empty_pylock_toml(temp_uv_empty_pylock_toml_file: Path) -> None:
     )
 
     assert result.exit_code == 0
-    assert result.output == "\n"
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "Checked: 0 dependencies" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
@@ -372,10 +375,7 @@ def test_app_failed_vulnerability_request(
     result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
 
     assert result.exit_code == 3
-    assert (
-        "Error: name='example-package' version='1.0.0' direct=False raised "
-        "exception: Request failed"
-    ) in result.output
+    assert "Error: example-package raised exception: Request failed" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
@@ -388,11 +388,58 @@ def test_app_package_not_found(
 
     assert result.exit_code == 3
     assert (
-        "Error: name='example-package' version='1.0.0' direct=False raised "
-        "exception: Client error '404 Not Found' for url "
-        "'https://pypi.org/pypi/example-package/1.0.0/json'"
+        "Error: example-package raised exception: Client error '404 Not Found' "
+        "for url 'https://pypi.org/pypi/example-package/1.0.0/json'"
     ) in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
+
+
+def test_json_format_failed_vulnerability_request(
+    temp_uv_lock_file: Path,
+    missing_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    """Test JSON format output is valid even when request fails"""
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--format", "json", "--disable-cache"]
+    )
+
+    assert result.exit_code == 3
+
+    output = json.loads(result.output)
+    assert "files" in output
+    assert len(output["files"]) == 1
+
+    file_result = output["files"][0]
+    assert "error" in file_result
+    assert "example-package" in file_result["error"]
+    assert "Request failed" in file_result["error"]
+    assert file_result["dependencies"] == []
+    assert file_result["ignored_count"] == 0
+
+
+def test_json_format_package_not_found(
+    temp_uv_lock_file: Path,
+    package_version_not_found_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    """Test JSON format output is valid even when package is not found"""
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--format", "json", "--disable-cache"]
+    )
+
+    assert result.exit_code == 3
+
+    output = json.loads(result.output)
+    assert "files" in output
+    assert len(output["files"]) == 1
+
+    file_result = output["files"][0]
+    assert "error" in file_result
+    assert "example-package" in file_result["error"]
+    assert "404 Not Found" in file_result["error"]
+    assert file_result["dependencies"] == []
+    assert file_result["ignored_count"] == 0
 
 
 @pytest.mark.parametrize(
@@ -499,7 +546,7 @@ def test_app_with_arg_ignored_package_no_specifiers(
 
     assert result.exit_code == 0
     assert "No vulnerabilities or maintenance issues detected!" in result.output
-    assert "Checked: 1 dependency" in result.output
+    assert "Checked: 0 dependencies" in result.output
     assert "All dependencies appear safe!" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
@@ -521,7 +568,7 @@ def test_app_with_arg_ignored_package_with_specifiers(
 
     assert result.exit_code == 0
     assert "No vulnerabilities or maintenance issues detected!" in result.output
-    assert "Checked: 1 dependency" in result.output
+    assert "Checked: 0 dependencies" in result.output
     assert "All dependencies appear safe!" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
@@ -775,7 +822,7 @@ def test_app_with_uv_secure_toml_ignored_package(
 
     assert result.exit_code == 0
     assert "No vulnerabilities or maintenance issues detected!" in result.output
-    assert "Checked: 1 dependency" in result.output
+    assert "Checked: 0 dependencies" in result.output
     assert "All dependencies appear safe!" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
@@ -821,7 +868,7 @@ def test_app_with_pyproject_toml_ignored_package(
 
     assert result.exit_code == 0
     assert "No vulnerabilities or maintenance issues detected!" in result.output
-    assert "Checked: 1 dependency" in result.output
+    assert "Checked: 0 dependencies" in result.output
     assert "All dependencies appear safe!" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
@@ -1481,4 +1528,292 @@ def test_app_uv_lock_file_only_non_pypi_dependencies_shows_ignored_count(
     assert result.exit_code == 0
     assert "No PyPI dependencies to check" in result.output
     assert "Ignored: 2 non-pypi dependencies" in result.output
+    assert "[/]" not in result.output
+
+
+def test_vulnerability_with_no_fix_versions(
+    temp_uv_lock_file: Path,
+    vulnerability_no_fix_versions_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    """Test vulnerability with empty fix_versions list"""
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 2
+    assert "VULN-NO-FIX" in result.output
+    assert "[/]" not in result.output
+
+
+def test_vulnerability_with_all_alias_types(
+    temp_uv_lock_file: Path,
+    vulnerability_multiple_alias_types_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    """Test vulnerability with CVE, GHSA, PYSEC, OSV, and unknown aliases"""
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--aliases", "--disable-cache"]
+    )
+
+    assert result.exit_code == 2
+    assert "CVE-2024-12345" in result.output
+    assert "GHSA-xxxx-yyyy-zzzz" in result.output
+    assert "PYSEC-2024-12345" in result.output
+    assert "OSV-2024-12345" in result.output
+    assert "UNKNOWN-FORMAT-123" in result.output
+    assert "[/]" not in result.output
+
+
+def test_vulnerability_with_no_aliases(
+    temp_uv_lock_file: Path,
+    vulnerability_no_aliases_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    """Test vulnerability with no aliases"""
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--aliases", "--disable-cache"]
+    )
+
+    assert result.exit_code == 2
+    assert "VULN-NO-ALIASES" in result.output
+    assert "[/]" not in result.output
+
+
+def test_json_format_no_vulnerabilities(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    """Test JSON format output with no vulnerabilities"""
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--format", "json", "--disable-cache"]
+    )
+
+    assert result.exit_code == 0
+    output = json.loads(result.output)
+
+    assert "files" in output
+    assert len(output["files"]) == 1
+
+    file_result = output["files"][0]
+    assert temp_uv_lock_file.as_posix() == file_result["file_path"]
+    assert "dependencies" in file_result
+    assert file_result["ignored_count"] == 0
+
+    # Check that dependencies have expected structure
+    for dep in file_result["dependencies"]:
+        assert "name" in dep
+        assert "version" in dep
+        assert "direct" in dep
+        assert "vulns" in dep
+        assert isinstance(dep["vulns"], list)
+
+
+def test_json_format_with_vulnerabilities(
+    temp_uv_lock_file: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    """Test JSON format output with vulnerabilities"""
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--format", "json", "--disable-cache"]
+    )
+
+    assert result.exit_code == 2
+    output = json.loads(result.output)
+
+    file_result = output["files"][0]
+    deps_with_vulns = [d for d in file_result["dependencies"] if d["vulns"]]
+
+    assert len(deps_with_vulns) > 0
+
+    vuln_dep = deps_with_vulns[0]
+    vuln = vuln_dep["vulns"][0]
+
+    assert "id" in vuln
+    assert "details" in vuln
+    assert vuln["id"] == "VULN-123"
+
+
+def test_json_format_with_maintenance_issues(
+    temp_uv_lock_file: Path,
+    old_yanked_package_with_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+    temp_uv_secure_toml_file_all_columns_and_maintenance_issues_enabled: Path,
+) -> None:
+    """Test JSON format output with maintenance issues"""
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            "--format",
+            "json",
+            "--disable-cache",
+            "--config",
+            str(temp_uv_secure_toml_file_all_columns_and_maintenance_issues_enabled),
+        ],
+    )
+
+    assert result.exit_code in (1, 2)  # Maintenance or vulnerabilities
+    output = json.loads(result.output)
+
+    file_result = output["files"][0]
+    # Check structure exists
+    assert "dependencies" in file_result
+
+    # Find dependency with maintenance issues (fixture should always have one)
+    deps_with_maintenance = [
+        dep for dep in file_result["dependencies"] if dep.get("maintenance_issues")
+    ]
+    assert len(deps_with_maintenance) > 0, "Expected maintenance issues in fixture"
+
+    issue = deps_with_maintenance[0]["maintenance_issues"]
+    assert "yanked" in issue
+    assert isinstance(issue["yanked"], bool)
+
+
+def test_json_format_with_ignored_dependencies(
+    temp_uv_lock_file_with_non_pypi_deps: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    """Test JSON format shows ignored count"""
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file_with_non_pypi_deps),
+            "--format",
+            "json",
+            "--disable-cache",
+        ],
+    )
+
+    assert result.exit_code == 2
+    output = json.loads(result.output)
+
+    file_result = output["files"][0]
+    assert file_result["ignored_count"] == 2
+    assert len(file_result["dependencies"]) == 1  # Only PyPI deps
+
+
+def test_json_format_direct_dependencies_only(
+    temp_uv_lock_file_direct_indirect_dependencies: Path,
+    one_vulnerability_response_indirect_dependency: HTTPXMock,
+    no_vulnerabilities_response_direct_dependency: HTTPXMock,
+    pypi_simple_direct_and_indirect: HTTPXMock,
+    temp_uv_secure_toml_file_direct_dependency_vulnerabilities_only: Path,
+) -> None:
+    """Test JSON format with direct dependencies only filter"""
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file_direct_indirect_dependencies),
+            "--format",
+            "json",
+            "--disable-cache",
+            "--config",
+            str(temp_uv_secure_toml_file_direct_dependency_vulnerabilities_only),
+        ],
+    )
+
+    assert result.exit_code == 0
+    output = json.loads(result.output)
+
+    file_result = output["files"][0]
+
+    # Should have both direct and indirect dependencies
+    direct_deps = [d for d in file_result["dependencies"] if d["direct"]]
+    indirect_deps = [d for d in file_result["dependencies"] if not d["direct"]]
+
+    assert len(direct_deps) > 0
+    assert len(indirect_deps) > 0
+
+    # Indirect deps should have no vulnerabilities due to filter
+    for dep in indirect_deps:
+        assert len(dep["vulns"]) == 0
+
+
+def test_json_format_empty_file(temp_empty_requirements_txt_file: Path) -> None:
+    """Test JSON format with empty dependency file"""
+    result = runner.invoke(
+        app,
+        [str(temp_empty_requirements_txt_file), "--format", "json", "--disable-cache"],
+    )
+
+    assert result.exit_code == 0
+    output = json.loads(result.output)
+
+    file_result = output["files"][0]
+    assert len(file_result["dependencies"]) == 0
+    assert file_result["ignored_count"] == 0
+
+
+def test_columns_format_no_maintenance_issues(
+    temp_uv_lock_file: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 2
+    assert "Vulnerabilities detected!" in result.output
+    # Columns format should have table output (not JSON)
+    assert "{" not in result.output or "Vulnerabilities" in result.output
+
+
+def test_format_configured_via_uv_secure_toml(
+    temp_uv_lock_file: Path,
+    temp_uv_secure_toml_file_json_format: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 0
+    # JSON format should output JSON
+    assert '"files"' in result.output
+    assert '"dependencies"' in result.output
+
+
+def test_format_configured_via_pyproject_toml(
+    temp_uv_lock_file: Path,
+    temp_pyproject_toml_file_json_format: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 0
+    # JSON format should output JSON
+    assert '"files"' in result.output
+    assert '"dependencies"' in result.output
+
+
+def test_format_cli_overrides_config_file(
+    temp_uv_lock_file: Path,
+    temp_uv_secure_toml_file_json_format: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    # Config file says JSON, but CLI says columns
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--format", "columns"]
+    )
+
+    assert result.exit_code == 0
+    # Should use columns format (CLI override)
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert '"files"' not in result.output  # Should not be JSON
+
+
+def test_columns_format_with_vulnerabilities_no_maintenance_issues(
+    temp_uv_lock_file: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    """Test columns format with vulnerabilities but no maintenance issues"""
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 2
+    assert "VULN-123" in result.output
+    assert "Yanked" not in result.output  # No maintenance table
     assert "[/]" not in result.output

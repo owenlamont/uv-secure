@@ -5,6 +5,7 @@ from uv_secure.configuration.config_factory import (
 from uv_secure.configuration.configuration import (
     Configuration,
     MaintainabilityCriteria,
+    OutputFormat,
     override_config,
     OverrideConfiguration,
     VulnerabilityCriteria,
@@ -15,6 +16,7 @@ from uv_secure.configuration.exceptions import UvSecureConfigurationError
 __all__ = [
     "Configuration",
     "MaintainabilityCriteria",
+    "OutputFormat",
     "OverrideConfiguration",
     "UvSecureConfigurationError",
     "VulnerabilityCriteria",

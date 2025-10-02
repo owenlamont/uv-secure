@@ -113,7 +113,6 @@ After installation, you can run uv-secure --help to see the options.
 │                                    requirements.txt files or a single project root   │
 │                                    level directory (defaults to working directory if │
 │                                    not set)                                          │
-│                                    [default: None]                                   │
 ╰──────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ────────────────────────────────────────────────────────────────────────────╮
 │ --aliases                                               Flag whether to include      │
@@ -149,16 +148,13 @@ After installation, you can run uv-secure --help to see the options.
 │                                                         dependencies                 │
 │ --max-age-days                       INTEGER            Maximum age threshold for    │
 │                                                         packages in days             │
-│                                                         [default: None]              │
 │ --ignore-vulns                       TEXT               Comma-separated list of      │
 │                                                         vulnerability IDs to ignore, │
 │                                                         e.g. VULN-123,VULN-456       │
-│                                                         [default: None]              │
 │ --ignore-pkgs                        PKG:SPEC1|SPEC2|…  Dependency with optional     │
 │                                                         version specifiers. Syntax:  │
 │                                                         name:spec1|spec2|…  e.g.     │
 │                                                         foo:>=1.0,<1.5|==4.5.*       │
-│                                                         [default: None]              │
 │ --check-direct-dependency-vu…                           Flag whether to only test    │
 │                                                         only direct dependencies for │
 │                                                         vulnerabilities              │
@@ -170,8 +166,10 @@ After installation, you can run uv-secure --help to see the options.
 │                                                         (uv-secure.toml,             │
 │                                                         .uv-secure.toml, or          │
 │                                                         pyproject.toml)              │
-│                                                         [default: None]              │
 │ --version                                               Show the application version │
+│ --format                             [columns|json]     Output format: 'columns' for │
+│                                                         table output (default) or    │
+│                                                         'json' for JSON output       │
 │ --install-completion                                    Install completion for the   │
 │                                                         current shell.               │
 │ --show-completion                                       Show completion for the      │
@@ -198,6 +196,8 @@ uv-secure can read configuration from a toml file specified with the config opti
 ### uv-secure.toml / .uv-secure.toml
 
 ```toml
+format = "columns"
+
 [ignore_packages]
 requests = [] # Ignore issues with all versions of the requests package
 urllib = [">=1.0, <2.0"] # Ignore issues between version 1.0 and less than 2.0
@@ -221,6 +221,9 @@ forbid_yanked = true # Defaults to false (allow yanked) if not set
 ### pyproject.toml
 
 ```toml
+[tool.uv-secure]
+format = "columns"
+
 [tool.uv-secure.ignore_packages]
 requests = [] # Ignore issues with all versions of the requests package
 urllib = [">=1.0, <2.0"] # Ignore issues between version 1.0 and less than 2.0
@@ -302,7 +305,7 @@ uv-secure can be run as a pre-commit hook by adding this configuration to your
 
 ```yaml
   - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.13.0
+    rev: 0.14.0
     hooks:
       - id: uv-secure
 ```

@@ -7,6 +7,7 @@ import pytest
 from uv_secure.configuration import (
     config_file_factory,
     Configuration,
+    OutputFormat,
     VulnerabilityCriteria,
 )
 
@@ -42,6 +43,23 @@ from uv_secure.configuration import (
             """,
             None,
             id="pyproject.toml no uv-secure",
+        ),
+        pytest.param(
+            "uv-secure.toml",
+            """
+            format = "json"
+            """,
+            Configuration(format=OutputFormat.JSON),
+            id="Format set to JSON in uv-secure.toml",
+        ),
+        pytest.param(
+            "pyproject.toml",
+            """
+            [tool.uv-secure]
+            format = "columns"
+            """,
+            Configuration(format=OutputFormat.COLUMNS),
+            id="Format set to columns in pyproject.toml",
         ),
     ],
 )

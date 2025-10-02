@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from enum import Enum
 from functools import cache
 from pathlib import Path
@@ -9,24 +9,28 @@ from anyio import Path as APath
 from asyncer import create_task_group
 from hishel import AsyncCacheClient, AsyncFileStorage
 from httpx import Headers
-import humanize
-import inflect
 from packaging.specifiers import SpecifierSet
-from rich.console import Console, ConsoleRenderable
-from rich.panel import Panel
-from rich.table import Table
-from rich.text import Text
+from rich.console import Console
 
 from uv_secure import __version__
 from uv_secure.configuration import (
     config_cli_arg_factory,
     config_file_factory,
     Configuration,
+    OutputFormat,
     override_config,
 )
 from uv_secure.directory_scanner import get_dependency_file_to_config_map
 from uv_secure.directory_scanner.directory_scanner import (
     get_dependency_files_to_config_map,
+)
+from uv_secure.output_formatters import ColumnsFormatter, JsonFormatter, OutputFormatter
+from uv_secure.output_models import (
+    DependencyOutput,
+    FileResultOutput,
+    MaintenanceIssueOutput,
+    ScanResultsOutput,
+    VulnerabilityOutput,
 )
 from uv_secure.package_info import (
     download_package_indexes,
@@ -49,166 +53,6 @@ if sys.version_info < (3, 11):
 USER_AGENT = f"uv-secure/{__version__} (contact: owenrlamont@gmail.com)"
 
 
-def _create_package_hyperlink(package_name: str) -> Text:
-    """Create hyperlink for package name"""
-    return Text.assemble(
-        (package_name, f"link https://pypi.org/project/{package_name}")
-    )
-
-
-def _create_version_hyperlink(package_name: str, version: str) -> Text:
-    """Create hyperlink for package version"""
-    return Text.assemble(
-        (version, f"link https://pypi.org/project/{package_name}/{version}/")
-    )
-
-
-def _create_vulnerability_id_hyperlink(vuln: Vulnerability) -> Text:
-    """Create hyperlink for vulnerability ID"""
-    return Text.assemble((vuln.id, f"link {vuln.link}")) if vuln.link else Text(vuln.id)
-
-
-def _create_fix_versions_text(package_name: str, vuln: Vulnerability) -> Text:
-    """Create text with fix version hyperlinks"""
-    if not vuln.fixed_in:
-        return Text("")
-
-    return Text(", ").join(
-        [
-            Text.assemble(
-                (fix_ver, f"link https://pypi.org/project/{package_name}/{fix_ver}/")
-            )
-            for fix_ver in vuln.fixed_in
-        ]
-    )
-
-
-def _get_alias_hyperlink(alias: str, package_name: str) -> str | None:
-    """Get hyperlink URL for vulnerability alias"""
-    if alias.startswith("CVE-"):
-        return f"https://cve.mitre.org/cgi-bin/cvename.cgi?name={alias}"
-    if alias.startswith("GHSA-"):
-        return f"https://github.com/advisories/{alias}"
-    if alias.startswith("PYSEC-"):
-        return (
-            "https://github.com/pypa/advisory-database/blob/main/"
-            f"vulns/{package_name}/{alias}.yaml"
-        )
-    if alias.startswith("OSV-"):
-        return f"https://osv.dev/vulnerability/{alias}"
-    return None
-
-
-def _create_aliases_text(vuln: Vulnerability, package_name: str) -> Text:
-    """Create text with alias hyperlinks"""
-    if not vuln.aliases:
-        return Text("")
-
-    alias_links = []
-    for alias in vuln.aliases:
-        hyperlink = _get_alias_hyperlink(alias, package_name)
-        if hyperlink:
-            alias_links.append(Text.assemble((alias, f"link {hyperlink}")))
-        else:
-            alias_links.append(Text(alias))
-
-    return Text(", ").join(alias_links) if alias_links else Text("")
-
-
-def _create_vulnerability_row_renderables(
-    package: PackageInfo, vuln: Vulnerability, config: Configuration
-) -> list[Text]:
-    """Create renderables for a vulnerability table row"""
-    renderables = [
-        _create_package_hyperlink(package.info.name),
-        _create_version_hyperlink(package.info.name, package.info.version),
-        _create_vulnerability_id_hyperlink(vuln),
-        _create_fix_versions_text(package.info.name, vuln),
-    ]
-
-    if config.vulnerability_criteria.aliases:
-        renderables.append(_create_aliases_text(vuln, package.info.name))
-
-    if config.vulnerability_criteria.desc:
-        renderables.append(Text(vuln.details))
-
-    return renderables
-
-
-def _render_vulnerability_table(
-    config: Configuration, vulnerable_packages: Iterable[PackageInfo]
-) -> Table:
-    table = Table(
-        title="Vulnerable Dependencies",
-        show_header=True,
-        row_styles=["none", "dim"],
-        header_style="bold magenta",
-        expand=True,
-    )
-    table.add_column("Package", min_width=8, max_width=40)
-    table.add_column("Version", min_width=10, max_width=20)
-    table.add_column("Vulnerability ID", style="bold cyan", min_width=20, max_width=24)
-    table.add_column("Fix Versions", min_width=10, max_width=20)
-    if config.vulnerability_criteria.aliases:
-        table.add_column("Aliases", min_width=20, max_width=24)
-    if config.vulnerability_criteria.desc:
-        table.add_column("Details", min_width=8)
-
-    for package in vulnerable_packages:
-        for vuln in package.vulnerabilities:
-            renderables = _create_vulnerability_row_renderables(package, vuln, config)
-            table.add_row(*renderables)
-
-    return table
-
-
-def _render_issue_table(
-    config: Configuration,
-    maintenance_issue_packages: Iterable[tuple[PackageInfo, PackageIndex]],
-) -> Table:
-    table = Table(
-        title="Maintenance Issues",
-        show_header=True,
-        row_styles=["none", "dim"],
-        header_style="bold magenta",
-        expand=True,
-    )
-    table.add_column("Package", min_width=8, max_width=40)
-    table.add_column("Version", min_width=10, max_width=20)
-    table.add_column("Yanked", style="bold cyan", min_width=10, max_width=10)
-    table.add_column("Yanked Reason", min_width=20, max_width=24)
-    table.add_column("Age", min_width=20, max_width=24)
-    table.add_column("Status", min_width=10, max_width=16)
-    table.add_column("Status Reason", min_width=20, max_width=40)
-    for package, pkg_index in maintenance_issue_packages:
-        renderables: list[Text] = [
-            Text.assemble(
-                (
-                    package.info.name,
-                    f"link https://pypi.org/project/{package.info.name}",
-                )
-            ),
-            Text.assemble(
-                (
-                    package.info.version,
-                    f"link https://pypi.org/project/{package.info.name}/"
-                    f"{package.info.version}/",
-                )
-            ),
-            Text(str(package.info.yanked)),
-            Text(package.info.yanked_reason)
-            if package.info.yanked_reason
-            else Text("Unknown"),
-            Text(humanize.precisedelta(package.age, minimum_unit="days"))
-            if package.age
-            else Text("Unknown"),
-            Text(pkg_index.status.value),
-            Text(pkg_index.project_status.reason or "Unknown"),
-        ]
-        table.add_row(*renderables)
-    return table
-
-
 @cache
 def get_specifier_sets(specifiers: tuple[str, ...]) -> tuple[SpecifierSet, ...]:
     """Converts a tuple of version specifiers to a tuple of SpecifierSets
@@ -220,6 +64,87 @@ def get_specifier_sets(specifiers: tuple[str, ...]) -> tuple[SpecifierSet, ...]:
         tuple of SpecifierSets
     """
     return tuple(SpecifierSet(spec) for spec in specifiers)
+
+
+def _convert_vulnerability_to_output(vuln: Vulnerability) -> VulnerabilityOutput:
+    """Convert Vulnerability to VulnerabilityOutput"""
+    return VulnerabilityOutput(
+        id=vuln.id,
+        details=vuln.details,
+        fix_versions=vuln.fixed_in,
+        aliases=vuln.aliases,
+        link=vuln.link,
+    )
+
+
+def _convert_maintenance_to_output(
+    package_info: PackageInfo, package_index: PackageIndex
+) -> MaintenanceIssueOutput | None:
+    """Convert maintenance issue data to MaintenanceIssueOutput"""
+    age_days = package_info.age.total_seconds() / 86400.0 if package_info.age else None
+    return MaintenanceIssueOutput(
+        yanked=package_info.info.yanked,
+        yanked_reason=package_info.info.yanked_reason,
+        age_days=age_days,
+        status=package_index.status.value,
+        status_reason=package_index.project_status.reason,
+    )
+
+
+def _process_package_metadata(
+    package_info: PackageInfo | BaseException,
+    package_index: PackageIndex | BaseException,
+    dependency_name: str,
+    config: Configuration,
+    ignore_packages: dict[str, tuple[SpecifierSet, ...]],
+) -> DependencyOutput | str | None:
+    """Process a single package's metadata and return output or error
+
+    Returns:
+        DependencyOutput if successful
+        str if error occurred
+        None if package should be skipped
+    """
+    # Handle download exceptions
+    if isinstance(package_info, BaseException) or isinstance(
+        package_index, BaseException
+    ):
+        ex = package_info if isinstance(package_info, BaseException) else package_index
+        return f"{dependency_name} raised exception: {ex}"
+
+    # Check if package should be skipped
+    if _should_skip_package(package_info, ignore_packages):
+        return None
+
+    # Filter and check vulnerabilities based on config
+    if _should_check_vulnerabilities(package_info, config):
+        _filter_vulnerabilities(package_info, config)
+        vulns = [
+            _convert_vulnerability_to_output(v) for v in package_info.vulnerabilities
+        ]
+    else:
+        vulns = []
+
+    # Check if we should include maintenance issues
+    pkg_index = (
+        package_index
+        if _should_check_maintenance_issues(package_info, config)
+        else None
+    )
+    maintenance_issues = (
+        [_convert_maintenance_to_output(package_info, package_index)]
+        if pkg_index is not None
+        and _has_maintenance_issues(package_index, package_info, config)
+        else None
+    )
+
+    return DependencyOutput(
+        name=package_info.info.name,
+        version=package_info.info.version,
+        direct=package_info.direct_dependency,
+        vulns=vulns,
+        maintenance_issues=maintenance_issues[0] if maintenance_issues else None,
+    )
 
 
 def _should_skip_package(
@@ -309,104 +234,6 @@ async def _parse_dependency_file(dependency_file_path: APath) -> ParseResult:
     return await parse_pylock_toml_file(dependency_file_path)
 
 
-def _generate_summary_outputs(
-    vulnerable_count: int,
-    maintenance_issue_packages: list[tuple[PackageInfo, PackageIndex]],
-    total_dependencies: int,
-    ignored_count: int,
-    config: Configuration,
-    vulnerable_packages: list[PackageInfo],
-) -> tuple[int, list[ConsoleRenderable]]:
-    """Generate summary outputs and determine status"""
-    console_outputs: list[ConsoleRenderable] = []
-    inf = inflect.engine()
-    total_plural = inf.plural("dependency", total_dependencies)
-    vulnerable_plural = inf.plural("vulnerability", vulnerable_count)
-    ignored_plural = inf.plural("non-pypi dependency", ignored_count)
-
-    status = 0
-    if vulnerable_count > 0:
-        base_message = (
-            f"[bold red]Vulnerabilities detected![/]\n"
-            f"Checked: [bold]{total_dependencies}[/] {total_plural}\n"
-            f"Vulnerable: [bold]{vulnerable_count}[/] {vulnerable_plural}"
-        )
-        if ignored_count > 0:
-            base_message += f"\nIgnored: [bold]{ignored_count}[/] {ignored_plural}"
-        console_outputs.append(Panel.fit(base_message))
-        table = _render_vulnerability_table(config, vulnerable_packages)
-        console_outputs.append(table)
-        status = 2
-
-    issue_count = len(maintenance_issue_packages)
-    issue_plural = inf.plural("issue", issue_count)
-    if len(maintenance_issue_packages) > 0:
-        base_message = (
-            f"[bold yellow]Maintenance Issues detected![/]\n"
-            f"Checked: [bold]{total_dependencies}[/] {total_plural}\n"
-            f"Issues: [bold]{issue_count}[/] {issue_plural}"
-        )
-        if ignored_count > 0:
-            base_message += f"\nIgnored: [bold]{ignored_count}[/] {ignored_plural}"
-        console_outputs.append(Panel.fit(base_message))
-        table = _render_issue_table(config, maintenance_issue_packages)
-        console_outputs.append(table)
-        status = max(status, 1)
-
-    if status == 0:
-        base_message = (
-            f"[bold green]No vulnerabilities or maintenance issues detected![/]\n"
-            f"Checked: [bold]{total_dependencies}[/] {total_plural}\n"
-            f"All dependencies appear safe!"
-        )
-        if ignored_count > 0:
-            base_message += f"\nIgnored: [bold]{ignored_count}[/] {ignored_plural}"
-        console_outputs.append(Panel.fit(base_message))
-
-    return status, console_outputs
-
-
-def _process_package_for_vulnerabilities(
-    package: PackageInfo,
-    config: Configuration,
-    ignore_packages: dict[str, tuple[SpecifierSet, ...]],
-) -> int:
-    """Process a single package for vulnerabilities and return count found"""
-    if not _should_check_vulnerabilities(package, config):
-        return 0
-
-    _filter_vulnerabilities(package, config)
-    return len(package.vulnerabilities)
-
-
-def _process_package_for_maintenance_issues(
-    package_index: PackageIndex, package_info: PackageInfo, config: Configuration
-) -> bool:
-    """Process a single package for maintenance issues and return if found"""
-    return _should_check_maintenance_issues(
-        package_info, config
-    ) and _has_maintenance_issues(package_index, package_info, config)
-
-
-def _warn_about_direct_dependencies(
-    dependency_file_path: APath, packages: list, config: Configuration
-) -> Text | None:
-    """Check if we need to warn about missing direct dependency information"""
-    has_none_direct_dependency = any(
-        isinstance(package, PackageInfo) and package.direct_dependency is None
-        for package in packages
-    )
-    if has_none_direct_dependency and (
-        config.vulnerability_criteria.check_direct_dependencies_only
-        or config.maintainability_criteria.check_direct_dependencies_only
-    ):
-        return Text.from_markup(
-            f"[bold yellow]Warning:[/] {dependency_file_path} doesn't contain "
-            "the necessary information to determine direct dependencies."
-        )
-    return None
-
-
 def _build_ignore_packages(
     config: Configuration,
 ) -> dict[str, tuple[SpecifierSet, ...]]:
@@ -419,138 +246,13 @@ def _build_ignore_packages(
     }
 
 
-async def _load_dependencies_with_errors(
-    dependency_file_path: APath,
-) -> tuple[int, list, int, list[ConsoleRenderable]]:
-    """Load dependencies from a lock/requirements file and capture errors.
-
-    Returns a tuple of (status_code, dependencies, ignored_count, outputs). A status
-    code of 3 indicates a runtime error; 0 indicates success (which may still result
-    in an empty dependency list).
-    """
-    outputs: list[ConsoleRenderable] = []
-    if not await dependency_file_path.exists():
-        outputs.append(
-            Text.from_markup(
-                f"[bold red]Error:[/] File {dependency_file_path} does not exist."
-            )
-        )
-        return 3, [], 0, outputs
-
-    try:
-        parse_result = await _parse_dependency_file(dependency_file_path)
-    except Exception as e:  # pragma: no cover - defensive, surfaced to user
-        outputs.append(
-            Text.from_markup(
-                f"[bold red]Error:[/] Failed to parse {dependency_file_path}: {e}"
-            )
-        )
-        return 3, [], 0, outputs
-
-    return 0, parse_result.dependencies, parse_result.ignored_count, outputs
-
-
-def _handle_package_exception(
-    package_info: PackageInfo | BaseException,
-    package_index: PackageIndex | BaseException,
-    dependency_name: str,
-) -> Text:
-    """Handle exception from package info/index retrieval"""
-    ex = package_info if isinstance(package_info, BaseException) else package_index
-    return Text.from_markup(
-        f"[bold red]Error:[/] {dependency_name} raised exception: {ex}"
-    )
-
-
-def _create_skip_message(package_info: PackageInfo) -> Text:
-    """Create message for skipped package"""
-    return Text.from_markup(
-        f"[bold yellow]Skipping {package_info.info.name} "
-        f"({package_info.info.version}) as it is ignored[/]"
-    )
-
-
-def _process_single_package(
-    package_info: PackageInfo,
-    package_index: PackageIndex,
-    config: Configuration,
-    ignore_packages: dict[str, tuple[SpecifierSet, ...]],
-    vuln_count: int,
-    vulnerable_pkgs: list[PackageInfo],
-    maintenance_issue_pkgs: list[tuple[PackageInfo, PackageIndex]],
-) -> int:
-    """Process a single package for vulnerabilities and maintenance issues"""
-    added = _process_package_for_vulnerabilities(package_info, config, ignore_packages)
-    if added > 0:
-        vuln_count += added
-        vulnerable_pkgs.append(package_info)
-
-    if _process_package_for_maintenance_issues(package_index, package_info, config):
-        maintenance_issue_pkgs.append((package_info, package_index))
-
-    return vuln_count
-
-
-def _accumulate_from_metadata(
-    package_metadata: Iterable[
-        tuple[PackageInfo | BaseException, PackageIndex | BaseException]
-    ],
-    dependencies: Sequence,
-    config: Configuration,
-    ignore_packages: dict[str, tuple[SpecifierSet, ...]],
-) -> tuple[
-    int,
-    int,
-    list[PackageInfo],
-    list[tuple[PackageInfo, PackageIndex]],
-    list[ConsoleRenderable],
-]:
-    """Accumulate vulnerability and maintenance results across all packages.
-
-    Returns (error_status, vuln_count, vulnerable_pkgs, maintenance_issue_pkgs,
-    outputs). If error_status is 3, an error occurred and outputs contain the
-    relevant message.
-    """
-    vuln_count = 0
-    vulnerable_pkgs: list[PackageInfo] = []
-    maintenance_issue_pkgs: list[tuple[PackageInfo, PackageIndex]] = []
-    outputs: list[ConsoleRenderable] = []
-
-    for idx, (package_info, package_index) in enumerate(package_metadata):
-        if isinstance(package_info, BaseException) or isinstance(
-            package_index, BaseException
-        ):
-            error_output = _handle_package_exception(
-                package_info, package_index, str(dependencies[idx])
-            )
-            outputs.append(error_output)
-            return 3, 0, [], [], outputs
-
-        if _should_skip_package(package_info, ignore_packages):
-            skip_output = _create_skip_message(package_info)
-            outputs.append(skip_output)
-            continue
-
-        vuln_count = _process_single_package(
-            package_info,
-            package_index,
-            config,
-            ignore_packages,
-            vuln_count,
-            vulnerable_pkgs,
-            maintenance_issue_pkgs,
-        )
-
-    return 0, vuln_count, vulnerable_pkgs, maintenance_issue_pkgs, outputs
-
-
 async def check_dependencies(
     dependency_file_path: APath,
     config: Configuration,
     http_client: AsyncCacheClient,
     disable_cache: bool,
-) -> tuple[int, Iterable[ConsoleRenderable]]:
-    """Checks dependencies for vulnerabilities and summarizes the results
+) -> FileResultOutput:
+    """Checks dependencies for vulnerabilities and builds structured output
 
     Args:
         dependency_file_path: PEP751 pylock.toml, requirements.txt, or uv.lock file path
@@ -559,39 +261,34 @@ async def check_dependencies(
         disable_cache: flag whether to disable cache for HTTP requests
 
     Returns:
-        tuple with status code and output for console to render
+        FileResultOutput with structured dependency results
     """
-    console_outputs: list[ConsoleRenderable] = []
+    file_path_str = dependency_file_path.as_posix()
 
-    (
-        status,
-        dependencies,
-        ignored_count,
-        initial_outputs,
-    ) = await _load_dependencies_with_errors(dependency_file_path)
-    console_outputs.extend(initial_outputs)
-    if status == 3:
-        return 3, console_outputs
-    if len(dependencies) == 0:
-        if ignored_count > 0:
-            # Show ignored dependencies count even when no PyPI deps to check
-            inf = inflect.engine()
-            ignored_plural = inf.plural("non-pypi dependency", ignored_count)
-            console_outputs.append(
-                Panel.fit(
-                    f"[bold yellow]No PyPI dependencies to check[/]\n"
-                    f"Ignored: [bold]{ignored_count}[/] {ignored_plural}"
-                )
-            )
-        return 0, console_outputs
-
-    console_outputs.append(
-        Text.from_markup(
-            f"[bold cyan]Checking {dependency_file_path} dependencies for "
-            "vulnerabilities ...[/]\n"
+    # Load and parse dependencies
+    if not await dependency_file_path.exists():
+        return FileResultOutput(
+            file_path=file_path_str,
+            error=f"File {dependency_file_path} does not exist.",
         )
-    )
 
+    try:
+        parse_result = await _parse_dependency_file(dependency_file_path)
+    except Exception as e:  # pragma: no cover - defensive, surfaced to user
+        return FileResultOutput(
+            file_path=file_path_str,
+            error=f"Failed to parse {dependency_file_path}: {e}",
+        )
+
+    dependencies = parse_result.dependencies
+    ignored_count = parse_result.ignored_count
+
+    if len(dependencies) == 0:
+        return FileResultOutput(
+            file_path=file_path_str, dependencies=[], ignored_count=ignored_count
+        )
+
+    # Download package info and indexes concurrently
     async with create_task_group() as tg:
         package_infos = tg.soonify(download_packages)(
             dependencies, http_client, disable_cache
@@ -604,47 +301,28 @@ async def check_dependencies(
         tuple[PackageInfo | BaseException, PackageIndex | BaseException]
     ] = list(zip(package_infos.value, package_indexes.value, strict=True))
 
-    total_dependencies = len(package_metadata)
-    vulnerable_count = 0
-    vulnerable_packages = []
-    maintenance_issue_packages: list[tuple[PackageInfo, PackageIndex]] = []
-
     ignore_packages = _build_ignore_packages(config)
+    dependency_outputs: list[DependencyOutput] = []
 
-    # Check if we need to warn about direct dependencies
-    warning = _warn_about_direct_dependencies(
-        dependency_file_path, package_infos.value, config
+    # Process each package
+    for idx, (package_info, package_index) in enumerate(package_metadata):
+        result = _process_package_metadata(
+            package_info, package_index, dependencies[idx].name, config, ignore_packages
+        )
+
+        # Handle error
+        if isinstance(result, str):
+            return FileResultOutput(file_path=file_path_str, error=result)
+
+        # Handle successful output (None means skip)
+        if result is not None:
+            dependency_outputs.append(result)
+
+    return FileResultOutput(
+        file_path=file_path_str,
+        dependencies=dependency_outputs,
+        ignored_count=ignored_count,
     )
-    if warning:
-        console_outputs.append(warning)
-
-    (
-        err_status,
-        vuln_added,
-        newly_vulnerable_packages,
-        newly_maintenance_issue_packages,
-        loop_outputs,
-    ) = _accumulate_from_metadata(
-        package_metadata, dependencies, config, ignore_packages
-    )
-    console_outputs.extend(loop_outputs)
-    if err_status == 3:
-        return 3, console_outputs
-    vulnerable_count += vuln_added
-    vulnerable_packages.extend(newly_vulnerable_packages)
-    maintenance_issue_packages.extend(newly_maintenance_issue_packages)
-
-    status, summary_outputs = _generate_summary_outputs(
-        vulnerable_count,
-        maintenance_issue_packages,
-        total_dependencies,
-        ignored_count,
-        config,
-        vulnerable_packages,
-    )
-    console_outputs.extend(summary_outputs)
-
-    return status, console_outputs
 
 
 class RunStatus(Enum):
@@ -698,6 +376,7 @@ def _apply_cli_config_overrides(
     check_direct_dependency_vulnerabilities_only: bool | None,
     check_direct_dependency_maintenance_issues_only: bool | None,
     max_package_age: int | None,
+    format_type: str | None,
 ) -> dict[APath, Configuration]:
     """Apply CLI configuration overrides to lock-to-config mapping"""
     if any(
@@ -713,6 +392,7 @@ def _apply_cli_config_overrides(
             check_direct_dependency_vulnerabilities_only,
             check_direct_dependency_maintenance_issues_only,
             max_package_age is not None,
+            format_type is not None,
         )
     ):
         cli_config = config_cli_arg_factory(
@@ -727,6 +407,7 @@ def _apply_cli_config_overrides(
             max_package_age,
             ignore_vulns,
             ignore_pkgs,
+            OutputFormat(format_type) if format_type else None,
         )
         return {
             lock_file: override_config(config, cli_config)
@@ -735,25 +416,36 @@ def _apply_cli_config_overrides(
     return lock_to_config_map
 
 
-def _determine_final_status(status_outputs: list[tuple[int, Iterable]]) -> RunStatus:
-    """Determine final run status from individual check results"""
-    maintenance_issues_found = False
-    vulnerabilities_found = False
-    runtime_error = False
+def _determine_file_status(file_result: FileResultOutput) -> int:
+    """Determine status code for a single file result
 
-    for status, _ in status_outputs:
-        if status == 1:
-            maintenance_issues_found = True
-        elif status == 2:
-            vulnerabilities_found = True
-        elif status == 3:
-            runtime_error = True
+    Returns:
+        0: No issues, 1: Maintenance issues found, 2: Vulnerabilities found, 3: Error
+    """
+    if file_result.error:
+        return 3
 
-    if runtime_error:
+    has_vulns = any(len(dep.vulns) > 0 for dep in file_result.dependencies)
+    has_maintenance = any(
+        dep.maintenance_issues is not None for dep in file_result.dependencies
+    )
+
+    if has_vulns:
+        return 2
+    if has_maintenance:
+        return 1
+    return 0
+
+
+def _determine_final_status(file_results: list[FileResultOutput]) -> RunStatus:
+    """Determine final run status from file results"""
+    statuses = [_determine_file_status(result) for result in file_results]
+
+    if 3 in statuses:
         return RunStatus.RUNTIME_ERROR
-    if vulnerabilities_found:
+    if 2 in statuses:
         return RunStatus.VULNERABILITIES_FOUND
-    if maintenance_issues_found:
+    if 1 in statuses:
         return RunStatus.MAINTENANCE_ISSUES_FOUND
     return RunStatus.NO_VULNERABILITIES
 
@@ -775,6 +467,7 @@ async def check_lock_files(
     check_direct_dependency_vulnerabilities_only: bool | None,
     check_direct_dependency_maintenance_issues_only: bool | None,
     config_path: Path | None,
+    format_type: str | None,
 ) -> RunStatus:
     """Checks PEP751 pylock.toml, requirements.txt, and uv.lock files for issues
 
@@ -800,10 +493,11 @@ async def check_lock_files(
         check_direct_dependency_maintenance_issues_only: flag checking direct dependency
             maintenance issues only
         config_path: path to configuration file
-
+        format_type: output format type ("columns" or "json") - for backwards
+            compatibility. None means use config file setting.
 
     Returns:
-        True if vulnerabilities were found, False otherwise.
+        RunStatus indicating the result of the scan
     """
     console = Console()
 
@@ -836,6 +530,7 @@ async def check_lock_files(
         check_direct_dependency_vulnerabilities_only,
         check_direct_dependency_maintenance_issues_only,
         max_package_age,
+        format_type,
     )
 
     # I found antivirus programs (specifically Windows Defender) can almost fully
@@ -845,7 +540,7 @@ async def check_lock_files(
     async with AsyncCacheClient(
         timeout=10, headers=Headers({"User-Agent": USER_AGENT}), storage=storage
     ) as http_client:
-        status_outputs = list(
+        file_results = list(
             await asyncio.gather(
                 *[
                     check_dependencies(
@@ -859,7 +554,21 @@ async def check_lock_files(
             )
         )
 
-    for _, console_output in status_outputs:
-        console.print(*console_output)
+    # Build scan results output
+    scan_results = ScanResultsOutput(files=file_results)
 
-    return _determine_final_status(status_outputs)
+    # Use first config for formatter (they should all have same display settings)
+    config = next(iter(lock_to_config_map.values()))
+
+    # Choose formatter based on format from configuration
+    formatter: OutputFormatter
+    if config.format.value == "json":
+        formatter = JsonFormatter()
+    else:
+        formatter = ColumnsFormatter(config)
+
+    # Format and print output
+    output = formatter.format(scan_results)
+    console.print(output)
+
+    return _determine_final_status(file_results)

@@ -253,6 +253,27 @@ def temp_uv_secure_toml_file_all_columns_and_maintenance_issues_enabled(
 
 
 @pytest.fixture
+def temp_uv_secure_toml_file_json_format(tmp_path: Path) -> Path:
+    uv_secure_toml_path = tmp_path / "uv-secure.toml"
+    uv_lock_data = """
+        format = "json"
+    """
+    uv_secure_toml_path.write_text(dedent(uv_lock_data).strip())
+    return uv_secure_toml_path
+
+
+@pytest.fixture
+def temp_pyproject_toml_file_json_format(tmp_path: Path) -> Path:
+    pyproject_toml_path = tmp_path / "pyproject.toml"
+    pyproject_toml_data = """
+        [tool.uv-secure]
+        format = "json"
+    """
+    pyproject_toml_path.write_text(dedent(pyproject_toml_data).strip())
+    return pyproject_toml_path
+
+
+@pytest.fixture
 def temp_dot_uv_secure_toml_file(tmp_path: Path) -> Path:
     uv_secure_toml_path = tmp_path / ".uv-secure.toml"
     uv_lock_data = ""
@@ -1164,3 +1185,120 @@ def temp_uv_lock_file_only_non_pypi_deps(tmp_path: Path) -> Path:
     """
     uv_lock_path.write_text(dedent(uv_lock_data).strip())
     return uv_lock_path
+
+
+@pytest.fixture
+def vulnerability_no_fix_versions_response(httpx_mock: HTTPXMock) -> HTTPXMock:
+    """Vulnerability with no fix versions available"""
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "A minimal package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "A minimal package example",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
+            "vulnerabilities": [
+                {
+                    "id": "VULN-NO-FIX",
+                    "details": "Vulnerability with no fix available",
+                    "fixed_in": [],
+                    "aliases": ["CVE-2024-12345"],
+                    "link": "https://example.com/v",
+                }
+            ],
+        },
+    )
+    return httpx_mock
+
+
+@pytest.fixture
+def vulnerability_multiple_alias_types_response(httpx_mock: HTTPXMock) -> HTTPXMock:
+    """Vulnerability with multiple alias types for comprehensive coverage"""
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "A minimal package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "A minimal package example",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
+            "vulnerabilities": [
+                {
+                    "id": "VULN-ALIASES",
+                    "details": "Vulnerability with all alias types",
+                    "fixed_in": ["1.0.1"],
+                    "aliases": [
+                        "CVE-2024-12345",
+                        "GHSA-xxxx-yyyy-zzzz",
+                        "PYSEC-2024-12345",
+                        "OSV-2024-12345",
+                        "UNKNOWN-FORMAT-123",
+                    ],
+                    "link": "https://example.com/v",
+                }
+            ],
+        },
+    )
+    return httpx_mock
+
+
+@pytest.fixture
+def vulnerability_no_aliases_response(httpx_mock: HTTPXMock) -> HTTPXMock:
+    """Vulnerability with no aliases"""
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "A minimal package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "A minimal package example",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
+            "vulnerabilities": [
+                {
+                    "id": "VULN-NO-ALIASES",
+                    "details": "Vulnerability with no aliases",
+                    "fixed_in": ["1.0.1"],
+                    "aliases": [],
+                    "link": "https://example.com/v",
+                }
+            ],
+        },
+    )
+    return httpx_mock
