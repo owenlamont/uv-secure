@@ -1,6 +1,6 @@
 import humanize
 import inflect
-from rich.console import Console
+from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -27,71 +27,60 @@ class ColumnsFormatter(OutputFormatter):
         """
         self.config = config
 
-    def format(self, results: ScanResultsOutput) -> str:
-        """Format scan results as rich tables
+    def format(self, results: ScanResultsOutput) -> RenderableType:
+        """Format scan results as rich renderables"""
 
-        Args:
-            results: The scan results to format
-
-        Returns:
-            Formatted string output with rich markup
-        """
-        console = Console()
-        output_parts: list[str] = []
+        renderables: list[RenderableType] = []
 
         for file_result in results.files:
-            if file_result.error:
-                output_parts.append(
-                    Text.from_markup(f"[bold red]Error:[/] {file_result.error}").markup
-                )
-                continue
+            file_renderables = self._format_file_result(file_result)
+            if renderables and file_renderables:
+                renderables.append(Text())
+            renderables.extend(file_renderables)
 
-            if not file_result.dependencies:
-                if file_result.ignored_count > 0:
-                    inf = inflect.engine()
-                    ignored_plural = inf.plural(
-                        "non-pypi dependency", file_result.ignored_count
+        return Group(*renderables)
+
+    def _format_file_result(
+        self, file_result: FileResultOutput
+    ) -> list[RenderableType]:
+        """Format results for a single file"""
+
+        if file_result.error:
+            return [Text.from_markup(f"[bold red]Error:[/] {file_result.error}\n")]
+
+        if not file_result.dependencies:
+            if file_result.ignored_count > 0:
+                inflector = inflect.engine()
+                ignored_plural = inflector.plural(
+                    "non-pypi dependency", file_result.ignored_count
+                )
+                return [
+                    Panel.fit(
+                        Text.from_markup(
+                            f"[bold yellow]No PyPI dependencies to check[/]\n"
+                            f"Ignored: [bold]{file_result.ignored_count}[/] "
+                            f"{ignored_plural}"
+                        )
                     )
-                    panel = Panel.fit(
-                        f"[bold yellow]No PyPI dependencies to check[/]\n"
-                        f"Ignored: [bold]{file_result.ignored_count}[/] "
-                        f"{ignored_plural}"
-                    )
-                    with console.capture() as capture:
-                        console.print(panel)
-                    output_parts.append(capture.get())
-                else:
-                    # Show "all safe" message even if no dependencies to check
-                    panel = Panel.fit(
+                ]
+            return [
+                Panel.fit(
+                    Text.from_markup(
                         "[bold green]No vulnerabilities or maintenance issues "
                         "detected![/]\nChecked: [bold]0[/] dependencies\n"
                         "All dependencies appear safe!"
                     )
-                    with console.capture() as capture:
-                        console.print(panel)
-                    output_parts.append(capture.get())
-                continue
+                )
+            ]
 
-            file_output = self._format_file_result(file_result, console)
-            output_parts.append(file_output)
-
-        return "\n".join(output_parts)
-
-    def _format_file_result(
-        self, file_result: FileResultOutput, console: Console
-    ) -> str:
-        """Format results for a single file"""
-        output_parts: list[str] = []
-
-        # Add "Checking..." message
-        checking_msg = Text.from_markup(
-            f"[bold cyan]Checking {file_result.file_path} dependencies for "
-            "vulnerabilities ...[/]\n"
+        renderables: list[RenderableType] = []
+        renderables.append(
+            Text.from_markup(
+                f"[bold cyan]Checking {file_result.file_path} dependencies for "
+                "vulnerabilities ...[/]\n"
+            )
         )
-        output_parts.append(checking_msg.markup)
 
-        # Check if direct dependency info is missing when
-        # check_direct_dependencies_only is enabled
         has_none_direct_dependency = any(
             dep.direct is None for dep in file_result.dependencies
         )
@@ -99,15 +88,15 @@ class ColumnsFormatter(OutputFormatter):
             self.config.vulnerability_criteria.check_direct_dependencies_only
             or self.config.maintainability_criteria.check_direct_dependencies_only
         ):
-            warning_msg = Text.from_markup(
-                f"[bold yellow]Warning:[/] {file_result.file_path} doesn't contain "
-                "the necessary information to determine direct dependencies.\n"
+            renderables.append(
+                Text.from_markup(
+                    f"[bold yellow]Warning:[/] {file_result.file_path} doesn't "
+                    "contain the necessary information to determine direct "
+                    "dependencies.\n"
+                )
             )
-            output_parts.append(warning_msg.markup)
 
-        # Separate vulnerabilities and maintenance issues
         vulnerable_deps = [dep for dep in file_result.dependencies if dep.vulns]
-        # Create list of (dep, issue) tuples to preserve type information
         maintenance_items = [
             (dep, dep.maintenance_issues)
             for dep in file_result.dependencies
@@ -117,18 +106,17 @@ class ColumnsFormatter(OutputFormatter):
         total_deps = len(file_result.dependencies)
         vuln_count = sum(len(dep.vulns) for dep in vulnerable_deps)
 
-        # Generate summary
-        summary = self._generate_summary(
-            total_deps,
-            vuln_count,
-            vulnerable_deps,
-            maintenance_items,
-            file_result.ignored_count,
-            console,
+        renderables.extend(
+            self._generate_summary(
+                total_deps,
+                vuln_count,
+                vulnerable_deps,
+                maintenance_items,
+                file_result.ignored_count,
+            )
         )
-        output_parts.append(summary)
 
-        return "\n".join(output_parts)
+        return renderables
 
     def _generate_summary(
         self,
@@ -137,14 +125,14 @@ class ColumnsFormatter(OutputFormatter):
         vulnerable_deps: list[DependencyOutput],
         maintenance_items: list[tuple[DependencyOutput, MaintenanceIssueOutput]],
         ignored_count: int,
-        console: Console,
-    ) -> str:
+    ) -> list[RenderableType]:
         """Generate summary output with tables"""
-        output_parts: list[str] = []
-        inf = inflect.engine()
-        total_plural = inf.plural("dependency", total_deps)
-        vulnerable_plural = inf.plural("vulnerability", vuln_count)
-        ignored_plural = inf.plural("non-pypi dependency", ignored_count)
+
+        renderables: list[RenderableType] = []
+        inflector = inflect.engine()
+        total_plural = inflector.plural("dependency", total_deps)
+        vulnerable_plural = inflector.plural("vulnerability", vuln_count)
+        ignored_plural = inflector.plural("non-pypi dependency", ignored_count)
 
         if vuln_count > 0:
             base_message = (
@@ -155,18 +143,15 @@ class ColumnsFormatter(OutputFormatter):
             if ignored_count > 0:
                 base_message += f"\nIgnored: [bold]{ignored_count}[/] {ignored_plural}"
 
-            with console.capture() as capture:
-                console.print(Panel.fit(base_message))
-            output_parts.append(capture.get())
-
-            table = self._render_vulnerability_table(vulnerable_deps)
-            with console.capture() as capture:
-                console.print(table)
-            output_parts.append(capture.get())
+            renderables.append(Panel.fit(Text.from_markup(base_message)))
+            renderables.append(self._render_vulnerability_table(vulnerable_deps))
 
         issue_count = len(maintenance_items)
-        issue_plural = inf.plural("issue", issue_count)
+        issue_plural = inflector.plural("issue", issue_count)
         if issue_count > 0:
+            if renderables:
+                renderables.append(Text())
+
             base_message = (
                 f"[bold yellow]Maintenance Issues detected![/]\n"
                 f"Checked: [bold]{total_deps}[/] {total_plural}\n"
@@ -175,14 +160,8 @@ class ColumnsFormatter(OutputFormatter):
             if ignored_count > 0:
                 base_message += f"\nIgnored: [bold]{ignored_count}[/] {ignored_plural}"
 
-            with console.capture() as capture:
-                console.print(Panel.fit(base_message))
-            output_parts.append(capture.get())
-
-            table = self._render_maintenance_table(maintenance_items)
-            with console.capture() as capture:
-                console.print(table)
-            output_parts.append(capture.get())
+            renderables.append(Panel.fit(Text.from_markup(base_message)))
+            renderables.append(self._render_maintenance_table(maintenance_items))
 
         if vuln_count == 0 and issue_count == 0:
             base_message = (
@@ -193,11 +172,9 @@ class ColumnsFormatter(OutputFormatter):
             if ignored_count > 0:
                 base_message += f"\nIgnored: [bold]{ignored_count}[/] {ignored_plural}"
 
-            with console.capture() as capture:
-                console.print(Panel.fit(base_message))
-            output_parts.append(capture.get())
+            renderables.append(Panel.fit(Text.from_markup(base_message)))
 
-        return "\n".join(output_parts)
+        return renderables
 
     def _render_vulnerability_table(
         self, vulnerable_deps: list[DependencyOutput]
