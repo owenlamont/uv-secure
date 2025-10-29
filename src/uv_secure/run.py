@@ -177,7 +177,6 @@ def main(
 
     Check vulnerabilities and display summary.
     """
-
     # Use uvloop or winloop if present
     try:
         if sys.platform in {"win32", "cygwin", "cli"}:

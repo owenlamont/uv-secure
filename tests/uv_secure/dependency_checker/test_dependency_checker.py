@@ -1,7 +1,11 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from anyio import Path as APath
-from hishel import AsyncCacheClient, AsyncFileStorage
+import anysqlite
+from hishel import AsyncSqliteStorage
+from hishel.httpx import AsyncCacheClient
 from httpx import Headers
 import pytest
 from pytest_httpx import HTTPXMock
@@ -12,6 +16,21 @@ from uv_secure.configuration import (
     VulnerabilityCriteria,
 )
 from uv_secure.dependency_checker import check_dependencies, USER_AGENT
+
+
+@asynccontextmanager
+async def cached_http_client() -> AsyncIterator[AsyncCacheClient]:
+    connection = await anysqlite.connect(":memory:")
+    storage = AsyncSqliteStorage(
+        connection=connection, default_ttl=86400.0, refresh_ttl_on_access=False
+    )
+    async with AsyncCacheClient(
+        timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
+    ) as http_client:
+        try:
+            yield http_client
+        finally:
+            await connection.close()
 
 
 @pytest.mark.asyncio
@@ -78,10 +97,7 @@ async def test_check_dependencies_alias_hyperlinks(
         },
     )
 
-    storage = AsyncFileStorage(base_path=Path.home() / ".cache/uv-secure", ttl=86400.0)
-    async with AsyncCacheClient(
-        timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
-    ) as http_client:
+    async with cached_http_client() as http_client:
         result = await check_dependencies(
             APath(temp_uv_lock_file),
             Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),
@@ -140,10 +156,7 @@ async def test_check_dependencies_no_fix_versions(
         },
     )
 
-    storage = AsyncFileStorage(base_path=Path.home() / ".cache/uv-secure", ttl=86400.0)
-    async with AsyncCacheClient(
-        timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
-    ) as http_client:
+    async with cached_http_client() as http_client:
         result = await check_dependencies(
             APath(temp_uv_lock_file),
             Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),
@@ -187,10 +200,7 @@ async def test_maintenance_issue_forbidden_status_triggers_issue(
         headers={"Content-Type": "application/vnd.pypi.simple.v1+json"},
     )
 
-    storage = AsyncFileStorage(base_path=Path.home() / ".cache/uv-secure", ttl=86400.0)
-    async with AsyncCacheClient(
-        timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
-    ) as http_client:
+    async with cached_http_client() as http_client:
         if flag_field == "forbid_archived":
             maintain = MaintainabilityCriteria(forbid_archived=True)
         elif flag_field == "forbid_deprecated":
@@ -228,10 +238,7 @@ async def test_maintenance_issue_not_reported_when_not_forbidden(
         headers={"Content-Type": "application/vnd.pypi.simple.v1+json"},
     )
 
-    storage = AsyncFileStorage(base_path=Path.home() / ".cache/uv-secure", ttl=86400.0)
-    async with AsyncCacheClient(
-        timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
-    ) as http_client:
+    async with cached_http_client() as http_client:
         result = await check_dependencies(
             APath(temp_uv_lock_file), Configuration(), http_client, True
         )
@@ -255,10 +262,7 @@ async def test_maintenance_issue_forbidden_status_unknown_reason_shows_unknown(
         headers={"Content-Type": "application/vnd.pypi.simple.v1+json"},
     )
 
-    storage = AsyncFileStorage(base_path=Path.home() / ".cache/uv-secure", ttl=86400.0)
-    async with AsyncCacheClient(
-        timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
-    ) as http_client:
+    async with cached_http_client() as http_client:
         result = await check_dependencies(
             APath(temp_uv_lock_file),
             Configuration(
@@ -315,10 +319,7 @@ async def test_check_dependencies_no_aliases(
         },
     )
 
-    storage = AsyncFileStorage(base_path=Path.home() / ".cache/uv-secure", ttl=86400.0)
-    async with AsyncCacheClient(
-        timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
-    ) as http_client:
+    async with cached_http_client() as http_client:
         result = await check_dependencies(
             APath(temp_uv_lock_file),
             Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),

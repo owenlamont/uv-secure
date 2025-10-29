@@ -6,9 +6,11 @@ from pathlib import Path
 import sys
 
 from anyio import Path as APath
+import anysqlite
 from asyncer import create_task_group
-from hishel import AsyncCacheClient, AsyncFileStorage
-from httpx import Headers
+from hishel import AsyncSqliteStorage
+from hishel.httpx import AsyncCacheClient
+from httpx import AsyncClient, Headers
 from packaging.specifiers import SpecifierSet
 from rich.console import Console
 
@@ -51,6 +53,18 @@ if sys.version_info < (3, 11):
 
 
 USER_AGENT = f"uv-secure/{__version__} (contact: owenrlamont@gmail.com)"
+
+
+class ManagedAsyncSqliteStorage(AsyncSqliteStorage):
+    """AsyncSqliteStorage that ensures the underlying connection is closed."""
+
+    async def close(self) -> None:
+        """Close the storage and underlying sqlite connection if present."""
+        connection = getattr(self, "connection", None)
+        if connection is not None:
+            await connection.close()
+            self.connection = None
+        await super().close()
 
 
 @cache
@@ -249,7 +263,7 @@ def _build_ignore_packages(
 async def check_dependencies(
     dependency_file_path: APath,
     config: Configuration,
-    http_client: AsyncCacheClient,
+    http_client: AsyncClient,
     disable_cache: bool,
 ) -> FileResultOutput:
     """Checks dependencies for vulnerabilities and builds structured output
@@ -533,26 +547,55 @@ async def check_lock_files(
         format_type,
     )
 
-    # I found antivirus programs (specifically Windows Defender) can almost fully
-    # negate the benefits of using a file cache if you don't exclude the virus checker
-    # from checking the cache dir given it is frequently read from
-    storage = AsyncFileStorage(base_path=cache_path, ttl=cache_ttl_seconds)
-    async with AsyncCacheClient(
-        timeout=10, headers=Headers({"User-Agent": USER_AGENT}), storage=storage
-    ) as http_client:
-        file_results = list(
-            await asyncio.gather(
-                *[
-                    check_dependencies(
-                        dependency_file_path,
-                        lock_to_config_map[APath(dependency_file_path)],
-                        http_client,
-                        disable_cache,
-                    )
-                    for dependency_file_path in file_apaths
-                ]
-            )
+    client_headers = Headers({"User-Agent": USER_AGENT})
+    timeout_seconds = 10
+
+    storage: ManagedAsyncSqliteStorage | None
+    connection: anysqlite.Connection | None = None
+    if disable_cache:
+        http_client_cm: AsyncClient = AsyncClient(
+            timeout=timeout_seconds, headers=client_headers
         )
+        storage = None
+    else:
+        # Antivirus tools (e.g. Windows Defender) negate file-cache benefits unless the
+        # cache directory is excluded from realtime scanning.
+        cache_path.mkdir(parents=True, exist_ok=True)
+        gitignore_path = cache_path / ".gitignore"
+        if not gitignore_path.exists():
+            gitignore_path.write_text(
+                "# Automatically created by Hishel\n*", encoding="utf-8"
+            )
+        connection = await anysqlite.connect(str(cache_path / "uv-secure-cache.db"))
+        storage = ManagedAsyncSqliteStorage(
+            connection=connection,
+            default_ttl=cache_ttl_seconds,
+            refresh_ttl_on_access=False,
+        )
+        http_client_cm = AsyncCacheClient(
+            timeout=timeout_seconds, headers=client_headers, storage=storage
+        )
+
+    try:
+        async with http_client_cm as http_client:
+            file_results = list(
+                await asyncio.gather(
+                    *[
+                        check_dependencies(
+                            dependency_file_path,
+                            lock_to_config_map[APath(dependency_file_path)],
+                            http_client,
+                            disable_cache,
+                        )
+                        for dependency_file_path in file_apaths
+                    ]
+                )
+            )
+    finally:
+        if storage is not None:
+            await storage.close()
+        if connection is not None:
+            await connection.close()
 
     # Build scan results output
     scan_results = ScanResultsOutput(files=file_results)

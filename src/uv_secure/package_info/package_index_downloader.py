@@ -1,7 +1,7 @@
 import asyncio
 from enum import Enum
 
-from hishel import AsyncCacheClient
+from httpx import AsyncClient
 from pydantic import BaseModel, ConfigDict, Field
 
 from uv_secure.package_info.dependency_file_parser import Dependency
@@ -37,23 +37,32 @@ class PackageIndex(BaseModel):
         return self.project_status.status
 
 
+def _build_request_headers(
+    disable_cache: bool, base_headers: dict[str, str] | None = None
+) -> dict[str, str] | None:
+    if not disable_cache:
+        return base_headers
+    headers: dict[str, str] = {} if base_headers is None else dict(base_headers)
+    headers.setdefault("Cache-Control", "no-cache, no-store")
+    return headers
+
+
 async def _download_package_index(
-    http_client: AsyncCacheClient, dependency: Dependency, disable_cache: bool
+    http_client: AsyncClient, dependency: Dependency, disable_cache: bool
 ) -> PackageIndex:
     """Queries the PyPi Simple JSON API for the status of a dependency"""
     canonical_name = canonicalize_name(dependency.name)
     url = f"https://pypi.org/simple/{canonical_name}/"
-    response = await http_client.get(
-        url,
-        extensions={"cache_disabled": True} if disable_cache else None,
-        headers={"Accept": "application/vnd.pypi.simple.v1+json"},
+    headers = _build_request_headers(
+        disable_cache, {"Accept": "application/vnd.pypi.simple.v1+json"}
     )
+    response = await http_client.get(url, headers=headers)
     response.raise_for_status()
     return PackageIndex.model_validate_json(response.content)
 
 
 async def download_package_indexes(
-    dependencies: list[Dependency], http_client: AsyncCacheClient, disable_cache: bool
+    dependencies: list[Dependency], http_client: AsyncClient, disable_cache: bool
 ) -> list[PackageIndex | BaseException]:
     """Fetch vulnerabilities for all dependencies concurrently."""
     tasks = [
