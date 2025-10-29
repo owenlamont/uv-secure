@@ -594,8 +594,6 @@ async def check_lock_files(
     finally:
         if storage is not None:
             await storage.close()
-        if connection is not None:
-            await connection.close()
 
     # Build scan results output
     scan_results = ScanResultsOutput(files=file_results)
