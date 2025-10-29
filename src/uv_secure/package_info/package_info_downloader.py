@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 import re
 
-from hishel import AsyncCacheClient
+from httpx import AsyncClient
 from pydantic import BaseModel
 
 from uv_secure.package_info.dependency_file_parser import Dependency
@@ -105,15 +105,23 @@ def canonicalize_name(name: str) -> str:
     return re.sub(r"[_.]+", "-", name).lower()
 
 
+def _build_request_headers(
+    disable_cache: bool, base_headers: dict[str, str] | None = None
+) -> dict[str, str] | None:
+    if not disable_cache:
+        return base_headers
+    headers: dict[str, str] = {} if base_headers is None else dict(base_headers)
+    headers.setdefault("Cache-Control", "no-cache, no-store")
+    return headers
+
+
 async def _download_package(
-    http_client: AsyncCacheClient, dependency: Dependency, disable_cache: bool
+    http_client: AsyncClient, dependency: Dependency, disable_cache: bool
 ) -> PackageInfo:
     """Queries the PyPi JSON API for vulnerabilities of a given dependency."""
     canonical_name = canonicalize_name(dependency.name)
     url = f"https://pypi.org/pypi/{canonical_name}/{dependency.version}/json"
-    response = await http_client.get(
-        url, extensions={"cache_disabled": True} if disable_cache else None
-    )
+    response = await http_client.get(url, headers=_build_request_headers(disable_cache))
     response.raise_for_status()
     package_info = PackageInfo.model_validate_json(response.content)
     package_info.direct_dependency = dependency.direct
@@ -121,7 +129,7 @@ async def _download_package(
 
 
 async def download_packages(
-    dependencies: list[Dependency], http_client: AsyncCacheClient, disable_cache: bool
+    dependencies: list[Dependency], http_client: AsyncClient, disable_cache: bool
 ) -> list[PackageInfo | BaseException]:
     """Fetch vulnerabilities for all dependencies concurrently."""
     tasks = [_download_package(http_client, dep, disable_cache) for dep in dependencies]

@@ -273,7 +273,7 @@ def test_app_no_vulnerabilities_requirements_txt_no_specified_path(
     pypi_simple_example_package: HTTPXMock,
 ) -> None:
     os.chdir(tmp_path)
-    result = runner.invoke(app, "--disable-cache")
+    result = runner.invoke(app, ["--disable-cache"])
 
     assert result.exit_code == 0
     assert "No vulnerabilities or maintenance issues detected!" in result.output
@@ -289,7 +289,7 @@ def test_app_no_vulnerabilities_pylock_toml_no_specified_path(
     pypi_simple_example_package: HTTPXMock,
 ) -> None:
     os.chdir(tmp_path)
-    result = runner.invoke(app, "--disable-cache")
+    result = runner.invoke(app, ["--disable-cache"])
 
     assert result.exit_code == 0
     assert "No vulnerabilities or maintenance issues detected!" in result.output
@@ -321,7 +321,7 @@ def test_app_no_vulnerabilities_relative_no_specified_path(
     pypi_simple_example_package: HTTPXMock,
 ) -> None:
     os.chdir(tmp_path)
-    result = runner.invoke(app, "--disable-cache")
+    result = runner.invoke(app, ["--disable-cache"])
 
     assert result.exit_code == 0
     assert "No vulnerabilities or maintenance issues detected!" in result.output
@@ -749,8 +749,8 @@ def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_overr
             "VULN-NOT-HERE",
             "--aliases",
             "--desc",
+            "--disable-cache",
         ],
-        "--disable-cache",
     )
 
     assert "Vulnerabilities detected!" in result.output
@@ -781,8 +781,8 @@ def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_pkg_o
             "another-package",
             "--aliases",
             "--desc",
+            "--disable-cache",
         ],
-        "--disable-cache",
     )
 
     assert "Vulnerabilities detected!" in result.output
@@ -811,8 +811,8 @@ def test_app_with_uv_secure_toml_ignored_vulnerability(
             str(temp_uv_lock_file),
             "--config",
             str(temp_uv_secure_toml_file_ignored_vulnerability),
+            "--disable-cache",
         ],
-        "--disable-cache",
     )
 
     assert result.exit_code == 0
@@ -834,8 +834,8 @@ def test_app_with_uv_secure_toml_ignored_package(
             str(temp_uv_lock_file),
             "--config",
             str(temp_uv_secure_toml_file_ignored_package),
+            "--disable-cache",
         ],
-        "--disable-cache",
     )
 
     assert result.exit_code == 0
@@ -857,8 +857,8 @@ def test_app_with_pyproject_toml_ignored_vulnerability(
             str(temp_uv_lock_file),
             "--config",
             str(temp_pyproject_toml_file_ignored_vulnerability),
+            "--disable-cache",
         ],
-        "--disable-cache",
     )
 
     assert result.exit_code == 0
@@ -880,8 +880,8 @@ def test_app_with_pyproject_toml_ignored_package(
             str(temp_uv_lock_file),
             "--config",
             str(temp_pyproject_toml_file_ignored_package),
+            "--disable-cache",
         ],
-        "--disable-cache",
     )
 
     assert result.exit_code == 0
@@ -1033,8 +1033,11 @@ def test_app_multiple_lock_files_one_nested_ignored_vulnerability_pass_lock_file
 ) -> None:
     result = runner.invoke(
         app,
-        [str(temp_uv_lock_file), str(temp_double_nested_uv_lock_file)],
-        "--disable-cache",
+        [
+            str(temp_uv_lock_file),
+            str(temp_double_nested_uv_lock_file),
+            "--disable-cache",
+        ],
     )
 
     assert result.exit_code == 0
@@ -1443,7 +1446,9 @@ def test_cli_forbid_archived_triggers_maintenance_issue(
     no_vulnerabilities_response: HTTPXMock,
 ) -> None:
     _simple_status_response(httpx_mock, "archived")
-    result = runner.invoke(app, [str(temp_uv_lock_file), "--forbid-archived"])
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--forbid-archived", "--disable-cache"]
+    )
     assert result.exit_code == 1
     assert_table_rendered(result.stdout, "Maintenance Issues")
     assert "Status" in result.stdout
@@ -1459,7 +1464,9 @@ def test_cli_forbid_deprecated_triggers_maintenance_issue(
     no_vulnerabilities_response: HTTPXMock,
 ) -> None:
     _simple_status_response(httpx_mock, "deprecated")
-    result = runner.invoke(app, [str(temp_uv_lock_file), "--forbid-deprecated"])
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--forbid-deprecated", "--disable-cache"]
+    )
     assert result.exit_code == 1
     assert_table_rendered(result.stdout, "Maintenance Issues")
     assert "Status" in result.stdout
@@ -1475,7 +1482,9 @@ def test_cli_forbid_quarantined_triggers_maintenance_issue(
     no_vulnerabilities_response: HTTPXMock,
 ) -> None:
     _simple_status_response(httpx_mock, "quarantined")
-    result = runner.invoke(app, [str(temp_uv_lock_file), "--forbid-quarantined"])
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--forbid-quarantined", "--disable-cache"]
+    )
     assert result.exit_code == 1
     assert_table_rendered(result.stdout, "Maintenance Issues")
     assert "Status" in result.stdout
