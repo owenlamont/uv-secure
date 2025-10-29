@@ -1,6 +1,6 @@
 [project]
 name = "uv-secure"
-version = "0.14.2"
+version = "0.14.3"
 description = "Scan your uv.lock file for dependencies with known vulnerabilities"
 readme = "README.md"
 authors = [
@@ -22,6 +22,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: 3 :: Only",
   "Topic :: Software Development :: Quality Assurance",
   "Topic :: Software Development :: Testing",

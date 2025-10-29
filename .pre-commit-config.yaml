@@ -54,11 +54,10 @@ repos:
           --force-exclude,
           # --write-changes (Don't use this to stop typos making auto-corrections)
         ]
-  # Disabling until hishel 1.0 fix is released
-  # - repo: https://github.com/owenlamont/uv-secure
-  #   rev: 0.14.1
-  #   hooks:
-  #     - id: uv-secure
+  - repo: https://github.com/owenlamont/uv-secure
+    rev: 0.14.2
+    hooks:
+      - id: uv-secure
   - repo: https://github.com/adrienverge/yamllint.git
     rev: v1.37.1
     hooks:
