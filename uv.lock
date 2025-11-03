@@ -250,15 +250,15 @@ wheels = [
 
 [[package]]
 name = "hishel"
-version = "1.0.0"
+version = "1.1.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "msgpack" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0b/10/5c5c8032fa1303067115590acb3279a574ddd701ebc7b469da573645bf4d/hishel-1.0.0.tar.gz", hash = "sha256:6097ab72d7acc23bd0c5a04a446fb87e3b1f176171c01d036d6054d7b4fee68c", size = 58708, upload-time = "2025-10-28T19:06:10.104Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/58/5d/daa36dc3dcf9e1156719fd92576933398789e3f09a34dc0af1cf1a07eef5/hishel-1.1.2.tar.gz", hash = "sha256:16ce78c142cda1a08ed7ad0c7db61f545628cae47881fe2bddaecf812c1038b4", size = 61235, upload-time = "2025-11-03T07:22:25.827Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/42/a1/058fccd6a2eb79f1ddbf206716003cffb90e351ad806fd861409049660f7/hishel-1.0.0-py3-none-any.whl", hash = "sha256:20916b78bddbf5031f627644d3bd661ef8bd8e86bec53faa6ef173304e66c418", size = 68471, upload-time = "2025-10-28T19:06:08.79Z" },
+    { url = "https://files.pythonhosted.org/packages/06/b5/28c4e4fb05cfd267bba6cef3190feb87f5601ab186dc10ed31d75e4751d1/hishel-1.1.2-py3-none-any.whl", hash = "sha256:a427ce9de4974e32bdcf690bc0c8601efaebc1242d630d8106edfdfd94c0245d", size = 69901, upload-time = "2025-11-03T07:22:23.922Z" },
 ]
 
 [package.optional-dependencies]
