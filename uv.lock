@@ -893,7 +893,7 @@ wheels = [
 
 [[package]]
 name = "uv-secure"
-version = "0.14.3"
+version = "0.14.4"
 source = { editable = "." }
 dependencies = [
     { name = "anyio" },
@@ -932,7 +932,7 @@ dev = [
 requires-dist = [
     { name = "anyio", specifier = ">=4.7.0" },
     { name = "asyncer", specifier = ">=0.0.8" },
-    { name = "hishel", extras = ["async"], specifier = ">=1.0.0" },
+    { name = "hishel", extras = ["async"], specifier = ">=1.1.2" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "humanize", specifier = ">=4.11.0" },
     { name = "inflect", specifier = ">=7.4.0" },
