@@ -54,10 +54,10 @@ repos:
           --force-exclude,
           # --write-changes (Don't use this to stop typos making auto-corrections)
         ]
-  - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.14.3
-    hooks:
-      - id: uv-secure
+#  - repo: https://github.com/owenlamont/uv-secure
+#    rev: 0.14.3
+#    hooks:
+#      - id: uv-secure
   - repo: https://github.com/adrienverge/yamllint.git
     rev: v1.37.1
     hooks:

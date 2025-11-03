@@ -4,6 +4,7 @@ from enum import Enum
 from httpx import AsyncClient
 from pydantic import BaseModel, ConfigDict, Field
 
+from uv_secure.http_cache import RequestCache
 from uv_secure.package_info.dependency_file_parser import Dependency
 from uv_secure.package_utils import canonicalize_name
 
@@ -48,7 +49,10 @@ def _build_request_headers(
 
 
 async def _download_package_index(
-    http_client: AsyncClient, dependency: Dependency, disable_cache: bool
+    http_client: AsyncClient,
+    dependency: Dependency,
+    disable_cache: bool,
+    request_cache: RequestCache | None,
 ) -> PackageIndex:
     """Queries the PyPi Simple JSON API for the status of a dependency"""
     canonical_name = canonicalize_name(dependency.name)
@@ -56,16 +60,29 @@ async def _download_package_index(
     headers = _build_request_headers(
         disable_cache, {"Accept": "application/vnd.pypi.simple.v1+json"}
     )
-    response = await http_client.get(url, headers=headers)
-    response.raise_for_status()
-    return PackageIndex.model_validate_json(response.content)
+
+    async def fetch() -> bytes:
+        response = await http_client.get(url, headers=headers)
+        response.raise_for_status()
+        return response.content
+
+    if disable_cache or request_cache is None:
+        content = await fetch()
+    else:
+        content = await request_cache.get_or_set(f"index:{url}", fetch)
+
+    return PackageIndex.model_validate_json(content)
 
 
 async def download_package_indexes(
-    dependencies: list[Dependency], http_client: AsyncClient, disable_cache: bool
+    dependencies: list[Dependency],
+    http_client: AsyncClient,
+    disable_cache: bool,
+    request_cache: RequestCache | None,
 ) -> list[PackageIndex | BaseException]:
     """Fetch vulnerabilities for all dependencies concurrently."""
     tasks = [
-        _download_package_index(http_client, dep, disable_cache) for dep in dependencies
+        _download_package_index(http_client, dep, disable_cache, request_cache)
+        for dep in dependencies
     ]
     return await asyncio.gather(*tasks, return_exceptions=True)

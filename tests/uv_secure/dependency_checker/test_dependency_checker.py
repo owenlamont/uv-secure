@@ -1,13 +1,11 @@
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from pathlib import Path
 
 from anyio import Path as APath
-import anysqlite
-from hishel import AsyncSqliteStorage
-from hishel.httpx import AsyncCacheClient
-from httpx import Headers
+from cashews import Cache
+from httpx import AsyncClient, Headers
 import pytest
+import pytest_asyncio
 from pytest_httpx import HTTPXMock
 
 from uv_secure.configuration import (
@@ -16,21 +14,28 @@ from uv_secure.configuration import (
     VulnerabilityCriteria,
 )
 from uv_secure.dependency_checker import check_dependencies, USER_AGENT
+from uv_secure.http_cache import RequestCache
 
 
-@asynccontextmanager
-async def cached_http_client() -> AsyncIterator[AsyncCacheClient]:
-    connection = await anysqlite.connect(":memory:")
-    storage = AsyncSqliteStorage(
-        connection=connection, default_ttl=86400.0, refresh_ttl_on_access=False
-    )
-    async with AsyncCacheClient(
-        timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
-    ) as http_client:
-        try:
-            yield http_client
-        finally:
-            await connection.close()
+@pytest_asyncio.fixture
+async def http_client() -> AsyncIterator[AsyncClient]:
+    async with AsyncClient(
+        timeout=10, headers=Headers({"User-Agent": USER_AGENT})
+    ) as client:
+        yield client
+
+
+@pytest_asyncio.fixture
+async def memory_request_cache() -> AsyncIterator[RequestCache]:
+    backend = Cache()
+    backend.setup("mem://")
+    await backend.init()
+    request_cache = RequestCache(backend, 86400.0, namespace="test")
+    try:
+        yield request_cache
+    finally:
+        await backend.clear()
+        await backend.close()
 
 
 @pytest.mark.asyncio
@@ -64,6 +69,7 @@ async def test_check_dependencies_alias_hyperlinks(
     temp_uv_lock_file: Path,
     httpx_mock: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
+    http_client: AsyncClient,
 ) -> None:
     httpx_mock.add_response(
         url="https://pypi.org/pypi/example-package/1.0.0/json",
@@ -97,13 +103,12 @@ async def test_check_dependencies_alias_hyperlinks(
         },
     )
 
-    async with cached_http_client() as http_client:
-        result = await check_dependencies(
-            APath(temp_uv_lock_file),
-            Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),
-            http_client,
-            True,
-        )
+    result = await check_dependencies(
+        APath(temp_uv_lock_file),
+        Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),
+        http_client,
+        True,
+    )
 
     # Verify structured output
     assert result.error is None
@@ -123,6 +128,7 @@ async def test_check_dependencies_no_fix_versions(
     temp_uv_lock_file: Path,
     httpx_mock: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
+    http_client: AsyncClient,
 ) -> None:
     httpx_mock.add_response(
         url="https://pypi.org/pypi/example-package/1.0.0/json",
@@ -156,13 +162,12 @@ async def test_check_dependencies_no_fix_versions(
         },
     )
 
-    async with cached_http_client() as http_client:
-        result = await check_dependencies(
-            APath(temp_uv_lock_file),
-            Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),
-            http_client,
-            True,
-        )
+    result = await check_dependencies(
+        APath(temp_uv_lock_file),
+        Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),
+        http_client,
+        True,
+    )
 
     # Verify structured output
     assert result.error is None
@@ -190,6 +195,7 @@ async def test_maintenance_issue_forbidden_status_triggers_issue(
     temp_uv_lock_file: Path,
     httpx_mock: HTTPXMock,
     no_vulnerabilities_response: HTTPXMock,
+    http_client: AsyncClient,
 ) -> None:
     httpx_mock.add_response(
         url="https://pypi.org/simple/example-package/",
@@ -200,19 +206,18 @@ async def test_maintenance_issue_forbidden_status_triggers_issue(
         headers={"Content-Type": "application/vnd.pypi.simple.v1+json"},
     )
 
-    async with cached_http_client() as http_client:
-        if flag_field == "forbid_archived":
-            maintain = MaintainabilityCriteria(forbid_archived=True)
-        elif flag_field == "forbid_deprecated":
-            maintain = MaintainabilityCriteria(forbid_deprecated=True)
-        else:
-            maintain = MaintainabilityCriteria(forbid_quarantined=True)
-        result = await check_dependencies(
-            APath(temp_uv_lock_file),
-            Configuration(maintainability_criteria=maintain),
-            http_client,
-            True,
-        )
+    if flag_field == "forbid_archived":
+        maintain = MaintainabilityCriteria(forbid_archived=True)
+    elif flag_field == "forbid_deprecated":
+        maintain = MaintainabilityCriteria(forbid_deprecated=True)
+    else:
+        maintain = MaintainabilityCriteria(forbid_quarantined=True)
+    result = await check_dependencies(
+        APath(temp_uv_lock_file),
+        Configuration(maintainability_criteria=maintain),
+        http_client,
+        True,
+    )
 
     # Verify structured output
     assert result.error is None
@@ -228,6 +233,7 @@ async def test_maintenance_issue_not_reported_when_not_forbidden(
     temp_uv_lock_file: Path,
     httpx_mock: HTTPXMock,
     no_vulnerabilities_response: HTTPXMock,
+    http_client: AsyncClient,
 ) -> None:
     httpx_mock.add_response(
         url="https://pypi.org/simple/example-package/",
@@ -238,10 +244,9 @@ async def test_maintenance_issue_not_reported_when_not_forbidden(
         headers={"Content-Type": "application/vnd.pypi.simple.v1+json"},
     )
 
-    async with cached_http_client() as http_client:
-        result = await check_dependencies(
-            APath(temp_uv_lock_file), Configuration(), http_client, True
-        )
+    result = await check_dependencies(
+        APath(temp_uv_lock_file), Configuration(), http_client, True
+    )
 
     # Verify structured output - no maintenance issues reported
     assert result.error is None
@@ -255,6 +260,7 @@ async def test_maintenance_issue_forbidden_status_unknown_reason_shows_unknown(
     temp_uv_lock_file: Path,
     httpx_mock: HTTPXMock,
     no_vulnerabilities_response: HTTPXMock,
+    http_client: AsyncClient,
 ) -> None:
     httpx_mock.add_response(
         url="https://pypi.org/simple/example-package/",
@@ -262,15 +268,14 @@ async def test_maintenance_issue_forbidden_status_unknown_reason_shows_unknown(
         headers={"Content-Type": "application/vnd.pypi.simple.v1+json"},
     )
 
-    async with cached_http_client() as http_client:
-        result = await check_dependencies(
-            APath(temp_uv_lock_file),
-            Configuration(
-                maintainability_criteria=MaintainabilityCriteria(forbid_archived=True)
-            ),
-            http_client,
-            True,
-        )
+    result = await check_dependencies(
+        APath(temp_uv_lock_file),
+        Configuration(
+            maintainability_criteria=MaintainabilityCriteria(forbid_archived=True)
+        ),
+        http_client,
+        True,
+    )
 
     # Verify structured output
     assert result.error is None
@@ -286,6 +291,7 @@ async def test_check_dependencies_no_aliases(
     temp_uv_lock_file: Path,
     httpx_mock: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
+    http_client: AsyncClient,
 ) -> None:
     httpx_mock.add_response(
         url="https://pypi.org/pypi/example-package/1.0.0/json",
@@ -319,13 +325,12 @@ async def test_check_dependencies_no_aliases(
         },
     )
 
-    async with cached_http_client() as http_client:
-        result = await check_dependencies(
-            APath(temp_uv_lock_file),
-            Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),
-            http_client,
-            True,
-        )
+    result = await check_dependencies(
+        APath(temp_uv_lock_file),
+        Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),
+        http_client,
+        True,
+    )
 
     # Verify structured output
     assert result.error is None
@@ -336,3 +341,37 @@ async def test_check_dependencies_no_aliases(
     vuln = dep.vulns[0]
     assert vuln.id == "VULN-NO-ALIASES"
     assert vuln.aliases is None
+
+
+@pytest.mark.asyncio
+async def test_request_cache_serves_cached_responses(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+    http_client: AsyncClient,
+    memory_request_cache: RequestCache,
+) -> None:
+    first_result = await check_dependencies(
+        APath(temp_uv_lock_file),
+        Configuration(),
+        http_client,
+        False,
+        memory_request_cache,
+    )
+
+    assert first_result.error is None
+    assert len(first_result.dependencies) == 1
+    assert len(httpx_mock.get_requests()) == 2
+
+    cached_result = await check_dependencies(
+        APath(temp_uv_lock_file),
+        Configuration(),
+        http_client,
+        False,
+        memory_request_cache,
+    )
+
+    assert cached_result.error is None
+    assert cached_result.dependencies == first_result.dependencies
+    assert len(httpx_mock.get_requests()) == 2

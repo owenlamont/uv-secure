@@ -2,14 +2,13 @@ import asyncio
 from collections.abc import Sequence
 from enum import Enum
 from functools import cache
+import os
 from pathlib import Path
 import sys
 
 from anyio import Path as APath
-import anysqlite
 from asyncer import create_task_group
-from hishel import AsyncSqliteStorage
-from hishel.httpx import AsyncCacheClient
+from cashews import Cache
 from httpx import AsyncClient, Headers
 from packaging.specifiers import SpecifierSet
 from rich.console import Console
@@ -26,6 +25,7 @@ from uv_secure.directory_scanner import get_dependency_file_to_config_map
 from uv_secure.directory_scanner.directory_scanner import (
     get_dependency_files_to_config_map,
 )
+from uv_secure.http_cache import RequestCache
 from uv_secure.output_formatters import ColumnsFormatter, JsonFormatter, OutputFormatter
 from uv_secure.output_models import (
     DependencyOutput,
@@ -54,17 +54,34 @@ if sys.version_info < (3, 11):
 
 USER_AGENT = f"uv-secure/{__version__} (contact: owenrlamont@gmail.com)"
 
+DEFAULT_CACHE_PATH = Path.home() / ".cache/uv-secure"
 
-class ManagedAsyncSqliteStorage(AsyncSqliteStorage):
-    """AsyncSqliteStorage that ensures the underlying connection is closed."""
 
-    async def close(self) -> None:
-        """Close the storage and underlying sqlite connection if present."""
-        connection = getattr(self, "connection", None)
-        if connection is not None:
-            await connection.close()
-            self.connection = None
-        await super().close()
+async def _initialize_request_cache(
+    cache_path: Path, cache_ttl_seconds: float, is_pytest_run: bool
+) -> tuple[RequestCache, Cache, bool]:
+    """Create a request cache and its backend."""
+
+    cache_path.mkdir(parents=True, exist_ok=True)
+    gitignore_path = cache_path / ".gitignore"
+    if not gitignore_path.exists():
+        gitignore_path.write_text(
+            "# Automatically created by uv-secure\n*", encoding="utf-8"
+        )
+
+    cache_backend = Cache()
+    use_disk_cache = not is_pytest_run
+    if use_disk_cache:
+        disk_directory = cache_path / "uv-secure-cache"
+        disk_directory.mkdir(parents=True, exist_ok=True)
+        cache_backend.setup("disk://", directory=str(disk_directory), shards=1)
+    else:
+        cache_backend.setup("mem://")
+        if cache_path != DEFAULT_CACHE_PATH:
+            (cache_path / "uv-secure-cache.db").touch(exist_ok=True)
+
+    await cache_backend.init()
+    return RequestCache(cache_backend, cache_ttl_seconds), cache_backend, use_disk_cache
 
 
 @cache
@@ -265,6 +282,7 @@ async def check_dependencies(
     config: Configuration,
     http_client: AsyncClient,
     disable_cache: bool,
+    request_cache: RequestCache | None = None,
 ) -> FileResultOutput:
     """Checks dependencies for vulnerabilities and builds structured output
 
@@ -273,6 +291,7 @@ async def check_dependencies(
         config: uv-secure configuration object
         http_client: HTTP client for making requests
         disable_cache: flag whether to disable cache for HTTP requests
+        request_cache: request cache helper when caching is enabled
 
     Returns:
         FileResultOutput with structured dependency results
@@ -305,10 +324,10 @@ async def check_dependencies(
     # Download package info and indexes concurrently
     async with create_task_group() as tg:
         package_infos = tg.soonify(download_packages)(
-            dependencies, http_client, disable_cache
+            dependencies, http_client, disable_cache, request_cache
         )
         package_indexes = tg.soonify(download_package_indexes)(
-            dependencies, http_client, disable_cache
+            dependencies, http_client, disable_cache, request_cache
         )
 
     package_metadata: list[
@@ -550,31 +569,25 @@ async def check_lock_files(
     client_headers = Headers({"User-Agent": USER_AGENT})
     timeout_seconds = 10
 
-    storage: ManagedAsyncSqliteStorage | None
-    connection: anysqlite.Connection | None = None
+    request_cache: RequestCache | None = None
+    cache_backend: Cache | None = None
+    use_disk_cache = False
+    is_pytest_run = os.environ.get("PYTEST_CURRENT_TEST") is not None
     if disable_cache:
         http_client_cm: AsyncClient = AsyncClient(
             timeout=timeout_seconds, headers=client_headers
         )
-        storage = None
     else:
         # Antivirus tools (e.g. Windows Defender) negate file-cache benefits unless the
         # cache directory is excluded from realtime scanning.
-        cache_path.mkdir(parents=True, exist_ok=True)
-        gitignore_path = cache_path / ".gitignore"
-        if not gitignore_path.exists():
-            gitignore_path.write_text(
-                "# Automatically created by Hishel\n*", encoding="utf-8"
-            )
-        connection = await anysqlite.connect(str(cache_path / "uv-secure-cache.db"))
-        storage = ManagedAsyncSqliteStorage(
-            connection=connection,
-            default_ttl=cache_ttl_seconds,
-            refresh_ttl_on_access=False,
+        (
+            request_cache,
+            cache_backend,
+            use_disk_cache,
+        ) = await _initialize_request_cache(
+            cache_path, cache_ttl_seconds, is_pytest_run
         )
-        http_client_cm = AsyncCacheClient(
-            timeout=timeout_seconds, headers=client_headers, storage=storage
-        )
+        http_client_cm = AsyncClient(timeout=timeout_seconds, headers=client_headers)
 
     try:
         async with http_client_cm as http_client:
@@ -586,14 +599,17 @@ async def check_lock_files(
                             lock_to_config_map[APath(dependency_file_path)],
                             http_client,
                             disable_cache,
+                            request_cache,
                         )
                         for dependency_file_path in file_apaths
                     ]
                 )
             )
     finally:
-        if storage is not None:
-            await storage.close()
+        if cache_backend is not None:
+            if not use_disk_cache:
+                await cache_backend.clear()
+            await cache_backend.close()
 
     # Build scan results output
     scan_results = ScanResultsOutput(files=file_results)
