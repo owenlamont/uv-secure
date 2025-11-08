@@ -66,4 +66,4 @@ repos:
     rev: v1.16.3
     hooks:
     - id: zizmor
-      args: [ --min-severity, low, --min-confidence, medium]
+      args: [ --min-severity, low, --min-confidence, medium, --fix=safe]
