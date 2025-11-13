@@ -2,7 +2,6 @@ import asyncio
 from collections.abc import Sequence
 from enum import Enum
 from functools import cache
-import os
 from pathlib import Path
 import sys
 
@@ -58,8 +57,8 @@ DEFAULT_CACHE_PATH = Path.home() / ".cache/uv-secure"
 
 
 async def _initialize_request_cache(
-    cache_path: Path, cache_ttl_seconds: float, is_pytest_run: bool
-) -> tuple[RequestCache, Cache, bool]:
+    cache_path: Path, cache_ttl_seconds: float
+) -> tuple[RequestCache, Cache]:
     """Create a request cache and its backend."""
 
     cache_path.mkdir(parents=True, exist_ok=True)
@@ -70,18 +69,12 @@ async def _initialize_request_cache(
         )
 
     cache_backend = Cache()
-    use_disk_cache = not is_pytest_run
-    if use_disk_cache:
-        disk_directory = cache_path / "uv-secure-cache"
-        disk_directory.mkdir(parents=True, exist_ok=True)
-        cache_backend.setup("disk://", directory=str(disk_directory), shards=1)
-    else:
-        cache_backend.setup("mem://")
-        if cache_path != DEFAULT_CACHE_PATH:
-            (cache_path / "uv-secure-cache.db").touch(exist_ok=True)
+    disk_directory = cache_path / "uv-secure-cache"
+    disk_directory.mkdir(parents=True, exist_ok=True)
+    cache_backend.setup("disk://", directory=str(disk_directory), shards=1)
 
     await cache_backend.init()
-    return RequestCache(cache_backend, cache_ttl_seconds), cache_backend, use_disk_cache
+    return RequestCache(cache_backend, cache_ttl_seconds), cache_backend
 
 
 @cache
@@ -571,8 +564,6 @@ async def check_lock_files(
 
     request_cache: RequestCache | None = None
     cache_backend: Cache | None = None
-    use_disk_cache = False
-    is_pytest_run = os.environ.get("PYTEST_CURRENT_TEST") is not None
     if disable_cache:
         http_client_cm: AsyncClient = AsyncClient(
             timeout=timeout_seconds, headers=client_headers
@@ -580,12 +571,8 @@ async def check_lock_files(
     else:
         # Antivirus tools (e.g. Windows Defender) negate file-cache benefits unless the
         # cache directory is excluded from realtime scanning.
-        (
-            request_cache,
-            cache_backend,
-            use_disk_cache,
-        ) = await _initialize_request_cache(
-            cache_path, cache_ttl_seconds, is_pytest_run
+        (request_cache, cache_backend) = await _initialize_request_cache(
+            cache_path, cache_ttl_seconds
         )
         http_client_cm = AsyncClient(timeout=timeout_seconds, headers=client_headers)
 
@@ -607,8 +594,6 @@ async def check_lock_files(
             )
     finally:
         if cache_backend is not None:
-            if not use_disk_cache:
-                await cache_backend.clear()
             await cache_backend.close()
 
     # Build scan results output

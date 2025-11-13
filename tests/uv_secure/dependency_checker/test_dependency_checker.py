@@ -13,8 +13,10 @@ from uv_secure.configuration import (
     MaintainabilityCriteria,
     VulnerabilityCriteria,
 )
-from uv_secure.dependency_checker import check_dependencies, USER_AGENT
+from uv_secure.dependency_checker import check_dependencies, RunStatus, USER_AGENT
+import uv_secure.dependency_checker.dependency_checker as dependency_checker_module
 from uv_secure.http_cache import RequestCache
+from uv_secure.output_models import FileResultOutput
 
 
 @pytest_asyncio.fixture
@@ -26,9 +28,12 @@ async def http_client() -> AsyncIterator[AsyncClient]:
 
 
 @pytest_asyncio.fixture
-async def memory_request_cache() -> AsyncIterator[RequestCache]:
+async def disk_request_cache(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> AsyncIterator[RequestCache]:
+    cache_dir = tmp_path_factory.mktemp("uv-secure-cache")
     backend = Cache()
-    backend.setup("mem://")
+    backend.setup("disk://", directory=str(cache_dir), shards=1)
     await backend.init()
     request_cache = RequestCache(backend, 86400.0, namespace="test")
     try:
@@ -350,14 +355,14 @@ async def test_request_cache_serves_cached_responses(
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
     http_client: AsyncClient,
-    memory_request_cache: RequestCache,
+    disk_request_cache: RequestCache,
 ) -> None:
     first_result = await check_dependencies(
         APath(temp_uv_lock_file),
         Configuration(),
         http_client,
         False,
-        memory_request_cache,
+        disk_request_cache,
     )
 
     assert first_result.error is None
@@ -369,9 +374,63 @@ async def test_request_cache_serves_cached_responses(
         Configuration(),
         http_client,
         False,
-        memory_request_cache,
+        disk_request_cache,
     )
 
     assert cached_result.error is None
     assert cached_result.dependencies == first_result.dependencies
     assert len(httpx_mock.get_requests()) == 2
+
+
+@pytest.mark.asyncio
+async def test_check_lock_files_initializes_disk_cache_and_closes_backend(
+    tmp_path_factory: pytest.TempPathFactory,
+    monkeypatch: pytest.MonkeyPatch,
+    temp_uv_lock_file: Path,
+) -> None:
+    captured_request_caches: list[RequestCache | None] = []
+
+    async def fake_check_dependencies(
+        dependency_file_path: APath,
+        config: Configuration,
+        http_client: AsyncClient,
+        disable_cache: bool,
+        request_cache: RequestCache | None,
+    ) -> FileResultOutput:
+        captured_request_caches.append(request_cache)
+        return FileResultOutput(
+            file_path=dependency_file_path.as_posix(), dependencies=[], ignored_count=0
+        )
+
+    monkeypatch.setattr(
+        dependency_checker_module, "check_dependencies", fake_check_dependencies
+    )
+
+    cache_dir = tmp_path_factory.mktemp("cli-cache")
+    status = await dependency_checker_module.check_lock_files(
+        [temp_uv_lock_file],
+        aliases=None,
+        desc=None,
+        cache_path=cache_dir,
+        cache_ttl_seconds=60.0,
+        disable_cache=False,
+        forbid_archived=None,
+        forbid_deprecated=None,
+        forbid_quarantined=None,
+        forbid_yanked=None,
+        max_package_age=None,
+        ignore_vulns=None,
+        ignore_pkgs=None,
+        check_direct_dependency_vulnerabilities_only=None,
+        check_direct_dependency_maintenance_issues_only=None,
+        config_path=None,
+        format_type=None,
+    )
+
+    assert status is RunStatus.NO_VULNERABILITIES
+    assert len(captured_request_caches) == 1
+    request_cache = captured_request_caches[0]
+    assert isinstance(request_cache, RequestCache)
+    assert (cache_dir / ".gitignore").is_file()
+    disk_cache_dir = cache_dir / "uv-secure-cache"
+    assert disk_cache_dir.is_dir()
