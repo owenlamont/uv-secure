@@ -54,6 +54,23 @@ if sys.version_info < (3, 11):
 
 USER_AGENT = f"uv-secure/{__version__} (contact: owenrlamont@gmail.com)"
 
+class DependencyFileParseException(Exception):
+    """Raised when a dependency file cannot be parsed correctly."""
+    pass
+
+
+class PackageMetadataProcessingException(Exception):
+    """Raised when processing package metadata fails."""
+    def __init__(self, package_name: str, original_exception: Exception):
+        super().__init__(f"{package_name} raised exception: {original_exception}")
+        self.package_name = package_name
+        self.original_exception = original_exception
+
+
+class ConfigurationResolutionException(Exception):
+    """Raised when resolving file paths or configuration fails."""
+    pass
+
 
 class ManagedAsyncSqliteStorage(AsyncSqliteStorage):
     """AsyncSqliteStorage that ensures the underlying connection is closed."""
@@ -118,47 +135,43 @@ def _process_package_metadata(
         DependencyOutput if successful
         str if error occurred
         None if package should be skipped
+        
+    Raises:
+        PackageMetadataProcessingException: If processing the package fails.
     """
-    # Handle download exceptions
-    if isinstance(package_info, BaseException) or isinstance(
-        package_index, BaseException
-    ):
-        ex = package_info if isinstance(package_info, BaseException) else package_index
-        return f"{dependency_name} raised exception: {ex}"
+    try:
+        # Handle download exceptions
+        if isinstance(package_info, BaseException) or isinstance(package_index, BaseException):
+            ex = package_info if isinstance(package_info, BaseException) else package_index
+            raise PackageMetadataProcessingException(dependency_name, ex)
 
-    # Check if package should be skipped
-    if _should_skip_package(package_info, ignore_packages):
-        return None
+        if _should_skip_package(package_info, ignore_packages):
+            return None
 
-    # Filter and check vulnerabilities based on config
-    if _should_check_vulnerabilities(package_info, config):
-        _filter_vulnerabilities(package_info, config)
-        vulns = [
-            _convert_vulnerability_to_output(v) for v in package_info.vulnerabilities
-        ]
-    else:
-        vulns = []
+        if _should_check_vulnerabilities(package_info, config):
+            _filter_vulnerabilities(package_info, config)
+            vulns = [_convert_vulnerability_to_output(v) for v in package_info.vulnerabilities]
+        else:
+            vulns = []
 
-    # Check if we should include maintenance issues
-    pkg_index = (
-        package_index
-        if _should_check_maintenance_issues(package_info, config)
-        else None
-    )
-    maintenance_issues = (
-        [_convert_maintenance_to_output(package_info, package_index)]
-        if pkg_index is not None
-        and _has_maintenance_issues(package_index, package_info, config)
-        else None
-    )
+        pkg_index = package_index if _should_check_maintenance_issues(package_info, config) else None
+        maintenance_issues = (
+            [_convert_maintenance_to_output(package_info, package_index)]
+            if pkg_index is not None and _has_maintenance_issues(package_index, package_info, config)
+            else None
+        )
 
-    return DependencyOutput(
-        name=package_info.info.name,
-        version=package_info.info.version,
-        direct=package_info.direct_dependency,
-        vulns=vulns,
-        maintenance_issues=maintenance_issues[0] if maintenance_issues else None,
-    )
+        return DependencyOutput(
+            name=package_info.info.name,
+            version=package_info.info.version,
+            direct=package_info.direct_dependency,
+            vulns=vulns,
+            maintenance_issues=maintenance_issues[0] if maintenance_issues else None,
+        )
+    except PackageMetadataProcessingException:
+        raise
+    except Exception as e:
+        raise PackageMetadataProcessingException(dependency_name, e) from e
 
 
 def _should_skip_package(
@@ -239,13 +252,20 @@ def _has_maintenance_issues(
 
 
 async def _parse_dependency_file(dependency_file_path: APath) -> ParseResult:
-    """Parse dependency file based on its type"""
-    if dependency_file_path.name == "uv.lock":
-        return await parse_uv_lock_file(dependency_file_path)
-    if dependency_file_path.name == "requirements.txt":
-        return await parse_requirements_txt_file(dependency_file_path)
-    # Assume dependency_file_path.name == "pyproject.toml"
-    return await parse_pylock_toml_file(dependency_file_path)
+    """Parse dependency file based on its type.
+
+    Raises:
+        DependencyFileParseException: If parsing fails.
+    """
+    try:
+        if dependency_file_path.name == "uv.lock":
+            return await parse_uv_lock_file(dependency_file_path)
+        if dependency_file_path.name == "requirements.txt":
+            return await parse_requirements_txt_file(dependency_file_path)
+        # Assume dependency_file_path.name == "pyproject.toml"
+        return await parse_pylock_toml_file(dependency_file_path)
+    except Exception as e:
+        raise DependencyFileParseException(f"Failed to parse {dependency_file_path}: {e}") from e
 
 
 def _build_ignore_packages(
@@ -288,11 +308,10 @@ async def check_dependencies(
 
     try:
         parse_result = await _parse_dependency_file(dependency_file_path)
-    except Exception as e:  # pragma: no cover - defensive, surfaced to user
-        return FileResultOutput(
-            file_path=file_path_str,
-            error=f"Failed to parse {dependency_file_path}: {e}",
-        )
+    except DependencyFileParseException as e:
+        return FileResultOutput(file_path=file_path_str, error=str(e))
+    except Exception as e:
+        return FileResultOutput(file_path=file_path_str, error=f"Unexpected error: {e}")
 
     dependencies = parse_result.dependencies
     ignored_count = parse_result.ignored_count
@@ -320,13 +339,12 @@ async def check_dependencies(
 
     # Process each package
     for idx, (package_info, package_index) in enumerate(package_metadata):
-        result = _process_package_metadata(
-            package_info, package_index, dependencies[idx].name, config, ignore_packages
-        )
-
-        # Handle error
-        if isinstance(result, str):
-            return FileResultOutput(file_path=file_path_str, error=result)
+        try:
+            result = _process_package_metadata(
+                package_info, package_index, dependencies[idx].name, config, ignore_packages
+            )
+        except PackageMetadataProcessingException as e:
+            return FileResultOutput(file_path=file_path_str, error=str(e))
 
         # Handle successful output (None means skip)
         if result is not None:
