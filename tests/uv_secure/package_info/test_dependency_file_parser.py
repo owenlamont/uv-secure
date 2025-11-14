@@ -1,5 +1,10 @@
+from __future__ import annotations
+
+from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
+from types import SimpleNamespace
 
 from anyio import Path as APath
 import pytest
@@ -11,6 +16,7 @@ from uv_secure.package_info import (
     parse_uv_lock_file,
     ParseResult,
 )
+import uv_secure.package_info.dependency_file_parser as dfp
 
 
 @pytest.mark.asyncio
@@ -921,3 +927,352 @@ async def test_parse_uv_lock_file(
     uv_lock_path.write_text(dedent(uv_lock_contents).strip())
     dependencies = await parse_uv_lock_file(APath(uv_lock_path))
     assert dependencies == expected_dependencies
+
+
+@dataclass(frozen=True)
+class _XDep:
+    name: str
+    version: str
+    direct: bool | None = None
+
+
+def _x_as_deps(items: Sequence[_XDep]) -> list[Dependency]:
+    return [Dependency(name=i.name, version=i.version, direct=i.direct) for i in items]
+
+
+def _x_assert_result(
+    actual: ParseResult, expected_deps: Sequence[_XDep], expected_ignored: int
+) -> None:
+    assert actual.ignored_count == expected_ignored
+    assert actual.dependencies == _x_as_deps(expected_deps)
+
+
+async def _x_write(path: APath, text: str) -> APath:
+    await path.write_text(text)
+    return path
+
+
+_REQ_VALID = (
+    pytest.param(
+        "requests==2.31.0\n",
+        [_XDep("requests", "2.31.0", None)],
+        id="single",
+    ),
+    pytest.param(
+        "\n# comment\niniconfig==2.0.0  # pinned\npytest==8.2.0\n",
+        [_XDep("iniconfig", "2.0.0", None), _XDep("pytest", "8.2.0", None)],
+        id="two_with_comments",
+    ),
+)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("req_text", "expected"), _REQ_VALID)
+async def test_requirements_valid_parametrized(
+    tmp_path, req_text: str, expected: list[_XDep]
+) -> None:
+    req = APath(tmp_path / "requirements.txt")
+    await _x_write(req, req_text)
+    result = await parse_requirements_txt_file(req)
+    _x_assert_result(result, expected, expected_ignored=0)
+
+
+_REQ_INVALID = (
+    pytest.param("urllib3>=2.2.0\n", id="gte"),
+    pytest.param("starlette==0.*\n", id="wildcard"),
+    pytest.param("somepkg @ https://example.com/file\n", id="url"),
+    pytest.param("idna==3.7; python_version<'3.12'\n", id="marker"),
+)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad_line", _REQ_INVALID)
+async def test_requirements_invalid_parametrized(tmp_path, bad_line: str) -> None:
+    req = APath(tmp_path / "requirements.txt")
+    await _x_write(req, bad_line)
+    with pytest.raises(ValueError):
+        await parse_requirements_txt_file(req)
+
+
+_REQ_RETRY = (
+    pytest.param(
+        [OSError("io1"), OSError("io2"), "requests==2.32.0\n"],
+        True,
+        [_XDep("requests", "2.32.0", None)],
+        id="eventual_success",
+    ),
+    pytest.param(
+        [OSError("io1"), OSError("io2"), OSError("io3")],
+        False,
+        [],
+        id="permanent_failure",
+    ),
+)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("side_effects", "should_succeed", "expected"), _REQ_RETRY)
+async def test_requirements_retry_logic_parametrized(
+    mocker, tmp_path, side_effects, should_succeed, expected
+) -> None:
+    read_patch = mocker.patch(
+        "uv_secure.package_info.dependency_file_parser.Path.read_text",
+        side_effect=side_effects,
+    )
+    req = APath(tmp_path / "requirements.txt")
+
+    if should_succeed:
+        result = await parse_requirements_txt_file(req)
+        _x_assert_result(result, expected, expected_ignored=0)
+    else:
+        with pytest.raises(OSError):
+            await parse_requirements_txt_file(req)
+
+    assert read_patch.call_count >= 1
+
+
+_PYLOCK_CASES = (
+    pytest.param(
+        """
+        [[packages]]
+        name = "iniconfig"
+        version = "2.0.0"
+        index = "https://pypi.org/simple"
+
+        [[packages]]
+        name = "corp-lib"
+        version = "1.2.3"
+        index = "https://packages.example.local/simple"
+        """,
+        [_XDep("iniconfig", "2.0.0", None)],
+        1,
+        id="mix_pypi_nonpypi",
+    ),
+    pytest.param(
+        """
+        [[packages]]
+        name = "pluggy"
+        version = "1.5.0"
+        index = "https://pypi.org/simple"
+
+        [[packages]]
+        name = "packaging"
+        version = "24.1"
+        index = "https://pypi.org/simple"
+        """,
+        [_XDep("pluggy", "1.5.0", None), _XDep("packaging", "24.1", None)],
+        0,
+        id="only_pypi",
+    ),
+)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("toml_text", "expected", "ignored"), _PYLOCK_CASES)
+async def test_pylock_parsing_parametrized(
+    tmp_path, toml_text: str, expected: list[_XDep], ignored: int
+) -> None:
+    path = APath(tmp_path / "pylock.toml")
+    await _x_write(path, toml_text)
+    result = await parse_pylock_toml_file(path)
+    _x_assert_result(result, expected, expected_ignored=ignored)
+
+
+@pytest.mark.asyncio
+async def test_pylock_toml_decode_error_retries(mocker, tmp_path) -> None:
+    path = APath(tmp_path / "pylock.toml")
+    await _x_write(path, "not: toml")
+    loads = mocker.patch(
+        "uv_secure.package_info.dependency_file_parser.toml.loads",
+        side_effect=ValueError("bad toml"),
+    )
+    with pytest.raises(ValueError):
+        await parse_pylock_toml_file(path)
+    assert loads.call_count >= 3
+
+
+_UV_LOCK_CASES = (
+    pytest.param(
+        {
+            "package": [
+                {
+                    "name": "requests",
+                    "version": "2.31.0",
+                    "source": {"registry": "https://pypi.org/simple"},
+                },
+                {
+                    "name": "app",
+                    "version": "0.0.0",
+                    "source": {"editable": "."},
+                    "dependencies": [{"name": "requests"}],
+                },
+            ]
+        },
+        [_XDep("requests", "2.31.0", True)],
+        0,
+        id="editable_direct",
+    ),
+    pytest.param(
+        {
+            "package": [
+                {
+                    "name": "anyio",
+                    "version": "4.4.0",
+                    "source": {"registry": "https://pypi.org/simple"},
+                },
+                {
+                    "name": "sniffio",
+                    "version": "1.3.1",
+                    "source": {"registry": "https://pypi.org/simple"},
+                },
+            ]
+        },
+        [_XDep("anyio", "4.4.0", False), _XDep("sniffio", "1.3.1", False)],
+        0,
+        id="two_transitives",
+    ),
+    pytest.param(
+        {
+            "package": [
+                {
+                    "name": "corp-internal",
+                    "version": "9.9.9",
+                    "source": {"registry": "https://packages.example.local/simple"},
+                },
+            ]
+        },
+        [],
+        1,
+        id="non_pypi_ignored",
+    ),
+)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("toml_obj", "expected", "ignored"), _UV_LOCK_CASES)
+async def test_uv_lock_parsing_parametrized_via_mocked_loads(
+    mocker, tmp_path, toml_obj: dict, expected: list[_XDep], ignored: int
+) -> None:
+    path = APath(tmp_path / "uv.lock")
+    await _x_write(path, "ignored")
+    mocker.patch(
+        "uv_secure.package_info.dependency_file_parser.toml.loads",
+        return_value=toml_obj,
+    )
+    result = await parse_uv_lock_file(path)
+    _x_assert_result(result, expected, expected_ignored=ignored)
+
+
+@pytest.mark.asyncio
+async def test_uv_lock_toml_decode_error_retries(mocker, tmp_path) -> None:
+    path = APath(tmp_path / "uv.lock")
+    await _x_write(path, "ignored")
+    loads = mocker.patch(
+        "uv_secure.package_info.dependency_file_parser.toml.loads",
+        side_effect=ValueError("bad toml"),
+    )
+    with pytest.raises(ValueError):
+        await parse_uv_lock_file(path)
+    assert loads.call_count >= 3
+
+
+def _x_as_deps(xs: list[SimpleNamespace]) -> list[Dependency]:
+    """Helper: build Dependency objects, but allow direct=None to mean 'don't care'."""
+    deps = []
+    for x in xs:
+        deps.append(
+            Dependency(
+                name=x.name,
+                version=x.version,
+                direct=x.direct if hasattr(x, "direct") else None,
+            )
+        )
+    return deps
+
+
+def _x_assert_result(
+    actual: ParseResult, expected_deps: list[SimpleNamespace], expected_ignored: int
+) -> None:
+    assert actual.ignored_count == expected_ignored
+    exp = _x_as_deps(expected_deps)
+    assert len(actual.dependencies) == len(exp)
+    for a, e in zip(actual.dependencies, exp):
+        assert a.name == e.name
+        assert a.version == e.version
+        if e.direct is not None:
+            assert a.direct == e.direct
+
+
+@pytest.mark.asyncio
+async def test_requirements_marks_previous_dep_direct_when_marker_detected(
+    monkeypatch, tmp_path
+):
+    pth = APath(tmp_path / "requirements.txt")
+    await pth.write_text("demo_pkg==1.2.3\n# marker-ish\n")
+
+    call_idx = {"i": 0}
+
+    def fake_marker(line: str) -> bool:
+        call_idx["i"] += 1
+        return call_idx["i"] == 2
+
+    monkeypatch.setattr(dfp, "_is_direct_dependency_marker", fake_marker, raising=True)
+
+    result = await dfp.parse_requirements_txt_file(pth)
+    _x_assert_result(
+        result,
+        [SimpleNamespace(name="demo_pkg", version="1.2.3", direct=True)],
+        expected_ignored=0,
+    )
+
+
+@pytest.mark.asyncio
+async def test_uv_lock_accumulates_ignored_and_uses_mark_direct(mocker, tmp_path):
+    pth = APath(tmp_path / "uv.lock")
+    await pth.write_text("# mocked")
+
+    mocker.patch.object(
+        dfp.toml,
+        "loads",
+        return_value={"package": [{"n": 1}, {"n": 2}, {"n": 3}]},
+    )
+
+    from itertools import cycle
+
+    proc = mocker.patch.object(
+        dfp, "_process_uv_lock_package", side_effect=cycle([1, 0, 2])
+    )
+
+    mark = mocker.patch.object(
+        dfp,
+        "_mark_direct_dependencies",
+        return_value=[Dependency(name="x", version="1.0.0", direct=True)],
+    )
+
+    result = await dfp.parse_uv_lock_file(pth)
+
+    assert proc.call_count >= 3
+    assert result.ignored_count >= 3
+    assert result.dependencies == mark.return_value
+
+
+@pytest.mark.asyncio
+async def test_pylock_parsing_handles_empty_packages(mocker, tmp_path):
+    pth = APath(tmp_path / "pylock.toml")
+    await pth.write_text("# mocked")
+    mocker.patch.object(dfp.toml, "loads", return_value={"packages": []})
+    result = await dfp.parse_pylock_toml_file(pth)
+    assert result.dependencies == []
+    assert result.ignored_count == 0
+
+
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        ("# not a marker", False),
+        ("", False),
+    ],
+    ids=["noise", "empty"],
+)
+def test_is_direct_dependency_marker_cases(line, expected):
+    assert dfp._is_direct_dependency_marker(line) is expected

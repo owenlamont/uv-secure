@@ -15,7 +15,10 @@ from uv_secure.configuration import (
     MaintainabilityCriteria,
     VulnerabilityCriteria,
 )
-from uv_secure.dependency_checker import check_dependencies, USER_AGENT
+from uv_secure.dependency_checker.dependency_checker import (
+    check_dependencies,
+    USER_AGENT,
+)
 
 
 @asynccontextmanager
@@ -336,3 +339,281 @@ async def test_check_dependencies_no_aliases(
     vuln = dep.vulns[0]
     assert vuln.id == "VULN-NO-ALIASES"
     assert vuln.aliases is None
+
+from uv_secure.dependency_checker.dependency_checker import (
+    ManagedAsyncSqliteStorage,
+    _apply_cli_config_overrides,
+    _determine_final_status,
+    _should_skip_package,
+    _filter_vulnerabilities,
+    _has_maintenance_issues,
+    check_lock_files,
+    RunStatus,
+)
+from uv_secure.output_models import (
+    FileResultOutput,
+    DependencyOutput,
+    VulnerabilityOutput,
+    MaintenanceIssueOutput,
+)
+from uv_secure.configuration import (
+    Configuration,
+    MaintainabilityCriteria,
+    VulnerabilityCriteria,
+)
+from uv_secure.package_info import (
+    PackageInfo,
+    PackageIndex,
+    ProjectState,
+    Vulnerability,
+)
+
+class TestManagedAsyncSqliteStorage:
+    @pytest.mark.asyncio
+    async def test_close_closes_connection(self, mocker):
+        """Ensure ManagedAsyncSqliteStorage.close() properly closes the connection."""
+        mock_conn = mocker.AsyncMock()
+        storage = ManagedAsyncSqliteStorage(connection=mock_conn)
+        await storage.close()
+        mock_conn.close.assert_awaited_once()
+        assert storage.connection is None
+
+    @pytest.mark.asyncio
+    async def test_close_without_connection_safe(self):
+        """Ensure calling close() without a connection does not raise errors."""
+        storage = ManagedAsyncSqliteStorage()
+        await storage.close()
+
+@pytest.mark.parametrize(
+    ("ignore_map", "version", "expected"),
+    [
+        pytest.param({}, "1.0.0", False, id="not ignored"),
+        pytest.param({"foo": ()}, "1.0.0", True, id="empty specifiers means ignore"),
+        pytest.param(
+            {"foo": tuple()},
+            "2.0.0",
+            True,
+            id="explicit empty spec tuple also ignored",
+        ),
+    ],
+)
+def test_should_skip_package(ignore_map, version, expected, mocker):
+    pkg_info = mocker.Mock()
+    pkg_info.info.name = "foo"
+    pkg_info.info.version = version
+    result = _should_skip_package(pkg_info, ignore_map)
+    assert result == expected
+
+    """Ensure ignored and withdrawn vulnerabilities are removed."""
+    vuln1 = Vulnerability(
+        id="A", details="", withdrawn=None, aliases=None, link=None, fixed_in=None
+    )
+    vuln2 = Vulnerability(
+        id="B", details="", withdrawn="yes", aliases=None, link=None, fixed_in=None
+    )
+    vuln3 = Vulnerability(
+        id="C", details="", withdrawn=None, aliases=None, link=None, fixed_in=None
+    )
+    pkg_info = mocker.Mock()
+    pkg_info.vulnerabilities = [vuln1, vuln2, vuln3]
+    config = Configuration(
+        vulnerability_criteria=VulnerabilityCriteria(ignore_vulnerabilities={"C"})
+    )
+    _filter_vulnerabilities(pkg_info, config)
+    remaining_ids = {v.id for v in pkg_info.vulnerabilities}
+    assert remaining_ids == {"A"}
+
+@pytest.mark.parametrize(
+    ("state", "expected"),
+    [
+        pytest.param(ProjectState.ARCHIVED, True, id="archived forbidden"),
+        pytest.param(ProjectState.ACTIVE, False, id="active allowed"),
+    ],
+)
+def test_has_maintenance_issues_detects_conditions(state, expected, mocker):
+    """Validate maintenance issue logic."""
+    pkg_index = mocker.Mock(status=state)
+    pkg_info = mocker.Mock()
+    pkg_info.info.yanked = False
+    pkg_info.age = None
+    config = Configuration(
+        maintainability_criteria=MaintainabilityCriteria(forbid_archived=True)
+    )
+    assert _has_maintenance_issues(pkg_index, pkg_info, config) == expected
+
+@pytest.mark.parametrize(
+    "file_results,expected_status",
+    [
+        pytest.param(
+            [FileResultOutput(file_path="a", error="err")],
+            RunStatus.RUNTIME_ERROR,
+            id="runtime error",
+        ),
+        pytest.param(
+            [
+                FileResultOutput(
+                    file_path="a",
+                    dependencies=[
+                        DependencyOutput(
+                            name="x",
+                            version="1.0.0",
+                            direct=True,
+                            vulns=[
+                                VulnerabilityOutput(
+                                    id="v",
+                                    details="",
+                                    fix_versions=None,
+                                    aliases=None,
+                                    link=None,
+                                )
+                            ],
+                            maintenance_issues=None,
+                        )
+                    ],
+                )
+            ],
+            RunStatus.VULNERABILITIES_FOUND,
+            id="vulns found",
+        ),
+        pytest.param(
+            [
+                FileResultOutput(
+                    file_path="a",
+                    dependencies=[
+                        DependencyOutput(
+                            name="x",
+                            version="1.0.0",
+                            direct=True,
+                            vulns=[],
+                            maintenance_issues=MaintenanceIssueOutput(
+                                status="archived", status_reason="test", yanked=False
+                            ),
+                        )
+                    ],
+                )
+            ],
+            RunStatus.MAINTENANCE_ISSUES_FOUND,
+            id="maintenance found",
+        ),
+        pytest.param(
+            [FileResultOutput(file_path="a", dependencies=[])],
+            RunStatus.NO_VULNERABILITIES,
+            id="no issues",
+        ),
+    ],
+)
+def test_determine_final_status(file_results, expected_status):
+    """Ensure final run status is determined correctly."""
+    result = _determine_final_status(file_results)
+    assert result == expected_status
+
+def test_apply_cli_config_overrides_applies_when_needed(mocker):
+    """Ensure overrides are applied when parameters are passed."""
+    mock_config = Configuration()
+    mocker.patch(
+        "uv_secure.dependency_checker.dependency_checker.config_cli_arg_factory",
+        return_value="cli_conf",
+    )
+    mocker.patch(
+        "uv_secure.dependency_checker.dependency_checker.override_config",
+        return_value="merged",
+    )
+
+    result = _apply_cli_config_overrides(
+        {"lock": mock_config},
+        aliases=True,
+        desc=None,
+        ignore_vulns=None,
+        ignore_pkgs=None,
+        forbid_archived=None,
+        forbid_deprecated=None,
+        forbid_quarantined=None,
+        forbid_yanked=None,
+        check_direct_dependency_vulnerabilities_only=None,
+        check_direct_dependency_maintenance_issues_only=None,
+        max_package_age=None,
+        format_type=None,
+    )
+
+    assert list(result.values()) == ["merged"]
+
+
+def test_apply_cli_config_overrides_skips_when_no_changes():
+    mapping = {"lock": Configuration()}
+    result = _apply_cli_config_overrides(
+        mapping,
+        aliases=None,
+        desc=None,
+        ignore_vulns=None,
+        ignore_pkgs=None,
+        forbid_archived=None,
+        forbid_deprecated=None,
+        forbid_quarantined=None,
+        forbid_yanked=None,
+        check_direct_dependency_vulnerabilities_only=None,
+        check_direct_dependency_maintenance_issues_only=None,
+        max_package_age=None,
+        format_type=None,
+    )
+
+    assert result is mapping
+
+@pytest.mark.asyncio
+async def test_check_lock_files_integration_success(mocker):
+    # Patch functions used inside check_lock_files
+    mocker.patch(
+        "uv_secure.dependency_checker.dependency_checker.get_dependency_file_to_config_map",
+        return_value={"f": Configuration()},
+    )
+    mocker.patch(
+        "uv_secure.dependency_checker.dependency_checker.get_dependency_files_to_config_map",
+        return_value={"f": Configuration()},
+    )
+    mocker.patch(
+        "uv_secure.dependency_checker.dependency_checker.config_file_factory",
+        return_value=None,
+    )
+
+    # Patch APath where it is actually used in dependency_checker.py
+    mocker.patch(
+        "uv_secure.dependency_checker.dependency_checker._resolve_file_paths_and_configs",
+        return_value=([APath("f")], {APath("f"): Configuration()}),
+    )
+
+    # Patch check_dependencies to return a valid FileResultOutput
+    mocker.patch(
+        "uv_secure.dependency_checker.dependency_checker.check_dependencies",
+        side_effect=lambda *_args, **_kwargs: FileResultOutput(
+            file_path="f", dependencies=[], error=None
+        ),
+    )
+
+    # Patch Console to avoid printing
+    mock_console = mocker.patch(
+        "uv_secure.dependency_checker.dependency_checker.Console"
+    )
+
+    # Run the function
+    result = await check_lock_files(
+        file_paths=[Path("f")],
+        aliases=None,
+        desc=None,
+        cache_path=Path("cache"),
+        cache_ttl_seconds=60.0,
+        disable_cache=True,
+        forbid_archived=None,
+        forbid_deprecated=None,
+        forbid_quarantined=None,
+        forbid_yanked=None,
+        max_package_age=None,
+        ignore_vulns=None,
+        ignore_pkgs=None,
+        check_direct_dependency_vulnerabilities_only=None,
+        check_direct_dependency_maintenance_issues_only=None,
+        config_path=None,
+        format_type="json",
+    )
+
+    # Validate result
+    assert result == RunStatus.NO_VULNERABILITIES
+    mock_console.return_value.print.assert_called()
