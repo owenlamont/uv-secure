@@ -154,6 +154,7 @@ _check_uv_tool_option = typer.Option(
     "--check-uv-tool/--no-check-uv-tool",
     help=(
         "Enable or disable scanning the globally installed uv CLI for vulnerabilities"
+        " (enabled by default)"
     ),
 )
 
@@ -182,33 +183,7 @@ def main(
     format_type: OutputFormat | None = _format_option,
     check_uv_tool: bool | None = _check_uv_tool_option,
 ) -> None:
-    """Parse dependency manifests and display vulnerability summaries.
-
-    Args:
-        file_paths: Files or directories to scan.
-        aliases: Whether to show vulnerability aliases.
-        desc: Whether to show vulnerability descriptions.
-        cache_path: HTTP cache directory.
-        cache_ttl_seconds: Cache TTL in seconds.
-        disable_cache: Whether to disable caching.
-        forbid_archived: Reject archived packages when True.
-        forbid_deprecated: Reject deprecated packages when True.
-        forbid_quarantined: Reject quarantined packages when True.
-        forbid_yanked: Reject yanked packages when True.
-        max_package_age: Maximum allowed package age in days.
-        ignore_vulns: Comma-separated vulnerability IDs to ignore.
-        ignore_pkgs: Package ignore strings.
-        check_direct_dependency_vulnerabilities_only: Restrict vulnerability checks to
-            direct dependencies.
-        check_direct_dependency_maintenance_issues_only: Restrict maintenance checks to
-            direct dependencies.
-        config_path: Optional explicit configuration path.
-        version: Whether ``--version`` was requested.
-        format_type: Output format override.
-
-    Raises:
-        typer.Exit: Communicates exit status codes based on scan results or --version.
-    """
+    """Parse dependency manifests and display vulnerability summaries."""  # noqa: DOC501
     # Use uvloop or winloop if present
     try:
         if sys.platform in {"win32", "cygwin", "cli"}:
