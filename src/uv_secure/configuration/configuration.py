@@ -35,6 +35,7 @@ class Configuration(BaseModel):
     vulnerability_criteria: VulnerabilityCriteria = VulnerabilityCriteria()
     ignore_packages: dict[str, tuple[str, ...]] | None = None
     format: OutputFormat = OutputFormat.COLUMNS
+    check_uv_tool: bool = True
 
 
 class OverrideConfiguration(BaseModel):
@@ -50,6 +51,7 @@ class OverrideConfiguration(BaseModel):
     forbid_yanked: bool | None = None
     max_package_age: timedelta | None = None
     format: OutputFormat | None = None
+    check_uv_tool: bool | None = None
 
 
 def override_config(
@@ -106,5 +108,7 @@ def override_config(
         )
     if overrides.format is not None:
         new_configuration.format = overrides.format
+    if overrides.check_uv_tool is not None:
+        new_configuration.check_uv_tool = overrides.check_uv_tool
 
     return new_configuration

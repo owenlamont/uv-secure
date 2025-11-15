@@ -1,4 +1,5 @@
 import asyncio
+from asyncio.subprocess import PIPE
 from collections.abc import Sequence
 from enum import Enum
 from functools import cache
@@ -12,6 +13,7 @@ from hishel import AsyncSqliteStorage
 from hishel.httpx import AsyncCacheClient
 from httpx import AsyncClient, Headers
 from packaging.specifiers import SpecifierSet
+from packaging.version import InvalidVersion, Version
 from rich.console import Console
 
 from uv_secure import __version__
@@ -36,6 +38,7 @@ from uv_secure.output_models import (
     VulnerabilityOutput,
 )
 from uv_secure.package_info import (
+    Dependency,
     download_package_indexes,
     download_packages,
     PackageIndex,
@@ -54,6 +57,7 @@ if sys.version_info < (3, 11):
 
 
 USER_AGENT = f"uv-secure/{__version__} (contact: owenrlamont@gmail.com)"
+GLOBAL_UV_TOOL_LABEL = "uv (global tool)"
 
 
 class ManagedAsyncSqliteStorage(AsyncSqliteStorage):
@@ -291,6 +295,134 @@ def _build_ignore_packages(
     }
 
 
+def _extract_uv_version(raw_output: str) -> str | None:
+    """Parse the uv CLI version from ``uv --version`` output.
+
+    Returns:
+        str | None: Parsed version string when identifiable, else ``None``.
+    """
+
+    tokens = [token.strip(" ,") for token in raw_output.split() if token.strip()]
+    for token in tokens:
+        if token.lower() == "uv":
+            continue
+        try:
+            Version(token)
+        except InvalidVersion:
+            continue
+        return token
+    return None
+
+
+async def _detect_uv_version() -> str | None:
+    """Return the installed uv CLI version or ``None`` when unavailable."""
+
+    try:
+        process = await asyncio.create_subprocess_exec(
+            "uv", "--version", stdout=PIPE, stderr=PIPE
+        )
+    except FileNotFoundError:
+        return None
+
+    stdout, stderr = await process.communicate()
+    if process.returncode != 0:
+        return None
+
+    decoded = stdout.decode(errors="ignore").strip()
+    if not decoded:
+        decoded = stderr.decode(errors="ignore").strip()
+    if not decoded:
+        return None
+
+    return _extract_uv_version(decoded)
+
+
+async def _check_global_uv_tool(
+    config: Configuration, http_client: AsyncClient, disable_cache: bool
+) -> FileResultOutput | None:
+    """Check vulnerabilities for the globally installed uv CLI.
+
+    Returns:
+        FileResultOutput | None: Results specific to the ``uv`` executable or
+        ``None`` when the CLI is unavailable/ignored.
+    """
+
+    uv_version = await _detect_uv_version()
+    if uv_version is None:
+        return None
+
+    dependency = Dependency(name="uv", version=uv_version, direct=True)
+    package_infos, package_indexes = await asyncio.gather(
+        download_packages([dependency], http_client, disable_cache),
+        download_package_indexes([dependency], http_client, disable_cache),
+    )
+
+    ignore_packages = _build_ignore_packages(config)
+    package_info = package_infos[0]
+    package_index = package_indexes[0]
+    result = _process_package_metadata(
+        package_info, package_index, dependency.name, config, ignore_packages
+    )
+
+    if result is None:
+        return None
+
+    if isinstance(result, str):
+        return FileResultOutput(file_path=GLOBAL_UV_TOOL_LABEL, error=result)
+
+    has_findings = bool(result.vulns) or result.maintenance_issues is not None
+    if not has_findings:
+        return None
+
+    return FileResultOutput(
+        file_path=GLOBAL_UV_TOOL_LABEL, dependencies=[result], ignored_count=0
+    )
+
+
+async def _evaluate_dependency_files(
+    file_apaths: tuple[APath, ...],
+    lock_to_config_map: dict[APath, Configuration],
+    http_client: AsyncClient,
+    disable_cache: bool,
+) -> list[FileResultOutput]:
+    """Gather dependency results for dependency files and the uv CLI.
+
+    Returns:
+        list[FileResultOutput]: Combined scan results for dependency files and
+        the optional ``uv`` check.
+    """
+
+    uv_config = next(
+        (config for config in lock_to_config_map.values() if config.check_uv_tool), None
+    )
+    uv_task: asyncio.Task[FileResultOutput | None] | None = None
+    if uv_config is not None:
+        uv_task = asyncio.create_task(
+            _check_global_uv_tool(uv_config, http_client, disable_cache)
+        )
+
+    file_results = list(
+        await asyncio.gather(
+            *[
+                check_dependencies(
+                    dependency_file_path,
+                    lock_to_config_map[APath(dependency_file_path)],
+                    http_client,
+                    disable_cache,
+                )
+                for dependency_file_path in file_apaths
+            ]
+        )
+    )
+
+    if uv_task is not None:
+        uv_result = await uv_task
+        if uv_result is not None:
+            file_results.append(uv_result)
+
+    return file_results
+
+
 async def check_dependencies(
     dependency_file_path: APath,
     config: Configuration,
@@ -325,7 +457,6 @@ async def check_dependencies(
             file_path=file_path_str,
             error=f"Failed to parse {dependency_file_path}: {e}",
         )
-
     dependencies = parse_result.dependencies
     ignored_count = parse_result.ignored_count
 
@@ -439,6 +570,7 @@ def _apply_cli_config_overrides(
     check_direct_dependency_maintenance_issues_only: bool | None,
     max_package_age: int | None,
     format_type: str | None,
+    check_uv_tool: bool | None,
 ) -> dict[APath, Configuration]:
     """Apply CLI overrides to lock-to-config mapping.
 
@@ -459,6 +591,7 @@ def _apply_cli_config_overrides(
             check_direct_dependency_maintenance_issues_only,
             max_package_age is not None,
             format_type is not None,
+            check_uv_tool is not None,
         )
     ):
         cli_config = config_cli_arg_factory(
@@ -474,6 +607,7 @@ def _apply_cli_config_overrides(
             ignore_vulns,
             ignore_pkgs,
             OutputFormat(format_type) if format_type else None,
+            check_uv_tool,
         )
         return {
             lock_file: override_config(config, cli_config)
@@ -539,6 +673,7 @@ async def check_lock_files(
     check_direct_dependency_maintenance_issues_only: bool | None,
     config_path: Path | None,
     format_type: str | None,
+    check_uv_tool: bool | None,
 ) -> RunStatus:
     """Scan dependency files for vulnerabilities and maintenance issues.
 
@@ -562,6 +697,8 @@ async def check_lock_files(
             direct dependencies.
         config_path: Optional configuration file path.
         format_type: Output format override ("columns" or "json").
+        check_uv_tool: Toggle scanning the globally installed uv CLI for
+            vulnerabilities.
 
     Returns:
         RunStatus: Result of the scan.
@@ -598,6 +735,7 @@ async def check_lock_files(
         check_direct_dependency_maintenance_issues_only,
         max_package_age,
         format_type,
+        check_uv_tool,
     )
 
     client_headers = Headers({"User-Agent": USER_AGENT})
@@ -630,18 +768,8 @@ async def check_lock_files(
 
     try:
         async with http_client_cm as http_client:
-            file_results = list(
-                await asyncio.gather(
-                    *[
-                        check_dependencies(
-                            dependency_file_path,
-                            lock_to_config_map[APath(dependency_file_path)],
-                            http_client,
-                            disable_cache,
-                        )
-                        for dependency_file_path in file_apaths
-                    ]
-                )
+            file_results = await _evaluate_dependency_files(
+                file_apaths, lock_to_config_map, http_client, disable_cache
             )
     finally:
         if storage is not None:

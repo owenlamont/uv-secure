@@ -13,6 +13,12 @@ Currently only packages sourced from PyPi are tested - there's no support for cu
 packages or packages stored in private PyPi servers. See roadmap below for my plans for
 future enhancements.
 
+When a globally installed `uv` CLI is available, uv-secure will also query the PyPI
+metadata for that executable's version and report any known vulnerabilities alongside
+your dependency scan results. This safety check can be disabled with
+`--no-check-uv-tool` or the equivalent configuration setting if uv-secure is used in
+environments that do not rely on `uv`.
+
 I don't intend uv-secure to ever create virtual environments or do dependency
 resolution - the plan is to leave that all to uv since it does that so well and just
 target lock files and fully pinned and (dependency resolved) requirements.txt files. If
@@ -170,6 +176,9 @@ After installation, you can run uv-secure --help to see the options.
 │ --format                             [columns|json]     Output format: 'columns' for │
 │                                                         table output (default) or    │
 │                                                         'json' for JSON output       │
+│ --check-uv-tool / --no-check-uv-tool                    Enable or disable scanning   │
+│                                                         the globally installed uv CLI│
+│                                                         for vulnerabilities          │
 │ --install-completion                                    Install completion for the   │
 │                                                         current shell.               │
 │ --show-completion                                       Show completion for the      │
@@ -197,6 +206,7 @@ uv-secure can read configuration from a toml file specified with the config opti
 
 ```toml
 format = "columns"
+check_uv_tool = true # Disable with false to skip checking the global uv CLI
 
 [ignore_packages]
 requests = [] # Ignore issues with all versions of the requests package

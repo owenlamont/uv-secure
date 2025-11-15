@@ -149,6 +149,14 @@ _format_option = typer.Option(
     ),
 )
 
+_check_uv_tool_option = typer.Option(
+    None,
+    "--check-uv-tool/--no-check-uv-tool",
+    help=(
+        "Enable or disable scanning the globally installed uv CLI for vulnerabilities"
+    ),
+)
+
 
 @app.command()
 def main(
@@ -172,6 +180,7 @@ def main(
     config_path: Path | None = _config_option,
     version: bool = _version_option,
     format_type: OutputFormat | None = _format_option,
+    check_uv_tool: bool | None = _check_uv_tool_option,
 ) -> None:
     """Parse dependency manifests and display vulnerability summaries.
 
@@ -228,6 +237,7 @@ def main(
             check_direct_dependency_maintenance_issues_only,
             config_path,
             format_type.value if format_type is not None else None,
+            check_uv_tool,
         )
     )
     if run_status == RunStatus.MAINTENANCE_ISSUES_FOUND:

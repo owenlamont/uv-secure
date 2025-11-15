@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Callable, Generator
 from pathlib import Path
 from textwrap import dedent
@@ -7,6 +8,57 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from uv_secure.dependency_checker import USER_AGENT
+
+
+DEFAULT_TEST_UV_VERSION = "0.9.9"
+
+
+@pytest.fixture(autouse=True)
+def _stub_uv_cli_version(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _fake_version() -> str | None:
+        await asyncio.sleep(0)
+        return DEFAULT_TEST_UV_VERSION
+
+    monkeypatch.setattr(
+        "uv_secure.dependency_checker.dependency_checker._detect_uv_version",
+        _fake_version,
+    )
+
+
+@pytest.fixture
+def uv_http_responses(httpx_mock: HTTPXMock) -> None:
+    httpx_mock.add_response(
+        url=f"https://pypi.org/pypi/uv/{DEFAULT_TEST_UV_VERSION}/json",
+        json={
+            "info": {
+                "author_email": "maintainer@example.com",
+                "classifiers": [],
+                "description": "uv CLI",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "uv",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": f"https://pypi.org/project/uv/{DEFAULT_TEST_UV_VERSION}/",
+                "requires_python": ">=3.9",
+                "summary": "stub uv release",
+                "version": DEFAULT_TEST_UV_VERSION,
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
+            "vulnerabilities": [],
+        },
+        is_optional=True,
+        is_reusable=True,
+    )
+    httpx_mock.add_response(
+        url="https://pypi.org/simple/uv/",
+        json={"name": "uv", "project-status": {"status": "active", "reason": None}},
+        headers={"Content-Type": "application/vnd.pypi.simple.v1+json"},
+        is_optional=True,
+        is_reusable=True,
+    )
 
 
 @pytest.fixture
