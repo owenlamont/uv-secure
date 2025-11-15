@@ -19,20 +19,13 @@ else:
 
 
 def _parse_pkg_versions(raw: list[str] | None) -> dict[str, tuple[str, ...]] | None:
-    """Parse package and bar delimited version specifiers
-
-    Parse things like "foo:>=1.0,<1.5|==4.5.*" into
-    {"foo": [SpecifierSet(">=1.0,<1.5"), SpecifierSet("==4.5.*")]}
+    """Parse colon/bar-delimited package version specifiers.
 
     Args:
-        raw: list of strings in the format "NAME:SPEC1|SPEC2|…"
+        raw: Strings shaped like ``"name:>=1.0,<2.0|==3.4.*"``.
 
     Returns:
-        dictionary mapping package names to lists of SpecifierSets
-
-    Raises:
-        typer.BadParameter: If the input format is invalid, e.g. missing colon or no
-        specifiers
+        dict[str, tuple[str, ...]] | None: Package names mapped to specifier tuples.
     """
     if not raw:
         return None
@@ -60,23 +53,26 @@ def config_cli_arg_factory(
     ignore_pkgs: list[str] | None,
     format_type: OutputFormat | None,
 ) -> OverrideConfiguration:
-    """Factory to create a uv-secure configuration from its command line arguments
+    """Build overrides from CLI arguments.
 
     Args:
-        aliases: Flag whether to show vulnerability aliases in results
-        desc: Flag whether to show vulnerability descriptions in results
-        disable_cache: Flag whether to disable cache
-        forbid_archived: flag whether to forbid archived dependencies
-        forbid_deprecated: flag whether to forbid deprecated dependencies
-        forbid_quarantined: flag whether to forbid quarantined dependencies
-        forbid_yanked: flag whether to forbid yanked dependencies
-        max_package_age: maximum age of dependencies in days
-        ignore_vulns: comma separated string of vulnerability ids to ignore
-        ignore_pkgs: list of package names and version specifiers to ignore
-        format_type: output format type (OutputFormat enum value)
+        aliases: Whether to include vulnerability aliases.
+        check_direct_dependency_maintenance_issues_only: Limit maintenance checks to
+            direct dependencies.
+        check_direct_dependency_vulnerabilities_only: Limit vulnerability checks to
+            direct dependencies.
+        desc: Whether to include vulnerability descriptions.
+        forbid_archived: Reject archived packages when True.
+        forbid_deprecated: Reject deprecated packages when True.
+        forbid_quarantined: Reject quarantined packages when True.
+        forbid_yanked: Reject yanked packages when True.
+        max_package_age: Maximum allowed package age in days.
+        ignore_vulns: Comma-separated vulnerability IDs to ignore.
+        ignore_pkgs: Package ignore strings in ``name:spec|spec`` format.
+        format_type: Output format override.
 
     Returns:
-        uv-secure override configuration object
+        OverrideConfiguration: CLI override instance.
     """
     ignore_vulnerabilities = (
         {vuln_id.strip() for vuln_id in ignore_vulns.split(",") if vuln_id.strip()}
@@ -101,14 +97,17 @@ def config_cli_arg_factory(
 
 
 async def config_file_factory(config_file: Path) -> Configuration | None:
-    """Factory to create a uv-secure configuration from a configuration toml file
+    """Create a configuration object from a file.
 
     Args:
-        config_file: Path to the configuration file (uv-secure.toml, .uv-secure.toml, or
-            pyproject.toml)
+        config_file: Path to ``uv-secure.toml``, ``.uv-secure.toml``, or
+            ``pyproject.toml``.
 
     Returns:
-        uv-secure configuration object or None if no configuration was present
+        Configuration | None: Parsed configuration or ``None`` when not present.
+
+    Raises:
+        UvSecureConfigurationError: Raised when the TOML data fails validation.
     """
     try:
         config_contents = toml.loads(await config_file.read_text())

@@ -1009,7 +1009,14 @@ def temp_uv_empty_pylock_toml_file(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def temp_corrupted_uv_lock_file(tmp_path: Path) -> Path:
-    """Creates a uv.lock file that will cause parsing errors"""
+    """Create a ``uv.lock`` file that will cause parsing errors.
+
+    Args:
+        tmp_path: Temporary directory provided by pytest.
+
+    Returns:
+        Path: Path to the corrupted ``uv.lock`` file.
+    """
     uv_lock_path = tmp_path / "uv.lock"
     # This will cause TOML parsing errors
     corrupted_data = """
@@ -1025,7 +1032,14 @@ def temp_corrupted_uv_lock_file(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def temp_corrupted_requirements_txt_file(tmp_path: Path) -> Path:
-    """Creates a requirements.txt file that will cause parsing errors"""
+    """Create a ``requirements.txt`` file that will cause parsing errors.
+
+    Args:
+        tmp_path: Temporary directory provided by pytest.
+
+    Returns:
+        Path: Path to the malformed ``requirements.txt`` file.
+    """
     requirements_path = tmp_path / "requirements.txt"
     # This will cause parsing errors when splitting on "=="
     # because there are multiple "==" characters
@@ -1041,7 +1055,14 @@ def temp_corrupted_requirements_txt_file(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def temp_corrupted_pylock_toml_file(tmp_path: Path) -> Path:
-    """Creates a pylock.toml file that will cause parsing errors"""
+    """Create a ``pylock.toml`` file that will cause parsing errors.
+
+    Args:
+        tmp_path: Temporary directory provided by pytest.
+
+    Returns:
+        Path: Path to the invalid ``pylock.toml`` file.
+    """
     pylock_path = tmp_path / "pylock.toml"
     # This will cause TOML parsing errors
     corrupted_data = """
@@ -1061,7 +1082,7 @@ def temp_corrupted_pylock_toml_file(tmp_path: Path) -> Path:
     return pylock_path
 
 
-## Specific fixtures for PyPI Simple JSON API
+# Specific fixtures for PyPI Simple JSON API
 
 
 @pytest.fixture
@@ -1189,7 +1210,14 @@ def temp_uv_lock_file_only_non_pypi_deps(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def vulnerability_no_fix_versions_response(httpx_mock: HTTPXMock) -> HTTPXMock:
-    """Vulnerability with no fix versions available"""
+    """Configure a vulnerability response with no available fixes.
+
+    Args:
+        httpx_mock: HTTPXMock fixture to configure.
+
+    Returns:
+        HTTPXMock: Mock primed with a PyPI response lacking fix versions.
+    """
     httpx_mock.add_response(
         url="https://pypi.org/pypi/example-package/1.0.0/json",
         json={
@@ -1226,7 +1254,14 @@ def vulnerability_no_fix_versions_response(httpx_mock: HTTPXMock) -> HTTPXMock:
 
 @pytest.fixture
 def vulnerability_multiple_alias_types_response(httpx_mock: HTTPXMock) -> HTTPXMock:
-    """Vulnerability with multiple alias types for comprehensive coverage"""
+    """Configure a vulnerability response exercising all alias types.
+
+    Args:
+        httpx_mock: HTTPXMock fixture to configure.
+
+    Returns:
+        HTTPXMock: Mock primed with alias-heavy PyPI vulnerability data.
+    """
     httpx_mock.add_response(
         url="https://pypi.org/pypi/example-package/1.0.0/json",
         json={
@@ -1269,7 +1304,14 @@ def vulnerability_multiple_alias_types_response(httpx_mock: HTTPXMock) -> HTTPXM
 
 @pytest.fixture
 def vulnerability_no_aliases_response(httpx_mock: HTTPXMock) -> HTTPXMock:
-    """Vulnerability with no aliases"""
+    """Configure a vulnerability response with no aliases.
+
+    Args:
+        httpx_mock: HTTPXMock fixture to configure.
+
+    Returns:
+        HTTPXMock: Mock primed with a vulnerability lacking alias metadata.
+    """
     httpx_mock.add_response(
         url="https://pypi.org/pypi/example-package/1.0.0/json",
         json={

@@ -1,0 +1,98 @@
+line-length = 88
+indent-width = 4
+
+[format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = true
+line-ending = "lf"
+
+[lint]
+# See https://docs.astral.sh/ruff/rules/
+select = [
+    "A",
+    "ASYNC",
+    "B",
+    "C4",
+    "D",
+    "DOC",
+    "E",
+    "ERA",
+    "F",
+    "FURB",
+    "I",
+    "ISC",
+    "N",
+    "NPY",
+    "PD",
+    "PERF",
+    "PT",
+    "PTH",
+    "Q",
+    "S",
+    "RET",
+    "RUF",
+    "SIM",
+    "TID",
+    "UP",
+]
+ignore = [
+    "D100",   # Missing docstring in public module
+    "D101",   # Missing docstring in public class
+    "D104",   # Missing docstring in public package
+    "D105",   # Missing docstring in magic method
+    "D106",   # Missing docstring in public nested class
+    "D107",   # Missing docstring in __init__
+    "D202",   # No blank lines allowed after function docstring
+    "D213",   # Multi-line docstring summary should start at the second line
+    "D214",   # Section is over-indented
+    "D215",   # Section underline is over-indented
+    "D400",   # First line should end with a period
+    "D401",   # First line of docstring should be in imperative mood
+    "D415",   # First line should end with a period, question mark, or exclamation
+    "D416",   # Section name should end with a colon
+    "D417",   # Missing argument descriptions in the docstring
+    "D418",   # Function/ Method decorated with @overload shouldn't contain a docstring
+    "E203",   # Whitespace before ':' (fights ruff format)
+    "ISC001", # Implicitly concatenated string literals on one line
+]
+extend-select = ["RUF027"]
+preview = true
+
+[lint.per-file-ignores]
+"tests/**" = ["D102", "D103", "S101"]
+"tests/uv_secure/package_info/test_dependency_file_parser.py" = ["E501"]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = [
+    "B905", # Enforce strict argument on zip - but don't autofix as strict=False
+]
+
+[lint.flake8-pytest-style]
+mark-parentheses = false
+
+[lint.flake8-tidy-imports]
+# Disallow all relative imports.
+ban-relative-imports = "all"
+
+[lint.flake8-tidy-imports.banned-api]
+"typing.cast".msg = "Type casts are not allowed"
+
+[lint.isort]
+case-sensitive = false
+combine-as-imports = true
+force-sort-within-sections = true
+lines-after-imports = 2
+order-by-type = false
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder",
+]
+split-on-trailing-comma = false
+
+[lint.pydocstyle]
+convention = "google"

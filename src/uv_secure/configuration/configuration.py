@@ -55,14 +55,14 @@ class OverrideConfiguration(BaseModel):
 def override_config(
     original_config: Configuration, overrides: OverrideConfiguration
 ) -> Configuration:
-    """Override some configuration attributes from an override configuration
+    """Apply overrides to an existing configuration.
 
     Args:
-        original_config: Original unmodified configuration
-        overrides: Override attributes to override in original configuration
+        original_config: Base configuration to copy.
+        overrides: Values that override matching settings.
 
     Returns:
-        Configuration with overridden attributes
+        Configuration: Updated configuration with overrides applied.
     """
 
     new_configuration = original_config.model_copy()

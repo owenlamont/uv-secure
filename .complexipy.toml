@@ -1,0 +1,3 @@
+paths = ["."]
+max-complexity-allowed = 15
+details = "low"

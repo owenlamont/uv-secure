@@ -173,9 +173,32 @@ def main(
     version: bool = _version_option,
     format_type: OutputFormat | None = _format_option,
 ) -> None:
-    """Parse uv.lock, pylock.toml, and requirements.txt files.
+    """Parse dependency manifests and display vulnerability summaries.
 
-    Check vulnerabilities and display summary.
+    Args:
+        file_paths: Files or directories to scan.
+        aliases: Whether to show vulnerability aliases.
+        desc: Whether to show vulnerability descriptions.
+        cache_path: HTTP cache directory.
+        cache_ttl_seconds: Cache TTL in seconds.
+        disable_cache: Whether to disable caching.
+        forbid_archived: Reject archived packages when True.
+        forbid_deprecated: Reject deprecated packages when True.
+        forbid_quarantined: Reject quarantined packages when True.
+        forbid_yanked: Reject yanked packages when True.
+        max_package_age: Maximum allowed package age in days.
+        ignore_vulns: Comma-separated vulnerability IDs to ignore.
+        ignore_pkgs: Package ignore strings.
+        check_direct_dependency_vulnerabilities_only: Restrict vulnerability checks to
+            direct dependencies.
+        check_direct_dependency_maintenance_issues_only: Restrict maintenance checks to
+            direct dependencies.
+        config_path: Optional explicit configuration path.
+        version: Whether ``--version`` was requested.
+        format_type: Output format override.
+
+    Raises:
+        typer.Exit: Communicates exit status codes based on scan results or --version.
     """
     # Use uvloop or winloop if present
     try:

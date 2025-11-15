@@ -10,11 +10,11 @@ class OutputFormatter(ABC):
 
     @abstractmethod
     def format(self, results: ScanResultsOutput) -> RenderableType:
-        """Format scan results for console rendering
+        """Format scan results for console rendering.
 
         Args:
-            results: The scan results to format
+            results: Scan results to format.
 
         Returns:
-            Rich renderable ready to be printed
+            RenderableType: Rich renderable ready to print.
         """

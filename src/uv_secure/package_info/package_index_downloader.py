@@ -40,6 +40,15 @@ class PackageIndex(BaseModel):
 def _build_request_headers(
     disable_cache: bool, base_headers: dict[str, str] | None = None
 ) -> dict[str, str] | None:
+    """Construct request headers respecting cache settings.
+
+    Args:
+        disable_cache: Whether caching is disabled.
+        base_headers: Headers to extend.
+
+    Returns:
+        dict[str, str] | None: Headers with cache directives when needed.
+    """
     if not disable_cache:
         return base_headers
     headers: dict[str, str] = {} if base_headers is None else dict(base_headers)
@@ -50,7 +59,16 @@ def _build_request_headers(
 async def _download_package_index(
     http_client: AsyncClient, dependency: Dependency, disable_cache: bool
 ) -> PackageIndex:
-    """Queries the PyPi Simple JSON API for the status of a dependency"""
+    """Query the PyPI Simple JSON API for dependency status.
+
+    Args:
+        http_client: HTTP client.
+        dependency: Dependency to query.
+        disable_cache: Whether caching is disabled.
+
+    Returns:
+        PackageIndex: Parsed metadata for the dependency.
+    """
     canonical_name = canonicalize_name(dependency.name)
     url = f"https://pypi.org/simple/{canonical_name}/"
     headers = _build_request_headers(
@@ -64,7 +82,16 @@ async def _download_package_index(
 async def download_package_indexes(
     dependencies: list[Dependency], http_client: AsyncClient, disable_cache: bool
 ) -> list[PackageIndex | BaseException]:
-    """Fetch vulnerabilities for all dependencies concurrently."""
+    """Fetch package-index metadata concurrently.
+
+    Args:
+        dependencies: Dependencies to query.
+        http_client: HTTP client.
+        disable_cache: Whether caching is disabled.
+
+    Returns:
+        list[PackageIndex | BaseException]: Results or exceptions for each dependency.
+    """
     tasks = [
         _download_package_index(http_client, dep, disable_cache) for dep in dependencies
     ]

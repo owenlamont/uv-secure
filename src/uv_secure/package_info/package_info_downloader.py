@@ -101,13 +101,29 @@ class PackageInfo(BaseModel):
 
 
 def canonicalize_name(name: str) -> str:
-    """Converts a package name to its canonical form for PyPI URLs"""
+    """Convert a package name to its canonical form for PyPI URLs.
+
+    Args:
+        name: Raw package name.
+
+    Returns:
+        str: Lowercase hyphenated package name accepted by PyPI APIs.
+    """
     return re.sub(r"[_.]+", "-", name).lower()
 
 
 def _build_request_headers(
     disable_cache: bool, base_headers: dict[str, str] | None = None
 ) -> dict[str, str] | None:
+    """Construct request headers while accounting for cache configuration.
+
+    Args:
+        disable_cache: Whether caching is disabled.
+        base_headers: Headers to extend.
+
+    Returns:
+        dict[str, str] | None: Headers to send with the HTTP request.
+    """
     if not disable_cache:
         return base_headers
     headers: dict[str, str] = {} if base_headers is None else dict(base_headers)
@@ -118,7 +134,16 @@ def _build_request_headers(
 async def _download_package(
     http_client: AsyncClient, dependency: Dependency, disable_cache: bool
 ) -> PackageInfo:
-    """Queries the PyPi JSON API for vulnerabilities of a given dependency."""
+    """Query the PyPI JSON API for vulnerabilities of a dependency.
+
+    Args:
+        http_client: HTTP client.
+        dependency: Dependency to download.
+        disable_cache: Whether caching is disabled.
+
+    Returns:
+        PackageInfo: Parsed package metadata including vulnerabilities.
+    """
     canonical_name = canonicalize_name(dependency.name)
     url = f"https://pypi.org/pypi/{canonical_name}/{dependency.version}/json"
     response = await http_client.get(url, headers=_build_request_headers(disable_cache))
@@ -131,6 +156,15 @@ async def _download_package(
 async def download_packages(
     dependencies: list[Dependency], http_client: AsyncClient, disable_cache: bool
 ) -> list[PackageInfo | BaseException]:
-    """Fetch vulnerabilities for all dependencies concurrently."""
+    """Fetch package metadata for all dependencies concurrently.
+
+    Args:
+        dependencies: Dependencies to download.
+        http_client: HTTP client.
+        disable_cache: Whether caching is disabled.
+
+    Returns:
+        list[PackageInfo | BaseException]: Metadata or exception per dependency.
+    """
     tasks = [_download_package(http_client, dep, disable_cache) for dep in dependencies]
     return await asyncio.gather(*tasks, return_exceptions=True)
