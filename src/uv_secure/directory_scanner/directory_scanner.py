@@ -91,16 +91,13 @@ async def _fetch_dependency_files(
 async def get_dependency_file_to_config_map(
     root_dir: Path,
 ) -> dict[Path, Configuration]:
-    """Get map of requirements.txt, pylock.toml, and uv.lock files to configurations
-
-    Using provided dependency files or root directory discover the files and also
-    find and map the nearest parent configuration for each dependency file.
+    """Map dependency files under ``root_dir`` to configurations.
 
     Args:
-        root_dir: Root directory
+        root_dir: Project root to scan.
 
     Returns:
-        A dictionary mapping dependency files to their nearest Configuration
+        dict[Path, Configuration]: Dependency file to nearest configuration map.
     """
     root_dir = await root_dir.resolve()
     config_and_lock_files = await _find_files(
@@ -121,16 +118,13 @@ async def get_dependency_file_to_config_map(
 async def get_dependency_files_to_config_map(
     file_paths: Sequence[Path],
 ) -> dict[Path, Configuration]:
-    """Get map of requirements.txt, pylock.toml, and uv.lock files to configurations
-
-    Using provided dependency files or root directory discover the files and also
-    find and map the nearest parent configuration for each dependency file.
+    """Map specific dependency files to configurations.
 
     Args:
-        file_paths: A list of dependency files
+        file_paths: Dependency files to process.
 
     Returns:
-        A dictionary mapping dependency files to their nearest Configuration
+        dict[Path, Configuration]: Dependency file to nearest configuration map.
     """
     resolved_paths = await _resolve_paths(file_paths)
     root_dir = _get_root_dir(resolved_paths)

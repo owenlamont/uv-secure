@@ -31,7 +31,14 @@ stamina.instrumentation.set_on_retry_hooks([])
 
 @stamina.retry(on=Exception, attempts=3)
 async def parse_pylock_toml_file(file_path: Path) -> ParseResult:
-    """Parses a PEP751 pylock.toml file and extracts package PyPi dependencies"""
+    """Parse a PEP 751 ``pylock.toml`` file and extract dependencies.
+
+    Args:
+        file_path: Path to the ``pylock.toml`` file.
+
+    Returns:
+        ParseResult: Dependencies plus ignored-count metadata.
+    """
     data = await file_path.read_text()
     toml_data = toml.loads(data)
     dependencies = []
@@ -59,7 +66,15 @@ async def parse_pylock_toml_file(file_path: Path) -> ParseResult:
 
 
 def _validate_requirement_line(line: str, requirement: Requirement) -> None:
-    """Validate that a requirement line is properly pinned"""
+    """Validate that a requirement line is properly pinned.
+
+    Args:
+        line: Original requirements line.
+        requirement: Parsed requirement object.
+
+    Raises:
+        ValueError: Raised when markers, URLs, or unpinned specifiers are present.
+    """
     stripped = line.strip()
 
     if requirement.marker is not None or requirement.url is not None:
@@ -75,7 +90,18 @@ def _validate_requirement_line(line: str, requirement: Requirement) -> None:
 
 
 def _parse_requirement_line(line: str) -> Requirement | None:
-    """Parse a single requirement line and return Requirement object if valid"""
+    """Parse a requirement line and ensure it is pinned.
+
+    Args:
+        line: Raw requirements line.
+
+    Returns:
+        Requirement | None: Parsed requirement for pinned dependencies,
+            otherwise ``None``.
+
+    Raises:
+        ValueError: Raised when requirement parsing fails or is not fully pinned.
+    """
     stripped = line.strip()
     if not stripped or stripped.startswith("#"):
         return None
@@ -93,13 +119,27 @@ def _parse_requirement_line(line: str) -> Requirement | None:
 
 
 def _is_direct_dependency_marker(line: str) -> bool:
-    """Check if line contains markers indicating direct dependencies"""
+    """Check if a requirements line is a direct-dependency marker.
+
+    Args:
+        line: Raw requirements line.
+
+    Returns:
+        bool: True when the line marks the previous dependency as direct.
+    """
     return " -r " in line or " (pyproject.toml)" in line
 
 
 @stamina.retry(on=Exception, attempts=3)
 async def parse_requirements_txt_file(file_path: Path) -> ParseResult:
-    """Parse a requirements.txt file and extracts package PyPi dependencies"""
+    """Parse a ``requirements.txt`` file and extract PyPI dependencies.
+
+    Args:
+        file_path: Path to the requirements file.
+
+    Returns:
+        ParseResult: Fully pinned dependencies discovered in the file.
+    """
     data = await file_path.read_text()
     lines = data.splitlines()
     if len(lines) == 0:
@@ -130,16 +170,25 @@ async def parse_requirements_txt_file(file_path: Path) -> ParseResult:
 
 
 def _extract_direct_dependencies_from_package(package: dict) -> set[str]:
-    """Extract direct dependencies from a package with editable/virtual source"""
+    """Extract direct dependencies from a package with editable/virtual source.
+
+    Args:
+        package: ``uv.lock`` package entry.
+
+    Returns:
+        set[str]: Names of dependencies that should be marked as direct.
+    """
     direct_dependencies: set[str] = set()
 
-    for dependency in package.get("dependencies", []):
-        direct_dependencies.add(dependency["name"])
+    direct_dependencies.update(
+        dependency["name"] for dependency in package.get("dependencies", [])
+    )
 
     dev_dependencies = package.get("dev-dependencies", {})
     for group_dependencies in dev_dependencies.values():
-        for dependency in group_dependencies:
-            direct_dependencies.add(dependency["name"])
+        direct_dependencies.update(
+            dependency["name"] for dependency in group_dependencies
+        )
 
     return direct_dependencies
 
@@ -147,7 +196,16 @@ def _extract_direct_dependencies_from_package(package: dict) -> set[str]:
 def _process_uv_lock_package(
     package: dict, dependencies: dict[str, Dependency], direct_dependencies: set[str]
 ) -> int:
-    """Process a single package from uv.lock and return ignored count"""
+    """Process a single ``uv.lock`` package.
+
+    Args:
+        package: Package entry from ``uv.lock``.
+        dependencies: Mapping of dependency name to ``Dependency`` model.
+        direct_dependencies: Names marked as direct dependencies.
+
+    Returns:
+        int: Number of ignored dependencies contributed by this package.
+    """
     source = package.get("source", {})
 
     if source.get("registry") == "https://pypi.org/simple":
@@ -166,7 +224,15 @@ def _process_uv_lock_package(
 def _mark_direct_dependencies(
     dependencies: dict[str, Dependency], direct_dependencies: set[str]
 ) -> list[Dependency]:
-    """Mark dependencies as direct and return as list"""
+    """Mark dependencies as direct and return them as a list.
+
+    Args:
+        dependencies: Dependency mapping.
+        direct_dependencies: Names identified as direct.
+
+    Returns:
+        list[Dependency]: Dependencies with the ``direct`` flag set.
+    """
     dependency_list = list(dependencies.values())
     for dependency in dependency_list:
         dependency.direct = dependency.name in direct_dependencies
@@ -175,7 +241,14 @@ def _mark_direct_dependencies(
 
 @stamina.retry(on=Exception, attempts=3)
 async def parse_uv_lock_file(file_path: Path) -> ParseResult:
-    """Parses a uv.lock TOML file and extracts package PyPi dependencies"""
+    """Parse a ``uv.lock`` TOML file and extract PyPI dependencies.
+
+    Args:
+        file_path: Path to the ``uv.lock`` file.
+
+    Returns:
+        ParseResult: Dependencies plus ignored-count metadata.
+    """
     data = toml.loads(await file_path.read_text())
 
     direct_dependencies: set[str] = set()

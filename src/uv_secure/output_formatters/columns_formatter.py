@@ -20,15 +20,22 @@ class ColumnsFormatter(OutputFormatter):
     """Rich table (columns) output formatter"""
 
     def __init__(self, config: Configuration) -> None:
-        """Initialize columns formatter
+        """Initialize formatter with configuration.
 
         Args:
-            config: Configuration for controlling output columns
+            config: Configuration controlling output columns.
         """
         self.config = config
 
     def format(self, results: ScanResultsOutput) -> RenderableType:
-        """Format scan results as rich renderables"""
+        """Format scan results as Rich renderables.
+
+        Args:
+            results: Parsed scan results.
+
+        Returns:
+            RenderableType: Group ready for Rich to display.
+        """
 
         renderables: list[RenderableType] = []
 
@@ -43,7 +50,14 @@ class ColumnsFormatter(OutputFormatter):
     def _format_file_result(
         self, file_result: FileResultOutput
     ) -> list[RenderableType]:
-        """Format results for a single file"""
+        """Format results for a single file.
+
+        Args:
+            file_result: File-level scan output.
+
+        Returns:
+            list[RenderableType]: Segments describing file findings.
+        """
 
         if file_result.error:
             return [Text.from_markup(f"[bold red]Error:[/] {file_result.error}\n")]
@@ -126,7 +140,11 @@ class ColumnsFormatter(OutputFormatter):
         maintenance_items: list[tuple[DependencyOutput, MaintenanceIssueOutput]],
         ignored_count: int,
     ) -> list[RenderableType]:
-        """Generate summary output with tables"""
+        """Generate summary output with tables.
+
+        Returns:
+            list[RenderableType]: Renderables summarizing issues and counts.
+        """
 
         renderables: list[RenderableType] = []
         inflector = inflect.engine()
@@ -143,8 +161,12 @@ class ColumnsFormatter(OutputFormatter):
             if ignored_count > 0:
                 base_message += f"\nIgnored: [bold]{ignored_count}[/] {ignored_plural}"
 
-            renderables.append(Panel.fit(Text.from_markup(base_message)))
-            renderables.append(self._render_vulnerability_table(vulnerable_deps))
+            renderables.extend(
+                (
+                    Panel.fit(Text.from_markup(base_message)),
+                    self._render_vulnerability_table(vulnerable_deps),
+                )
+            )
 
         issue_count = len(maintenance_items)
         issue_plural = inflector.plural("issue", issue_count)
@@ -160,8 +182,12 @@ class ColumnsFormatter(OutputFormatter):
             if ignored_count > 0:
                 base_message += f"\nIgnored: [bold]{ignored_count}[/] {ignored_plural}"
 
-            renderables.append(Panel.fit(Text.from_markup(base_message)))
-            renderables.append(self._render_maintenance_table(maintenance_items))
+            renderables.extend(
+                (
+                    Panel.fit(Text.from_markup(base_message)),
+                    self._render_maintenance_table(maintenance_items),
+                )
+            )
 
         if vuln_count == 0 and issue_count == 0:
             base_message = (
@@ -179,7 +205,14 @@ class ColumnsFormatter(OutputFormatter):
     def _render_vulnerability_table(
         self, vulnerable_deps: list[DependencyOutput]
     ) -> Table:
-        """Render vulnerability table"""
+        """Render vulnerability table.
+
+        Args:
+            vulnerable_deps: Dependencies containing vulnerabilities.
+
+        Returns:
+            Table: Rich table describing vulnerable dependencies.
+        """
         table = Table(
             title="Vulnerable Dependencies",
             show_header=True,
@@ -208,7 +241,15 @@ class ColumnsFormatter(OutputFormatter):
     def _create_vulnerability_row(
         self, dep: DependencyOutput, vuln: VulnerabilityOutput
     ) -> list[Text]:
-        """Create renderables for vulnerability row"""
+        """Create renderables for a vulnerability row.
+
+        Args:
+            dep: Dependency information.
+            vuln: Vulnerability data.
+
+        Returns:
+            list[Text]: Text objects for table insertion.
+        """
         renderables = [
             Text.assemble((dep.name, f"link https://pypi.org/project/{dep.name}")),
             Text.assemble(
@@ -234,7 +275,15 @@ class ColumnsFormatter(OutputFormatter):
     def _create_fix_versions_text(
         self, package_name: str, vuln: VulnerabilityOutput
     ) -> Text:
-        """Create text with fix version hyperlinks"""
+        """Create text with fix version hyperlinks.
+
+        Args:
+            package_name: Package name.
+            vuln: Vulnerability data.
+
+        Returns:
+            Text: Hyperlinked fix versions.
+        """
         if not vuln.fix_versions:
             return Text("")
 
@@ -253,7 +302,15 @@ class ColumnsFormatter(OutputFormatter):
     def _create_aliases_text(
         self, vuln: VulnerabilityOutput, package_name: str
     ) -> Text:
-        """Create text with alias hyperlinks"""
+        """Create text with alias hyperlinks.
+
+        Args:
+            vuln: Vulnerability data.
+            package_name: Package name used for PYSEC URLs.
+
+        Returns:
+            Text: Comma-separated alias text with hyperlinks when available.
+        """
         if not vuln.aliases:
             return Text("")
 
@@ -268,7 +325,15 @@ class ColumnsFormatter(OutputFormatter):
         return Text(", ").join(alias_links) if alias_links else Text("")
 
     def _get_alias_hyperlink(self, alias: str, package_name: str) -> str | None:
-        """Get hyperlink URL for vulnerability alias"""
+        """Get hyperlink URL for vulnerability alias.
+
+        Args:
+            alias: Alias identifier.
+            package_name: Package name for PYSEC URLs.
+
+        Returns:
+            str | None: Hyperlink for known alias types, else ``None``.
+        """
         if alias.startswith("CVE-"):
             return f"https://cve.mitre.org/cgi-bin/cvename.cgi?name={alias}"
         if alias.startswith("GHSA-"):
@@ -285,7 +350,14 @@ class ColumnsFormatter(OutputFormatter):
     def _render_maintenance_table(
         self, maintenance_items: list[tuple[DependencyOutput, MaintenanceIssueOutput]]
     ) -> Table:
-        """Render maintenance issues table"""
+        """Render maintenance issues table.
+
+        Args:
+            maintenance_items: Dependencies paired with maintenance issues.
+
+        Returns:
+            Table: Rich table describing maintenance issues per dependency.
+        """
         table = Table(
             title="Maintenance Issues",
             show_header=True,

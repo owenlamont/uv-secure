@@ -8,12 +8,12 @@ class JsonFormatter(OutputFormatter):
     """JSON output formatter"""
 
     def format(self, results: ScanResultsOutput) -> RenderableType:
-        """Format scan results as JSON
+        """Format scan results as JSON.
 
         Args:
-            results: The scan results to format
+            results: Scan results to serialize.
 
         Returns:
-            JSON string with proper indentation
+            RenderableType: JSON string with indentation.
         """
         return results.model_dump_json(indent=2, exclude_none=True)

@@ -22,6 +22,7 @@ from uv_secure.configuration import (
     OutputFormat,
     override_config,
 )
+from uv_secure.configuration.exceptions import UvSecureConfigurationError
 from uv_secure.directory_scanner import get_dependency_file_to_config_map
 from uv_secure.directory_scanner.directory_scanner import (
     get_dependency_files_to_config_map,
@@ -69,19 +70,23 @@ class ManagedAsyncSqliteStorage(AsyncSqliteStorage):
 
 @cache
 def get_specifier_sets(specifiers: tuple[str, ...]) -> tuple[SpecifierSet, ...]:
-    """Converts a tuple of version specifiers to a tuple of SpecifierSets
+    """Convert string specifiers into cached ``SpecifierSet`` instances.
 
     Args:
-        specifiers: tuple of version specifiers
+        specifiers: Version spec strings such as ``">=1,<2"``.
 
     Returns:
-        tuple of SpecifierSets
+        tuple[SpecifierSet, ...]: Parsed specifiers.
     """
     return tuple(SpecifierSet(spec) for spec in specifiers)
 
 
 def _convert_vulnerability_to_output(vuln: Vulnerability) -> VulnerabilityOutput:
-    """Convert Vulnerability to VulnerabilityOutput"""
+    """Convert vulnerability metadata into renderer-friendly output.
+
+    Returns:
+        VulnerabilityOutput: Structured vulnerability information.
+    """
     return VulnerabilityOutput(
         id=vuln.id,
         details=vuln.details,
@@ -94,7 +99,11 @@ def _convert_vulnerability_to_output(vuln: Vulnerability) -> VulnerabilityOutput
 def _convert_maintenance_to_output(
     package_info: PackageInfo, package_index: PackageIndex
 ) -> MaintenanceIssueOutput | None:
-    """Convert maintenance issue data to MaintenanceIssueOutput"""
+    """Convert maintenance metadata into renderer-friendly output.
+
+    Returns:
+        MaintenanceIssueOutput | None: Maintenance issues when applicable.
+    """
     age_days = package_info.age.total_seconds() / 86400.0 if package_info.age else None
     return MaintenanceIssueOutput(
         yanked=package_info.info.yanked,
@@ -112,12 +121,10 @@ def _process_package_metadata(
     config: Configuration,
     ignore_packages: dict[str, tuple[SpecifierSet, ...]],
 ) -> DependencyOutput | str | None:
-    """Process a single package's metadata and return output or error
+    """Process package metadata into output rows.
 
     Returns:
-        DependencyOutput if successful
-        str if error occurred
-        None if package should be skipped
+        DependencyOutput | str | None: Output, error string, or ``None`` to skip.
     """
     # Handle download exceptions
     if isinstance(package_info, BaseException) or isinstance(
@@ -164,7 +171,11 @@ def _process_package_metadata(
 def _should_skip_package(
     package: PackageInfo, ignore_packages: dict[str, tuple[SpecifierSet, ...]]
 ) -> bool:
-    """Check if package should be skipped based on ignore configuration"""
+    """Check whether the package should be skipped.
+
+    Returns:
+        bool: True if the package matches an ignore rule.
+    """
     if package.info.name not in ignore_packages:
         return False
 
@@ -175,7 +186,11 @@ def _should_skip_package(
 
 
 def _should_check_vulnerabilities(package: PackageInfo, config: Configuration) -> bool:
-    """Check if package should be checked for vulnerabilities"""
+    """Determine whether vulnerabilities should be evaluated.
+
+    Returns:
+        bool: True when vulnerability checks should include this package.
+    """
     return (
         package.direct_dependency is not False
         or not config.vulnerability_criteria.check_direct_dependencies_only
@@ -185,7 +200,11 @@ def _should_check_vulnerabilities(package: PackageInfo, config: Configuration) -
 def _should_check_maintenance_issues(
     package_info: PackageInfo, config: Configuration
 ) -> bool:
-    """Check if package should be checked for maintenance issues"""
+    """Check whether maintenance criteria should be applied.
+
+    Returns:
+        bool: True when maintenance rules should run for the package.
+    """
     return (
         package_info.direct_dependency is not False
         or not config.maintainability_criteria.check_direct_dependencies_only
@@ -193,7 +212,7 @@ def _should_check_maintenance_issues(
 
 
 def _filter_vulnerabilities(package: PackageInfo, config: Configuration) -> None:
-    """Filter out ignored and withdrawn vulnerabilities from package"""
+    """Filter out ignored and withdrawn vulnerabilities."""
     package.vulnerabilities = [
         vuln
         for vuln in package.vulnerabilities
@@ -208,7 +227,11 @@ def _filter_vulnerabilities(package: PackageInfo, config: Configuration) -> None
 def _has_maintenance_issues(
     package_index: PackageIndex, package_info: PackageInfo, config: Configuration
 ) -> bool:
-    """Check if package has maintenance issues"""
+    """Check whether a package violates maintenance criteria.
+
+    Returns:
+        bool: True if any configured maintenance rule is broken.
+    """
     found_rejected_archived_package = (
         config.maintainability_criteria.forbid_archived
         and package_index.status == ProjectState.ARCHIVED
@@ -239,7 +262,11 @@ def _has_maintenance_issues(
 
 
 async def _parse_dependency_file(dependency_file_path: APath) -> ParseResult:
-    """Parse dependency file based on its type"""
+    """Parse a dependency file based on its name.
+
+    Returns:
+        ParseResult: Normalized dependency information extracted from the file.
+    """
     if dependency_file_path.name == "uv.lock":
         return await parse_uv_lock_file(dependency_file_path)
     if dependency_file_path.name == "requirements.txt":
@@ -251,7 +278,11 @@ async def _parse_dependency_file(dependency_file_path: APath) -> ParseResult:
 def _build_ignore_packages(
     config: Configuration,
 ) -> dict[str, tuple[SpecifierSet, ...]]:
-    """Build the ignore packages mapping from configuration"""
+    """Build the ignore packages mapping from configuration values.
+
+    Returns:
+        dict[str, tuple[SpecifierSet, ...]]: Package names mapped to specifiers.
+    """
     if config.ignore_packages is None:
         return {}
     return {
@@ -266,16 +297,17 @@ async def check_dependencies(
     http_client: AsyncClient,
     disable_cache: bool,
 ) -> FileResultOutput:
-    """Checks dependencies for vulnerabilities and builds structured output
+    """Check dependencies for vulnerabilities and build structured output.
 
     Args:
-        dependency_file_path: PEP751 pylock.toml, requirements.txt, or uv.lock file path
-        config: uv-secure configuration object
-        http_client: HTTP client for making requests
-        disable_cache: flag whether to disable cache for HTTP requests
+        dependency_file_path: Path to ``pylock.toml``, ``requirements.txt``, or
+            ``uv.lock``.
+        config: Configuration to apply.
+        http_client: HTTP client for downloads.
+        disable_cache: Whether HTTP caching is disabled.
 
     Returns:
-        FileResultOutput with structured dependency results
+        FileResultOutput: Structured dependency results.
     """
     file_path_str = dependency_file_path.as_posix()
 
@@ -349,7 +381,20 @@ class RunStatus(Enum):
 async def _resolve_file_paths_and_configs(
     file_paths: Sequence[Path] | None, config_path: Path | None
 ) -> tuple[tuple[APath, ...], dict[APath, Configuration]]:
-    """Resolve file paths and their associated configurations"""
+    """Resolve dependency file paths and associated configs.
+
+    Args:
+        file_paths: Optional explicit file paths or directories.
+        config_path: Optional configuration file to apply to all paths.
+
+    Returns:
+        tuple[tuple[APath, ...], dict[APath, Configuration]]: Normalized paths and
+        matching configurations.
+
+    Raises:
+        ValueError: Raised when the provided paths are invalid.
+        UvSecureConfigurationError: Propagated if a configuration file is invalid.
+    """
     file_apaths: tuple[APath, ...] = (
         (APath(),) if not file_paths else tuple(APath(file) for file in file_paths)
     )
@@ -359,7 +404,10 @@ async def _resolve_file_paths_and_configs(
         file_apaths = tuple(lock_to_config_map.keys())
     else:
         if config_path is not None:
-            possible_config = await config_file_factory(APath(config_path))
+            try:
+                possible_config = await config_file_factory(APath(config_path))
+            except UvSecureConfigurationError as exc:  # pragma: no cover - passthrough
+                raise UvSecureConfigurationError(str(exc)) from exc
             config = possible_config if possible_config is not None else Configuration()
             lock_to_config_map = dict.fromkeys(file_apaths, config)
         elif all(
@@ -392,7 +440,11 @@ def _apply_cli_config_overrides(
     max_package_age: int | None,
     format_type: str | None,
 ) -> dict[APath, Configuration]:
-    """Apply CLI configuration overrides to lock-to-config mapping"""
+    """Apply CLI overrides to lock-to-config mapping.
+
+    Returns:
+        dict[APath, Configuration]: Updated mapping with overrides applied.
+    """
     if any(
         (
             aliases,
@@ -431,10 +483,11 @@ def _apply_cli_config_overrides(
 
 
 def _determine_file_status(file_result: FileResultOutput) -> int:
-    """Determine status code for a single file result
+    """Determine a single file's status code.
 
     Returns:
-        0: No issues, 1: Maintenance issues found, 2: Vulnerabilities found, 3: Error
+        int: ``0`` no issues, ``1`` maintenance issues, ``2`` vulnerabilities,
+            ``3`` error.
     """
     if file_result.error:
         return 3
@@ -452,7 +505,11 @@ def _determine_file_status(file_result: FileResultOutput) -> int:
 
 
 def _determine_final_status(file_results: list[FileResultOutput]) -> RunStatus:
-    """Determine final run status from file results"""
+    """Determine final run status from file results.
+
+    Returns:
+        RunStatus: Aggregated status derived from individual file results.
+    """
     statuses = [_determine_file_status(result) for result in file_results]
 
     if 3 in statuses:
@@ -483,35 +540,31 @@ async def check_lock_files(
     config_path: Path | None,
     format_type: str | None,
 ) -> RunStatus:
-    """Checks PEP751 pylock.toml, requirements.txt, and uv.lock files for issues
-
-    Check specified or discovered uv.lock and requirements.txt files for maintenance
-    issues or known vulnerabilities
+    """Scan dependency files for vulnerabilities and maintenance issues.
 
     Args:
-        file_paths: paths to files or directory to process
-        aliases: flag whether to show vulnerability aliases
-        desc: flag whether to show vulnerability descriptions
-        cache_path: path to cache directory
-        cache_ttl_seconds: time in seconds to cache
-        disable_cache: flag whether to disable cache
-        forbid_archived: flag whether to forbid archived dependencies
-        forbid_deprecated: flag whether to forbid deprecated dependencies
-        forbid_quarantined: flag whether to forbid quarantined dependencies
-        forbid_yanked: flag whether to forbid yanked dependencies
-        max_package_age: maximum age of dependencies in days
-        ignore_vulns: Vulnerabilities IDs to ignore
-        ignore_pkgs: list of package names to ignore
-        check_direct_dependency_vulnerabilities_only: flag checking direct dependency
-            vulnerabilities only
-        check_direct_dependency_maintenance_issues_only: flag checking direct dependency
-            maintenance issues only
-        config_path: path to configuration file
-        format_type: output format type ("columns" or "json") - for backwards
-            compatibility. None means use config file setting.
+        file_paths: Explicit dependency files or directories to search.
+        aliases: Whether to display vulnerability aliases.
+        desc: Whether to display vulnerability descriptions.
+        cache_path: Path to the on-disk HTTP cache.
+        cache_ttl_seconds: Cache TTL in seconds.
+        disable_cache: Whether HTTP caching is disabled.
+        forbid_archived: Reject archived packages when True.
+        forbid_deprecated: Reject deprecated packages when True.
+        forbid_quarantined: Reject quarantined packages when True.
+        forbid_yanked: Reject yanked packages when True.
+        max_package_age: Maximum package age in days.
+        ignore_vulns: Comma-separated vulnerability IDs to ignore.
+        ignore_pkgs: Package ignore strings.
+        check_direct_dependency_vulnerabilities_only: Restrict vulnerability checks to
+            direct dependencies.
+        check_direct_dependency_maintenance_issues_only: Restrict maintenance checks to
+            direct dependencies.
+        config_path: Optional configuration file path.
+        format_type: Output format override ("columns" or "json").
 
     Returns:
-        RunStatus indicating the result of the scan
+        RunStatus: Result of the scan.
     """
     console = Console()
 
@@ -560,12 +613,11 @@ async def check_lock_files(
     else:
         # Antivirus tools (e.g. Windows Defender) negate file-cache benefits unless the
         # cache directory is excluded from realtime scanning.
-        cache_path.mkdir(parents=True, exist_ok=True)
-        gitignore_path = cache_path / ".gitignore"
-        if not gitignore_path.exists():
-            gitignore_path.write_text(
-                "# Automatically created by Hishel\n*", encoding="utf-8"
-            )
+        cache_apath = APath(cache_path)
+        await cache_apath.mkdir(parents=True, exist_ok=True)
+        gitignore_apath = cache_apath / ".gitignore"
+        if not await gitignore_apath.exists():
+            await gitignore_apath.write_text("# Automatically created by Hishel\n*")
         connection = await anysqlite.connect(str(cache_path / "uv-secure-cache.db"))
         storage = ManagedAsyncSqliteStorage(
             connection=connection,

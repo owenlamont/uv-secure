@@ -1,0 +1,11 @@
+[vulnerability_criteria]
+aliases = true
+desc = true
+
+[maintainability_criteria]
+forbid_archived = true
+forbid_deprecated = true
+forbid_quarantined = true
+forbid_yanked = true
+max_package_age = "P730D"
+check_direct_dependencies_only = true
