@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Callable
 from datetime import datetime, timezone
 import json
@@ -5,6 +6,7 @@ import os
 from pathlib import Path
 import re
 from textwrap import dedent
+from typing import Any
 
 from freezegun import freeze_time
 import pytest
@@ -15,6 +17,9 @@ from uv_secure import app
 
 
 runner = CliRunner()
+
+
+pytestmark = pytest.mark.usefixtures("uv_http_responses")
 
 
 def assert_no_markup_escape_artifacts(output: str) -> None:
@@ -32,6 +37,34 @@ def assert_table_rendered(output: str, title: str) -> None:
     bottom_right_candidates = {"┘", "┛", "╯"}
     assert any(char in output for char in top_left_candidates)
     assert any(char in output for char in bottom_right_candidates)
+
+
+def get_file_output(output: dict[str, Any], file_path: str) -> dict[str, Any]:
+    """Return JSON entry for ``file_path``.
+
+    Raises:
+        AssertionError: When the requested file entry is absent.
+    """
+
+    files: list[dict[str, Any]] = output["files"]
+    for file_entry in files:
+        if file_entry["file_path"] == file_path:
+            return file_entry
+    raise AssertionError(f"Missing file entry for {file_path}")
+
+
+def test_get_file_output_missing_entry() -> None:
+    with pytest.raises(AssertionError):
+        get_file_output({"files": []}, "missing.json")
+
+
+def test_get_file_output_skips_non_matching_entry() -> None:
+    files = [
+        {"file_path": "ignore", "dependencies": []},
+        {"file_path": "target", "dependencies": []},
+    ]
+    result = get_file_output({"files": files}, "target")
+    assert result["file_path"] == "target"
 
 
 def test_app_version() -> None:
@@ -195,6 +228,123 @@ def test_app_agent_headers(
     result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
     assert result.exit_code == 0
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
+
+
+def test_app_reports_uv_tool_vulnerability(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fake_version() -> str | None:
+        await asyncio.sleep(0)
+        return "0.9.5"
+
+    monkeypatch.setattr(
+        "uv_secure.dependency_checker.dependency_checker._detect_uv_version",
+        _fake_version,
+    )
+
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/uv/0.9.5/json",
+        json={
+            "info": {
+                "author_email": "maintainer@example.com",
+                "classifiers": [],
+                "description": "Vulnerable uv",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "uv",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/uv/0.9.5/",
+                "requires_python": ">=3.9",
+                "summary": "uv release",
+                "version": "0.9.5",
+                "yanked": False,
+            },
+            "last_serial": 42,
+            "urls": [],
+            "vulnerabilities": [
+                {
+                    "id": "UV-ALERT",
+                    "details": "Remote code execution",
+                    "fixed_in": ["0.9.6"],
+                    "link": "https://example.com/uv-alert",
+                }
+            ],
+        },
+    )
+
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 2
+    assert "uv (global tool)" in result.output
+    assert "UV-ALERT" in result.output
+    assert "0.9.5" in result.output
+
+
+def test_app_disable_uv_tool_flag_skips_check(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    called = False
+
+    async def _fake_version() -> str | None:
+        nonlocal called
+        called = True
+        await asyncio.sleep(0)
+        return "0.9.9"
+
+    monkeypatch.setattr(
+        "uv_secure.dependency_checker.dependency_checker._detect_uv_version",
+        _fake_version,
+    )
+
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--no-check-uv-tool"]
+    )
+
+    assert result.exit_code == 0
+    assert called is False
+    assert "uv (global tool)" not in result.output
+
+    asyncio.run(_fake_version())
+
+
+def test_app_config_disables_uv_tool_check(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = temp_uv_lock_file.with_name("uv-secure.toml")
+    config_path.write_text("check_uv_tool = false\n")
+
+    called = False
+
+    async def _fake_version() -> str | None:
+        nonlocal called
+        called = True
+        await asyncio.sleep(0)
+        return "0.9.9"
+
+    monkeypatch.setattr(
+        "uv_secure.dependency_checker.dependency_checker._detect_uv_version",
+        _fake_version,
+    )
+
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--config", str(config_path)]
+    )
+
+    assert result.exit_code == 0
+    assert called is False
+
+    asyncio.run(_fake_version())
 
 
 def test_app_no_vulnerabilities_requirements_txt(
@@ -426,9 +576,7 @@ def test_json_format_failed_vulnerability_request(
 
     output = json.loads(result.output)
     assert "files" in output
-    assert len(output["files"]) == 1
-
-    file_result = output["files"][0]
+    file_result = get_file_output(output, temp_uv_lock_file.as_posix())
     assert "error" in file_result
     assert "example-package" in file_result["error"]
     assert "Request failed" in file_result["error"]
@@ -450,9 +598,7 @@ def test_json_format_package_not_found(
 
     output = json.loads(result.output)
     assert "files" in output
-    assert len(output["files"]) == 1
-
-    file_result = output["files"][0]
+    file_result = get_file_output(output, temp_uv_lock_file.as_posix())
     assert "error" in file_result
     assert "example-package" in file_result["error"]
     assert "404 Not Found" in file_result["error"]
@@ -1626,9 +1772,7 @@ def test_json_format_no_vulnerabilities(
     output = json.loads(result.output)
 
     assert "files" in output
-    assert len(output["files"]) == 1
-
-    file_result = output["files"][0]
+    file_result = get_file_output(output, temp_uv_lock_file.as_posix())
     assert temp_uv_lock_file.as_posix() == file_result["file_path"]
     assert "dependencies" in file_result
     assert file_result["ignored_count"] == 0
@@ -1655,7 +1799,7 @@ def test_json_format_with_vulnerabilities(
     assert result.exit_code == 2
     output = json.loads(result.output)
 
-    file_result = output["files"][0]
+    file_result = get_file_output(output, temp_uv_lock_file.as_posix())
     deps_with_vulns = [d for d in file_result["dependencies"] if d["vulns"]]
 
     assert len(deps_with_vulns) > 0
@@ -1690,7 +1834,7 @@ def test_json_format_with_maintenance_issues(
     assert result.exit_code in (1, 2)  # Maintenance or vulnerabilities
     output = json.loads(result.output)
 
-    file_result = output["files"][0]
+    file_result = get_file_output(output, temp_uv_lock_file.as_posix())
     # Check structure exists
     assert "dependencies" in file_result
 
@@ -1724,7 +1868,9 @@ def test_json_format_with_ignored_dependencies(
     assert result.exit_code == 2
     output = json.loads(result.output)
 
-    file_result = output["files"][0]
+    file_result = get_file_output(
+        output, temp_uv_lock_file_with_non_pypi_deps.as_posix()
+    )
     assert file_result["ignored_count"] == 2
     assert len(file_result["dependencies"]) == 1  # Only PyPI deps
 
@@ -1752,7 +1898,9 @@ def test_json_format_direct_dependencies_only(
     assert result.exit_code == 0
     output = json.loads(result.output)
 
-    file_result = output["files"][0]
+    file_result = get_file_output(
+        output, temp_uv_lock_file_direct_indirect_dependencies.as_posix()
+    )
 
     # Should have both direct and indirect dependencies
     direct_deps = [d for d in file_result["dependencies"] if d["direct"]]
@@ -1776,7 +1924,7 @@ def test_json_format_empty_file(temp_empty_requirements_txt_file: Path) -> None:
     assert result.exit_code == 0
     output = json.loads(result.output)
 
-    file_result = output["files"][0]
+    file_result = get_file_output(output, temp_empty_requirements_txt_file.as_posix())
     assert len(file_result["dependencies"]) == 0
     assert file_result["ignored_count"] == 0
 
