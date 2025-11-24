@@ -64,11 +64,16 @@ jobs:
           set -o pipefail
           uv run coverage combine coverage/*-python-*-extra-*/.coverage
           uv run coverage report | tee coverage_summary.txt
+      - name: Compute test/src size ratio
+        run: |
+          uv run python scripts/size_ratio.py > ratio_summary.txt
       - name: Prepare Comment Body
         run: |
           echo '### Coverage Report' >> comment_body.md
           echo '```txt' >> comment_body.md
           cat coverage_summary.txt >> comment_body.md
+          echo '' >> comment_body.md
+          cat ratio_summary.txt >> comment_body.md
           echo '' >> comment_body.md
           echo '```' >> comment_body.md
       - name: Find Coverage Report Comment
