@@ -1875,6 +1875,67 @@ def test_json_format_with_ignored_dependencies(
     assert len(file_result["dependencies"]) == 1  # Only PyPI deps
 
 
+def test_json_format_pypi_registry_trailing_slash(
+    temp_uv_lock_file_trailing_slash: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    """Ensure trailing slash registries are still treated as PyPI."""
+
+    result = runner.invoke(
+        app,
+        [str(temp_uv_lock_file_trailing_slash), "--format", "json", "--disable-cache"],
+    )
+
+    assert result.exit_code == 0
+    output = json.loads(result.output)
+
+    file_result = get_file_output(output, temp_uv_lock_file_trailing_slash.as_posix())
+    assert file_result["ignored_count"] == 0
+    assert len(file_result["dependencies"]) == 1
+    assert file_result["dependencies"][0]["name"] == "example-package"
+
+
+def test_json_format_pypi_registry_default_port(
+    temp_uv_lock_file_default_port: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    """Ensure PyPI default port URLs are treated as PyPI."""
+
+    result = runner.invoke(
+        app,
+        [str(temp_uv_lock_file_default_port), "--format", "json", "--disable-cache"],
+    )
+
+    assert result.exit_code == 0
+    output = json.loads(result.output)
+
+    file_result = get_file_output(output, temp_uv_lock_file_default_port.as_posix())
+    assert file_result["ignored_count"] == 0
+    assert len(file_result["dependencies"]) == 1
+    assert file_result["dependencies"][0]["name"] == "example-package"
+
+
+def test_json_format_pypi_registry_nondefault_port(
+    temp_uv_lock_file_nondefault_port: Path,
+) -> None:
+    """Non-default ports on pypi.org should be treated as non-PyPI."""
+
+    result = runner.invoke(
+        app,
+        [str(temp_uv_lock_file_nondefault_port), "--format", "json", "--disable-cache"],
+    )
+
+    # Non-PyPI dependency gets ignored; scan completes with ignored count
+    assert result.exit_code == 0
+    output = json.loads(result.output)
+
+    file_result = get_file_output(output, temp_uv_lock_file_nondefault_port.as_posix())
+    assert file_result["ignored_count"] == 1
+    assert len(file_result["dependencies"]) == 0
+
+
 def test_json_format_direct_dependencies_only(
     temp_uv_lock_file_direct_indirect_dependencies: Path,
     one_vulnerability_response_indirect_dependency: HTTPXMock,

@@ -1,4 +1,5 @@
 import sys
+from urllib.parse import urlparse
 
 from anyio import Path
 from packaging.requirements import Requirement
@@ -29,6 +30,56 @@ class ParseResult(BaseModel):
 stamina.instrumentation.set_on_retry_hooks([])
 
 
+def _normalize_registry_url(url: str) -> str | None:
+    """Return a canonical registry URL or ``None`` when parsing fails.
+
+    Normalization trims trailing slashes, lowercases scheme/host, removes default
+    ports, and collapses ``/simple/`` to ``/simple`` for stable comparisons.
+    """
+
+    parsed = urlparse(url)
+    if not parsed.scheme or not parsed.netloc:
+        return None
+
+    scheme = parsed.scheme.lower()
+    host = parsed.hostname.lower() if parsed.hostname else None
+    if host is None:
+        return None
+
+    port = parsed.port
+    if port is not None:
+        is_default_https = scheme == "https" and port == 443
+        is_default_http = scheme == "http" and port == 80
+        if not (is_default_http or is_default_https):
+            host = f"{host}:{port}"
+
+    path = parsed.path or ""
+    normalized_path = path.rstrip("/")
+    if normalized_path.endswith("/simple"):
+        normalized_path = "/simple"
+
+    return f"{scheme}://{host}{normalized_path}"
+
+
+def _is_pypi_registry(registry: str | None) -> bool:
+    """Check whether a registry URL points to the official PyPI simple index.
+
+    Returns:
+        bool: True when the registry resolves to the canonical PyPI simple URL.
+    """
+
+    if registry is None:
+        return False
+
+    normalized = _normalize_registry_url(registry)
+    return normalized in {
+        "https://pypi.org/simple",
+        "http://pypi.org/simple",
+        "https://pypi.python.org/simple",
+        "http://pypi.python.org/simple",
+    }
+
+
 @stamina.retry(on=Exception, attempts=3)
 async def parse_pylock_toml_file(file_path: Path) -> ParseResult:
     """Parse a PEP 751 ``pylock.toml`` file and extract dependencies.
@@ -51,7 +102,7 @@ async def parse_pylock_toml_file(file_path: Path) -> ParseResult:
         index = package.get("index", "")
 
         if package_name and package_version:
-            if index == "https://pypi.org/simple":
+            if _is_pypi_registry(index):
                 # Only include packages from PyPI registry
                 # Cannot determine direct dependencies from pylock.toml
                 dependency = Dependency(
@@ -208,7 +259,7 @@ def _process_uv_lock_package(
     """
     source = package.get("source", {})
 
-    if source.get("registry") == "https://pypi.org/simple":
+    if _is_pypi_registry(source.get("registry")):
         dependencies[package["name"]] = Dependency(
             name=package["name"], version=package["version"]
         )
