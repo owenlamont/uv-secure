@@ -11,6 +11,7 @@ from uv_secure.package_info import (
     parse_uv_lock_file,
     ParseResult,
 )
+from uv_secure.package_info.dependency_file_parser import _is_pypi_registry
 
 
 @pytest.mark.asyncio
@@ -985,3 +986,7 @@ async def test_parse_uv_lock_file(
     uv_lock_path.write_text(dedent(uv_lock_contents).strip())
     dependencies = await parse_uv_lock_file(APath(uv_lock_path))
     assert dependencies == expected_dependencies
+
+
+def test_is_pypi_registry_with_userinfo_only_host() -> None:
+    assert _is_pypi_registry("https://user@/simple") is False
