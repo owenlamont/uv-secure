@@ -4,7 +4,6 @@ from collections.abc import Sequence
 from enum import Enum
 from functools import cache
 from pathlib import Path
-import sys
 
 from anyio import Path as APath
 import anysqlite
@@ -49,10 +48,6 @@ from uv_secure.package_info import (
     ProjectState,
     Vulnerability,
 )
-
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 
 USER_AGENT = f"uv-secure/{__version__} (contact: owenrlamont@gmail.com)"
@@ -740,18 +735,12 @@ async def check_lock_files(
         file_apaths, lock_to_config_map = await _resolve_file_paths_and_configs(
             file_paths, config_path
         )
-    except (ExceptionGroup, ValueError) as e:
-        if isinstance(e, ExceptionGroup):
-            for (
-                exc
-            ) in e.exceptions:  # pragma: no branch - ExceptionGroup always has items
-                console.print(f"[bold red]Error:[/] {exc}")
-        else:
-            console.print(
-                "[bold red]Error:[/] file_paths must either reference a single "
-                "project root directory or a sequence of uv.lock / pylock.toml / "
-                "requirements.txt file paths"
-            )
+    except ValueError:
+        console.print(
+            "[bold red]Error:[/] file_paths must either reference a single "
+            "project root directory or a sequence of uv.lock / pylock.toml / "
+            "requirements.txt file paths"
+        )
         return RunStatus.RUNTIME_ERROR
 
     lock_to_config_map = _apply_cli_config_overrides(
