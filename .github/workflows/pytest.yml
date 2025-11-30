@@ -35,7 +35,7 @@ jobs:
           uv python pin ${{ matrix.python-version }}
           uv sync --extra faster-async
       - name: Run tests with Coverage
-        run: uv run pytest tests --cov=. --cov-branch --cov-report=term-missing
+        run: uv run pytest -n logical --color=no tests --cov=. --cov-branch --cov-report=term
       - name: Upload coverage artifact
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         with:

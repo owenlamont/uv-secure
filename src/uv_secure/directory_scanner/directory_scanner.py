@@ -1,7 +1,7 @@
-from collections.abc import Iterable, Sequence
+import asyncio
+from collections.abc import Sequence
 
 from anyio import Path
-from asyncer import create_task_group
 
 from uv_secure.configuration import config_file_factory, Configuration
 
@@ -11,21 +11,17 @@ async def _search_file(directory: Path, filename: str) -> list[Path]:
 
 
 async def _find_files(
-    directory: Path, filenames: Iterable[str]
+    directory: Path, filenames: Sequence[str]
 ) -> dict[str, list[Path]]:
-    async with create_task_group() as tg:
-        tasks = {
-            filename: tg.soonify(_search_file)(directory, filename)
-            for filename in filenames
-        }
-
-    return {filename: task.value for filename, task in tasks.items()}
+    results = await asyncio.gather(
+        *(_search_file(directory, filename) for filename in filenames)
+    )
+    return dict(zip(filenames, results, strict=False))
 
 
 async def _resolve_paths(file_paths: Sequence[Path]) -> list[Path]:
-    async with create_task_group() as tg:
-        tasks = [tg.soonify(path.resolve)() for path in file_paths]
-    return [task.value for task in tasks]
+    tasks = [asyncio.create_task(path.resolve()) for path in file_paths]
+    return await asyncio.gather(*tasks) if tasks else []
 
 
 def _get_root_dir(file_paths: Sequence[Path]) -> Path:
@@ -56,11 +52,10 @@ async def _fetch_dependency_files(
         + config_and_lock_files[".uv-secure.toml"]
     )
 
-    async with create_task_group() as tg:
-        config_futures = [
-            tg.soonify(config_file_factory)(path) for path in config_file_paths
-        ]
-    configs = [future.value for future in config_futures]
+    config_tasks = [
+        asyncio.create_task(config_file_factory(path)) for path in config_file_paths
+    ]
+    configs = await asyncio.gather(*config_tasks) if config_tasks else []
     path_config_map = {
         p.parent: c
         for p, c in zip(config_file_paths, configs, strict=False)

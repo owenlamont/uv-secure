@@ -5,6 +5,7 @@ import typer
 
 from uv_secure import __version__
 from uv_secure.configuration import OutputFormat
+from uv_secure.configuration.exceptions import UvSecureConfigurationError
 from uv_secure.dependency_checker import check_lock_files, RunStatus
 
 
@@ -193,28 +194,32 @@ def main(
     except ImportError:
         from asyncio import run  # type: ignore[assignment, unused-ignore]
 
-    run_status = run(
-        check_lock_files(
-            file_paths,
-            aliases,
-            desc,
-            cache_path,
-            cache_ttl_seconds,
-            disable_cache,
-            forbid_archived,
-            forbid_deprecated,
-            forbid_quarantined,
-            forbid_yanked,
-            max_package_age,
-            ignore_vulns,
-            ignore_pkgs,
-            check_direct_dependency_vulnerabilities_only,
-            check_direct_dependency_maintenance_issues_only,
-            config_path,
-            format_type.value if format_type is not None else None,
-            check_uv_tool,
+    try:
+        run_status = run(
+            check_lock_files(
+                file_paths,
+                aliases,
+                desc,
+                cache_path,
+                cache_ttl_seconds,
+                disable_cache,
+                forbid_archived,
+                forbid_deprecated,
+                forbid_quarantined,
+                forbid_yanked,
+                max_package_age,
+                ignore_vulns,
+                ignore_pkgs,
+                check_direct_dependency_vulnerabilities_only,
+                check_direct_dependency_maintenance_issues_only,
+                config_path,
+                format_type.value if format_type is not None else None,
+                check_uv_tool,
+            )
         )
-    )
+    except UvSecureConfigurationError as exc:
+        typer.echo(f"Error: {exc}")
+        raise typer.Exit(code=3) from exc
     if run_status == RunStatus.MAINTENANCE_ISSUES_FOUND:
         raise typer.Exit(code=1)
     if run_status == RunStatus.VULNERABILITIES_FOUND:

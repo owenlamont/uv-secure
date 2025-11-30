@@ -8,7 +8,6 @@ import sys
 
 from anyio import Path as APath
 import anysqlite
-from asyncer import create_task_group
 from hishel import AsyncSqliteStorage
 from hishel.httpx import AsyncCacheClient
 from httpx import AsyncClient, Headers
@@ -466,17 +465,19 @@ async def check_dependencies(
         )
 
     # Download package info and indexes concurrently
-    async with create_task_group() as tg:
-        package_infos = tg.soonify(download_packages)(
-            dependencies, http_client, disable_cache
-        )
-        package_indexes = tg.soonify(download_package_indexes)(
-            dependencies, http_client, disable_cache
-        )
+    package_infos_task = asyncio.create_task(
+        download_packages(dependencies, http_client, disable_cache)
+    )
+    package_indexes_task = asyncio.create_task(
+        download_package_indexes(dependencies, http_client, disable_cache)
+    )
+    package_infos, package_indexes = await asyncio.gather(
+        package_infos_task, package_indexes_task
+    )
 
     package_metadata: list[
         tuple[PackageInfo | BaseException, PackageIndex | BaseException]
-    ] = list(zip(package_infos.value, package_indexes.value, strict=True))
+    ] = list(zip(package_infos, package_indexes, strict=True))
 
     ignore_packages = _build_ignore_packages(config)
     dependency_outputs: list[DependencyOutput] = []
@@ -616,6 +617,39 @@ def _apply_cli_config_overrides(
     return lock_to_config_map
 
 
+async def _build_http_client(
+    cache_path: Path,
+    cache_ttl_seconds: float,
+    disable_cache: bool,
+    client_headers: Headers,
+    console: Console,
+) -> tuple[AsyncClient | AsyncCacheClient, ManagedAsyncSqliteStorage | None]:
+    """Construct an HTTP client with optional persistent caching.
+
+    Returns:
+        tuple[AsyncClient | AsyncCacheClient, ManagedAsyncSqliteStorage | None]:
+        Client instance and cache storage (``None`` when caching is disabled or on
+        fallback).
+    """
+    if disable_cache:
+        return AsyncClient(timeout=10, headers=client_headers), None
+
+    cache_apath = APath(cache_path)
+    await cache_apath.mkdir(parents=True, exist_ok=True)
+    gitignore_apath = cache_apath / ".gitignore"
+    if not await gitignore_apath.exists():
+        await gitignore_apath.write_text("# Automatically created by Hishel\n*")
+
+    connection = await anysqlite.connect(str(cache_path / "uv-secure-cache.db"))
+    storage = ManagedAsyncSqliteStorage(
+        connection=connection,
+        default_ttl=cache_ttl_seconds,
+        refresh_ttl_on_access=False,
+    )
+    client = AsyncCacheClient(timeout=10, headers=client_headers, storage=storage)
+    return client, storage
+
+
 def _determine_file_status(file_result: FileResultOutput) -> int:
     """Determine a single file's status code.
 
@@ -739,32 +773,9 @@ async def check_lock_files(
     )
 
     client_headers = Headers({"User-Agent": USER_AGENT})
-    timeout_seconds = 10
-
-    storage: ManagedAsyncSqliteStorage | None
-    connection: anysqlite.Connection | None = None
-    if disable_cache:
-        http_client_cm: AsyncClient = AsyncClient(
-            timeout=timeout_seconds, headers=client_headers
-        )
-        storage = None
-    else:
-        # Antivirus tools (e.g. Windows Defender) negate file-cache benefits unless the
-        # cache directory is excluded from realtime scanning.
-        cache_apath = APath(cache_path)
-        await cache_apath.mkdir(parents=True, exist_ok=True)
-        gitignore_apath = cache_apath / ".gitignore"
-        if not await gitignore_apath.exists():
-            await gitignore_apath.write_text("# Automatically created by Hishel\n*")
-        connection = await anysqlite.connect(str(cache_path / "uv-secure-cache.db"))
-        storage = ManagedAsyncSqliteStorage(
-            connection=connection,
-            default_ttl=cache_ttl_seconds,
-            refresh_ttl_on_access=False,
-        )
-        http_client_cm = AsyncCacheClient(
-            timeout=timeout_seconds, headers=client_headers, storage=storage
-        )
+    http_client_cm, storage = await _build_http_client(
+        cache_path, cache_ttl_seconds, disable_cache, client_headers, console
+    )
 
     try:
         async with http_client_cm as http_client:
