@@ -11,15 +11,19 @@ concurrently and supports hierarchical configuration discovery.
 
 ## Code Change Requirements
 
-- Whenever code is changed ensure all pre-commit linters pass (run:
-  `prek run --all-files`) and all pytests pass (run: `uv run pytest`) and
-  that all newly added code has full branch coverage (always invoke these commands with
-  a multi-minute timeout, e.g. ≥4 minutes. When using sandboxed Codex tooling—CLI or VS
-  Code extension—explicitly request elevated permissions every time you run these
-  commands so they can access the full workspace and any required local services. In
-  unrestricted environments just make sure the resources are reachable).
-- For any behaviour or feature changes ensure all documentation is updated
-  appropriately.
+- Whenever code is changed, ensure all pre-commit linters pass
+  (`prek run --all-files`) and all pytests pass
+  (`uv run pytest -n logical --color=no`). Newly added code must keep full branch
+  coverage. Always invoke these commands with a multi-minute timeout (>= 4 minutes)
+  and, when using sandboxed Codex tooling, request elevated permissions each time so
+  the commands can access the full workspace and any required local services. In
+  unrestricted environments just make sure the resources are reachable.
+- When running ad-hoc Python (inspecting objects, small scripts, etc.), use
+  `uv run python` so the project venv and pinned dependencies are active.
+- Update documentation whenever behaviour or feature changes are introduced.
+- Diagnose bugs before patching: avoid speculative “symptom” fixes. When behaviour is
+  unclear, instrument or reproduce minimally to identify the exact cause before
+  landing code changes; prefer root-cause fixes over defensive clean-ups.
 
 ## Project Structure
 
@@ -79,45 +83,35 @@ concurrently and supports hierarchical configuration discovery.
 
 ## Development Environment / Terminal
 
-- This repo runs on Mac, Linux, and Windows. Don't make assumptions about the shell
-  you're running on without checking first (it could be a Posix shell like Bash or
-  Windows Powershell).
-- When running commands through automation or scripted tooling that already controls
-  the working directory, rely on that mechanism instead of prefixing commands with
-  `cd ... &&` when already positioned correctly; commands should be invoked in their
-  final form (for example `prek run --all-files`) without an explicit `cd` hop unless it
-  is strictly required.
-- Being a uv project you should never need to activate a virtual environment or call pip
-  or python directly. Use `uv add` to add dependencies and `uv run` to run Python
-  scripts or code.
-- `complexipy`, `markitdown`, `prek`, `rg`, `ruff`, `rumdl`, `typos`, `uv-secure`,
-  and `zizmor` should be installed as global uv tools, they don't require a `uv run`
-  prefix.
+- The repo runs on macOS, Linux, and Windows. Confirm the shell environment before
+  assuming POSIX semantics.
+- When automation already controls the working directory, run commands directly (for
+  example `prek run --all-files`) instead of prefixing them with `cd`.
+- Being a uv project you never need to activate a virtual environment or call pip
+  directly. Use `uv add` for dependencies and `uv run` for scripts or tooling.
+- Install `complexipy`, `markitdown`, `prek`, `rg`, `ruff`, `rumdl`, `typos`, and
+  `zizmor` as global uv tools so they can be invoked without `uv run`.
 
 ## Automated Tests
 
-- Always run: `uv run pytest` when fixing bugs or making incremental changes.
-- After completing new features or making substantial code changes run:
-  `uv run pytest --cov=. --cov-branch --cov-report term-missing`
-  and inspect the returned coverage table for any missing branch coverage. Note there's
-  platform and Python version specific conditional logic so full 100% branch coverage
-  can only be achieved by the GitHub CI tests when testing across all supported Python
-  and platform versions. Inspect any missing coverage though, and if not attributable to
-  a Python or platform version difference add new tests to cover the missing branch
-  coverage.
-- Many integration tests rely on local AWS service emulators (for example DynamoDB
-  Local on `http://localhost:8000`). When running `uv run pytest` or targeted pytest
-  commands, request elevated permissions if needed so those endpoints remain reachable.
-- Warnings are treated with errors in tests. Warnings emitted from code in this repo
-  must be addressed. Warnings emitted from third party packages can be ignored (using
-  the most specific ignores practical).
-- Don't use test classes, only use test functions.
-- Do most test setup with fixtures and parameters so the tested code is at, or near the
-  beginning of the test function.
-- Use explicit pytest.param instances in parametrized tests (with meaningful ids).
-- Don't use docstrings or comments in tests, use meaningful function names, variable
-  names, and param ids to convey the test purpose. Param id values can contain spaces
-  and can be written in a human readable way.
-- Every line of code has a maintenance cost, so don't add tests that don't meaningfully
-  increase code coverage. Aim for full branch coverage but also minimise the tests code
-  lines to src code lines ratio.
+- Always run `uv run pytest -n logical --color=no` when fixing bugs or making
+  incremental code changes.
+- For new features or larger changes run
+  `uv run pytest -n logical --color=no --cov=. --cov-branch --cov-report term-missing`
+  and
+  inspect any uncovered lines. Some conditional logic is platform- or
+  version-specific, so 100% branch coverage may require CI, but treat any gaps as
+  suspect until proven otherwise.
+- Future integration tests may rely on AWS emulators such as DynamoDB Local on
+  `http://localhost:8000`. Request elevated permissions when needed so those
+  endpoints remain reachable.
+- Tests treat warnings as errors. Fix warnings raised by this repo. Third-party
+  warnings can be explicitly ignored when necessary.
+- Only use test functions (no classes). Put setup into fixtures or parameters so the
+  code under test is near the top of each function.
+- Use explicit `pytest.param` entries with meaningful `id` strings for parametrized
+  tests.
+- Skip test docstrings and comments; describe intent through descriptive names and
+  param ids.
+- Each new test should meaningfully increase coverage. Aim for full branch coverage
+  while keeping the ratio of test code to src code lean.
