@@ -32,7 +32,7 @@ def _get_root_dir(file_paths: Sequence[Path]) -> Path:
     min_length = min(len(parts) for parts in split_paths)
     common_prefix_len = 0
 
-    for part_idx in range(min_length):  # pragma: no cover (min_length is always > 0)
+    for part_idx in range(min_length):  # pragma: no branch (min_length is always > 0)
         segment_set = {parts[part_idx] for parts in split_paths}
         if len(segment_set) == 1:
             common_prefix_len += 1

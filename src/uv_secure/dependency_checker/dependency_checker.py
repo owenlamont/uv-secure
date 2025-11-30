@@ -636,9 +636,6 @@ async def _build_http_client(
 
     cache_apath = APath(cache_path)
     await cache_apath.mkdir(parents=True, exist_ok=True)
-    gitignore_apath = cache_apath / ".gitignore"
-    if not await gitignore_apath.exists():
-        await gitignore_apath.write_text("# Automatically created by Hishel\n*")
 
     connection = await anysqlite.connect(str(cache_path / "uv-secure-cache.db"))
     storage = ManagedAsyncSqliteStorage(
@@ -745,7 +742,9 @@ async def check_lock_files(
         )
     except (ExceptionGroup, ValueError) as e:
         if isinstance(e, ExceptionGroup):
-            for exc in e.exceptions:
+            for (
+                exc
+            ) in e.exceptions:  # pragma: no branch - ExceptionGroup always has items
                 console.print(f"[bold red]Error:[/] {exc}")
         else:
             console.print(

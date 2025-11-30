@@ -883,10 +883,8 @@ def test_check_dependencies_with_custom_caching(
     assert "error" not in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
-    cache_files = set(cache_dir.iterdir())
-    assert len(cache_files) == 2
-    cache_files.remove(cache_dir / ".gitignore")
-    assert len(cache_files) == 1
+    cache_files = {p.name for p in cache_dir.iterdir()}
+    assert cache_files == {"uv-secure-cache.db"}
 
 
 def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_override(
