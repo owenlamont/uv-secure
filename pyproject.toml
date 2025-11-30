@@ -1,6 +1,6 @@
 [project]
 name = "uv-secure"
-version = "0.15.1"
+version = "0.15.2"
 description = "Scan your uv.lock file for dependencies with known vulnerabilities"
 readme = "README.md"
 authors = [
@@ -31,7 +31,6 @@ classifiers = [
 
 dependencies = [
     "anyio>=4.7.0",
-    "asyncer>=0.0.8",
     "hishel[async]>=1.1.2",
     "httpx>=0.28.1",
     "humanize>=4.11.0",
@@ -71,4 +70,6 @@ dev = [
     "pytest-cov>=6.0.0",
     "pytest-httpx>=0.35.0",
     "pytest-mock>=3.14.0",
+    "pytest-randomly>=4.0.1",
+    "pytest-xdist[psutil]>=3.8.0",
 ]

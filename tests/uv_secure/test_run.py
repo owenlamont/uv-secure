@@ -78,7 +78,7 @@ def test_app_version() -> None:
 
 
 def test_bad_file_name() -> None:
-    result = runner.invoke(app, "i_dont_exist.txt")
+    result = runner.invoke(app, ["i_dont_exist.txt", "--disable-cache"])
     assert result.exit_code == 3
     assert "Error" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
@@ -92,7 +92,7 @@ def test_bad_pyproject_toml_config_file(tmp_path: Path) -> None:
         desc = true
     """
     pyproject_toml_path.write_text(dedent(pyproject_toml_contents).strip())
-    result = runner.invoke(app, [str(tmp_path / "uv.lock")])
+    result = runner.invoke(app, [str(tmp_path / "uv.lock"), "--disable-cache"])
     assert "Error: Parsing uv-secure configuration at: " in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
@@ -104,13 +104,13 @@ def test_bad_uv_secure_toml_config_file(tmp_path: Path) -> None:
         desc = true
     """
     uv_secure_toml_path.write_text(dedent(uv_secure_toml).strip())
-    result = runner.invoke(app, [str(tmp_path / "uv.lock")])
+    result = runner.invoke(app, [str(tmp_path / "uv.lock"), "--disable-cache"])
     assert "Error: Parsing uv-secure configuration at: " in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
 def test_missing_file(tmp_path: Path) -> None:
-    result = runner.invoke(app, [str(tmp_path / "uv.lock")])
+    result = runner.invoke(app, [str(tmp_path / "uv.lock"), "--disable-cache"])
     assert result.exit_code == 3
     assert "Error" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
@@ -135,7 +135,9 @@ def test_non_uv_requirements_txt_file(
 def test_unpinned_requirements_txt_file(
     temp_unpinned_requirements_txt_file: Path,
 ) -> None:
-    result = runner.invoke(app, [str(temp_unpinned_requirements_txt_file)])
+    result = runner.invoke(
+        app, [str(temp_unpinned_requirements_txt_file), "--disable-cache"]
+    )
 
     assert result.exit_code == 3
     assert "Failed to parse" in result.output
@@ -146,7 +148,9 @@ def test_unpinned_requirements_txt_file(
 def test_wildcard_requirements_txt_file(
     temp_wildcard_requirements_txt_file: Path,
 ) -> None:
-    result = runner.invoke(app, [str(temp_wildcard_requirements_txt_file)])
+    result = runner.invoke(
+        app, [str(temp_wildcard_requirements_txt_file), "--disable-cache"]
+    )
 
     assert result.exit_code == 3
     assert "Failed to parse" in result.output
@@ -189,7 +193,9 @@ def test_extras_requirements_txt_file(
 def test_env_marker_requirements_txt_file(
     temp_env_marker_requirements_txt_file: Path,
 ) -> None:
-    result = runner.invoke(app, [str(temp_env_marker_requirements_txt_file)])
+    result = runner.invoke(
+        app, [str(temp_env_marker_requirements_txt_file), "--disable-cache"]
+    )
 
     assert result.exit_code == 3
     assert "Failed to parse" in result.output
@@ -198,7 +204,9 @@ def test_env_marker_requirements_txt_file(
 
 
 def test_hash_requirements_txt_file(temp_hash_requirements_txt_file: Path) -> None:
-    result = runner.invoke(app, [str(temp_hash_requirements_txt_file)])
+    result = runner.invoke(
+        app, [str(temp_hash_requirements_txt_file), "--disable-cache"]
+    )
 
     assert result.exit_code == 3
     assert "Failed to parse" in result.output
@@ -875,10 +883,8 @@ def test_check_dependencies_with_custom_caching(
     assert "error" not in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
-    cache_files = set(cache_dir.iterdir())
-    assert len(cache_files) == 2
-    cache_files.remove(cache_dir / ".gitignore")
-    assert len(cache_files) == 1
+    cache_files = {p.name for p in cache_dir.iterdir()}
+    assert cache_files == {"uv-secure-cache.db"}
 
 
 def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_override(
@@ -1223,7 +1229,9 @@ def test_lock_vulnerability_full_dependencies_one_vulnerability(
     one_vulnerability_response_indirect_dependency: HTTPXMock,
     pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
-    result = runner.invoke(app, [str(temp_uv_lock_file_direct_indirect_dependencies)])
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file_direct_indirect_dependencies), "--disable-cache"]
+    )
     assert result.exit_code == 2
     assert result.output.count("Vulnerable: 1 vulnerability") == 1
     assert result.output.count("indirect-dependency") == 1
@@ -1237,7 +1245,9 @@ def test_lock_vulnerability_uv_secure_toml_direct_dependencies_one_vulnerability
     one_vulnerability_response_indirect_dependency: HTTPXMock,
     pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
-    result = runner.invoke(app, [str(temp_uv_lock_file_direct_indirect_dependencies)])
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file_direct_indirect_dependencies), "--disable-cache"]
+    )
     assert result.exit_code == 0
     assert (
         result.output.count("No vulnerabilities or maintenance issues detected!") == 1
@@ -1252,7 +1262,9 @@ def test_lock_vulnerability_pyproject_toml_direct_dependencies_one_vulnerability
     one_vulnerability_response_indirect_dependency: HTTPXMock,
     pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
-    result = runner.invoke(app, [str(temp_uv_lock_file_direct_indirect_dependencies)])
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file_direct_indirect_dependencies), "--disable-cache"]
+    )
     assert result.exit_code == 0
     assert (
         result.output.count("No vulnerabilities or maintenance issues detected!") == 1
@@ -1267,7 +1279,9 @@ def test_lock_maintenance_full_dependencies_one_issue(
     one_maintenance_issue_response_indirect_dependency: HTTPXMock,
     pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
-    result = runner.invoke(app, [str(temp_uv_lock_file_direct_indirect_dependencies)])
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file_direct_indirect_dependencies), "--disable-cache"]
+    )
     assert result.exit_code == 1
     assert result.output.count("Issues: 1 issue") == 1
     assert result.output.count("indirect-dependency") == 1
@@ -1281,7 +1295,9 @@ def test_lock_maintenance_uv_secure_toml_direct_dependencies_one_issue(
     one_maintenance_issue_response_indirect_dependency: HTTPXMock,
     pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
-    result = runner.invoke(app, [str(temp_uv_lock_file_direct_indirect_dependencies)])
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file_direct_indirect_dependencies), "--disable-cache"]
+    )
     assert result.exit_code == 0
     assert (
         result.output.count("No vulnerabilities or maintenance issues detected!") == 1
@@ -1296,7 +1312,9 @@ def test_lock_maintenance_pyproject_toml_direct_dependencies_one_issue(
     one_maintenance_issue_response_indirect_dependency: HTTPXMock,
     pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
-    result = runner.invoke(app, [str(temp_uv_lock_file_direct_indirect_dependencies)])
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file_direct_indirect_dependencies), "--disable-cache"]
+    )
     assert result.exit_code == 0
     assert (
         result.output.count("No vulnerabilities or maintenance issues detected!") == 1
@@ -1312,7 +1330,11 @@ def test_reqs_vulnerability_full_dependencies_one_vuln(
     pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
     result = runner.invoke(
-        app, [str(temp_uv_requirements_txt_file_direct_indirect_dependencies)]
+        app,
+        [
+            str(temp_uv_requirements_txt_file_direct_indirect_dependencies),
+            "--disable-cache",
+        ],
     )
     assert result.exit_code == 2
     assert result.output.count("Vulnerable: 1 vulnerability") == 1
@@ -1328,7 +1350,11 @@ def test_reqs_vulnerability_uv_secure_toml_direct_dependencies_one_vuln(
     pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
     result = runner.invoke(
-        app, [str(temp_uv_requirements_txt_file_direct_indirect_dependencies)]
+        app,
+        [
+            str(temp_uv_requirements_txt_file_direct_indirect_dependencies),
+            "--disable-cache",
+        ],
     )
     assert result.exit_code == 0
     assert (
@@ -1345,7 +1371,11 @@ def test_reqs_vulnerability_pyproject_toml_direct_dependencies_one_vuln(
     pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
     result = runner.invoke(
-        app, [str(temp_uv_requirements_txt_file_direct_indirect_dependencies)]
+        app,
+        [
+            str(temp_uv_requirements_txt_file_direct_indirect_dependencies),
+            "--disable-cache",
+        ],
     )
     assert result.exit_code == 0
     assert (
@@ -1366,6 +1396,7 @@ def test_reqs_vulnerability_uv_secure_toml_cli_override_direct_dependencies_one_
         [
             str(temp_uv_requirements_txt_file_direct_indirect_dependencies),
             "--check-direct-dependency-vulnerabilities-only",
+            "--disable-cache",
         ],
     )
     assert result.exit_code == 0
@@ -1387,6 +1418,7 @@ def test_reqs_vulnerability_pyproject_toml_cli_override_direct_dependencies_one_
         [
             str(temp_uv_requirements_txt_file_direct_indirect_dependencies),
             "--check-direct-dependency-vulnerabilities-only",
+            "--disable-cache",
         ],
     )
     assert result.exit_code == 0
@@ -1404,7 +1436,11 @@ def test_reqs_maintenance_full_dependencies_one_issue(
     pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
     result = runner.invoke(
-        app, [str(temp_uv_requirements_txt_file_direct_indirect_dependencies)]
+        app,
+        [
+            str(temp_uv_requirements_txt_file_direct_indirect_dependencies),
+            "--disable-cache",
+        ],
     )
     assert result.exit_code == 1
     assert result.output.count("Issues: 1 issue") == 1
@@ -1420,7 +1456,11 @@ def test_reqs_maintenance_uv_secure_toml_direct_dependencies_one_issue(
     pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
     result = runner.invoke(
-        app, [str(temp_uv_requirements_txt_file_direct_indirect_dependencies)]
+        app,
+        [
+            str(temp_uv_requirements_txt_file_direct_indirect_dependencies),
+            "--disable-cache",
+        ],
     )
     assert result.exit_code == 0
     assert (
@@ -1437,7 +1477,11 @@ def test_reqs_maintenance_pyproject_toml_direct_dependencies_one_issue(
     pypi_simple_direct_and_indirect: HTTPXMock,
 ) -> None:
     result = runner.invoke(
-        app, [str(temp_uv_requirements_txt_file_direct_indirect_dependencies)]
+        app,
+        [
+            str(temp_uv_requirements_txt_file_direct_indirect_dependencies),
+            "--disable-cache",
+        ],
     )
     assert result.exit_code == 0
     assert (
@@ -1458,6 +1502,7 @@ def test_reqs_maintenance_uv_secure_toml_cli_override_direct_dependencies_one_is
         [
             str(temp_uv_requirements_txt_file_direct_indirect_dependencies),
             "--check-direct-dependency-maintenance-issues-only",
+            "--disable-cache",
         ],
     )
     assert result.exit_code == 0
@@ -1479,6 +1524,7 @@ def test_reqs_maintenance_pyproject_toml_cli_override_direct_dependencies_one_is
         [
             str(temp_uv_requirements_txt_file_direct_indirect_dependencies),
             "--check-direct-dependency-maintenance-issues-only",
+            "--disable-cache",
         ],
     )
     assert result.exit_code == 0
@@ -1542,7 +1588,7 @@ def test_pylock_toml_check_direct_dependency_maintenance_issues_only_warning(
 def test_uv_lock_file_parsing_with_corrupted_file(
     temp_corrupted_uv_lock_file: Path,
 ) -> None:
-    result = runner.invoke(app, [str(temp_corrupted_uv_lock_file)])
+    result = runner.invoke(app, [str(temp_corrupted_uv_lock_file), "--disable-cache"])
 
     assert result.exit_code == 3
     assert "Error" in result.output
@@ -1554,7 +1600,9 @@ def test_uv_lock_file_parsing_with_corrupted_file(
 def test_requirements_txt_file_parsing_with_corrupted_file(
     temp_corrupted_requirements_txt_file: Path,
 ) -> None:
-    result = runner.invoke(app, [str(temp_corrupted_requirements_txt_file)])
+    result = runner.invoke(
+        app, [str(temp_corrupted_requirements_txt_file), "--disable-cache"]
+    )
 
     assert result.exit_code == 3
     assert "Error" in result.output
@@ -1566,7 +1614,9 @@ def test_requirements_txt_file_parsing_with_corrupted_file(
 def test_pylock_toml_file_parsing_with_corrupted_file(
     temp_corrupted_pylock_toml_file: Path,
 ) -> None:
-    result = runner.invoke(app, [str(temp_corrupted_pylock_toml_file)])
+    result = runner.invoke(
+        app, [str(temp_corrupted_pylock_toml_file), "--disable-cache"]
+    )
 
     assert result.exit_code == 3
     assert "Error" in result.output

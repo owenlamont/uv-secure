@@ -71,9 +71,12 @@ repos:
           # --write-changes (Don't use this to stop typos making auto-corrections)
         ]
   - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.15.0
+    rev: 0.15.1
     hooks:
       - id: uv-secure
+        additional_dependencies:
+          # Remove once this PR is deployed
+          - sniffio>=1.3.1
   - repo: https://github.com/adrienverge/yamllint.git
     rev: v1.37.1
     hooks:
