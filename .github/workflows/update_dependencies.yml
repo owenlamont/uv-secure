@@ -14,11 +14,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
       - name: Set up Python
-        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c
+        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548
         with:
           python-version: "3.9"
       - name: Install uv
-        uses: astral-sh/setup-uv@5a7eac68fb9809dea845d802897dc5c723910fa3
+        uses: astral-sh/setup-uv@1e862dfacbd1d6d858c55d9b792c756523627244
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
@@ -34,14 +34,14 @@ jobs:
           fi
       - name: Generate token
         if: steps.check_diff.outputs.changed == 'true'
-        uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42
+        uses: actions/create-github-app-token@7e473efe3cb98aa54f8d4bac15400b15fad77d94
         id: generate-token
         with:
           app-id: ${{ secrets.AUTH_APP_CLIENT_ID }}
           private-key: ${{ secrets.AUTH_APP_PRIVATE_KEY }}
       - name: Create PR with updated uv.lock
         if: steps.check_diff.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e
+        uses: peter-evans/create-pull-request@84ae59a2cdc2258d6fa0732dd66352dddae2a412
         with:
           token: ${{ steps.generate-token.outputs.token }}
           commit-message: "chore: refresh uv.lock"
