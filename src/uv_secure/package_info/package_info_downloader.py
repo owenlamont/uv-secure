@@ -5,6 +5,7 @@ import re
 from httpx import AsyncClient
 from pydantic import BaseModel
 
+from uv_secure.package_info.cache import cache
 from uv_secure.package_info.dependency_file_parser import Dependency
 
 
@@ -132,7 +133,10 @@ def _build_request_headers(
 
 
 async def _download_package(
-    http_client: AsyncClient, dependency: Dependency, disable_cache: bool
+    http_client: AsyncClient,
+    dependency: Dependency,
+    disable_cache: bool,
+    ttl: timedelta,
 ) -> PackageInfo:
     """Query the PyPI JSON API for vulnerabilities of a dependency.
 
@@ -140,21 +144,54 @@ async def _download_package(
         http_client: HTTP client.
         dependency: Dependency to download.
         disable_cache: Whether caching is disabled.
+        ttl: Cache TTL.
 
     Returns:
         PackageInfo: Parsed package metadata including vulnerabilities.
+
+    Raises:
+        TypeError: Raised if the package info is not a ``PackageInfo`` instance.
     """
+    key = f"package_info:{dependency.name}:{dependency.version}"
+    if not disable_cache:
+        cached = await cache.get(key)
+        if isinstance(cached, PackageInfo):
+            return cached
+
     canonical_name = canonicalize_name(dependency.name)
     url = f"https://pypi.org/pypi/{canonical_name}/{dependency.version}/json"
-    response = await http_client.get(url, headers=_build_request_headers(disable_cache))
-    response.raise_for_status()
-    package_info = PackageInfo.model_validate_json(response.content)
-    package_info.direct_dependency = dependency.direct
-    return package_info
+
+    async def _fetch() -> PackageInfo:
+        response = await http_client.get(
+            url, headers=_build_request_headers(disable_cache)
+        )
+        response.raise_for_status()
+        package_info = PackageInfo.model_validate_json(response.content)
+        package_info.direct_dependency = dependency.direct
+        return package_info
+
+    if disable_cache:
+        return await _fetch()
+
+    # Use lock to prevent cache stampede
+    async with cache.lock(f"lock:{key}", ttl.total_seconds()):
+        # Double-check cache inside lock
+        cached = await cache.get(key)
+        if isinstance(cached, PackageInfo):
+            return cached
+
+        package_info = await _fetch()
+        await cache.set(key, package_info, expire=ttl)
+        if isinstance(package_info, PackageInfo):
+            return package_info
+        raise TypeError("Fetch failed to return PackageInfo")
 
 
 async def download_packages(
-    dependencies: list[Dependency], http_client: AsyncClient, disable_cache: bool
+    dependencies: list[Dependency],
+    http_client: AsyncClient,
+    disable_cache: bool,
+    ttl: timedelta,
 ) -> list[PackageInfo | BaseException]:
     """Fetch package metadata for all dependencies concurrently.
 
@@ -162,9 +199,12 @@ async def download_packages(
         dependencies: Dependencies to download.
         http_client: HTTP client.
         disable_cache: Whether caching is disabled.
+        ttl: Cache TTL.
 
     Returns:
         list[PackageInfo | BaseException]: Metadata or exception per dependency.
     """
-    tasks = [_download_package(http_client, dep, disable_cache) for dep in dependencies]
+    tasks = [
+        _download_package(http_client, dep, disable_cache, ttl) for dep in dependencies
+    ]
     return await asyncio.gather(*tasks, return_exceptions=True)

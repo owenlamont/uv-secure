@@ -1,12 +1,10 @@
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import timedelta
 from pathlib import Path
 
 from anyio import Path as APath
-import anysqlite
-from hishel import AsyncSqliteStorage
-from hishel.httpx import AsyncCacheClient
 from httpx import AsyncClient, Headers
 import pytest
 from pytest_httpx import HTTPXMock
@@ -23,21 +21,20 @@ from uv_secure.dependency_checker.dependency_checker import (
     _extract_uv_version,
 )
 from uv_secure.output_models import DependencyOutput
+from uv_secure.package_info.cache import cache
 
 
 @asynccontextmanager
-async def cached_http_client() -> AsyncIterator[AsyncCacheClient]:
-    connection = await anysqlite.connect(":memory:")
-    storage = AsyncSqliteStorage(
-        connection=connection, default_ttl=86400.0, refresh_ttl_on_access=False
-    )
-    async with AsyncCacheClient(
-        timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
-    ) as http_client:
+async def cached_http_client() -> AsyncIterator[AsyncClient]:
+    cache.setup("mem://")
+    async with AsyncClient(headers=Headers({"User-Agent": USER_AGENT})) as http_client:
         try:
             yield http_client
         finally:
-            await connection.close()
+            await cache.clear()
+            # close isn't strictly necessary for memory backend
+            if hasattr(cache, "close"):
+                await cache.close()
 
 
 @pytest.mark.asyncio
@@ -110,6 +107,7 @@ async def test_check_dependencies_alias_hyperlinks(
             Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),
             http_client,
             True,
+            timedelta(seconds=86400),
         )
 
     # Verify structured output
@@ -169,6 +167,7 @@ async def test_check_dependencies_no_fix_versions(
             Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),
             http_client,
             True,
+            timedelta(seconds=86400),
         )
 
     # Verify structured output
@@ -219,6 +218,7 @@ async def test_maintenance_issue_forbidden_status_triggers_issue(
             Configuration(maintainability_criteria=maintain),
             http_client,
             True,
+            timedelta(seconds=86400),
         )
 
     # Verify structured output
@@ -247,7 +247,11 @@ async def test_maintenance_issue_not_reported_when_not_forbidden(
 
     async with cached_http_client() as http_client:
         result = await check_dependencies(
-            APath(temp_uv_lock_file), Configuration(), http_client, True
+            APath(temp_uv_lock_file),
+            Configuration(),
+            http_client,
+            True,
+            timedelta(seconds=86400),
         )
 
     # Verify structured output - no maintenance issues reported
@@ -277,6 +281,7 @@ async def test_maintenance_issue_forbidden_status_unknown_reason_shows_unknown(
             ),
             http_client,
             True,
+            timedelta(seconds=86400),
         )
 
     # Verify structured output
@@ -332,6 +337,7 @@ async def test_check_dependencies_no_aliases(
             Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),
             http_client,
             True,
+            timedelta(seconds=86400),
         )
 
     # Verify structured output
@@ -453,7 +459,9 @@ async def test_check_global_uv_returns_none_when_detection_fails(
     )
 
     async with AsyncClient() as client:
-        result = await _check_global_uv_tool(Configuration(), client, False)
+        result = await _check_global_uv_tool(
+            Configuration(), client, False, timedelta(seconds=86400)
+        )
     assert result is None
 
 
@@ -490,7 +498,9 @@ async def test_check_global_uv_returns_none_when_metadata_skipped(
     )
 
     async with AsyncClient() as client:
-        result = await _check_global_uv_tool(Configuration(), client, False)
+        result = await _check_global_uv_tool(
+            Configuration(), client, False, timedelta(seconds=86400)
+        )
     assert result is None
 
 
@@ -529,7 +539,9 @@ async def test_check_global_uv_returns_none_when_no_findings(
     )
 
     async with AsyncClient() as client:
-        result = await _check_global_uv_tool(Configuration(), client, False)
+        result = await _check_global_uv_tool(
+            Configuration(), client, False, timedelta(seconds=86400)
+        )
     assert result is None
 
 
@@ -566,7 +578,9 @@ async def test_check_global_uv_returns_error_output_when_metadata_errors(
     )
 
     async with AsyncClient() as client:
-        result = await _check_global_uv_tool(Configuration(), client, False)
+        result = await _check_global_uv_tool(
+            Configuration(), client, False, timedelta(seconds=86400)
+        )
     assert result is not None
     assert result.file_path == "uv (global tool)"
     assert result.error == "boom"

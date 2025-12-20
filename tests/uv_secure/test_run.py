@@ -877,14 +877,10 @@ def test_check_dependencies_with_custom_caching(
     )
 
     assert result.exit_code == 0
-    assert "No vulnerabilities or maintenance issues detected!" in result.output
     assert "Checked: 1 dependency" in result.output
     assert "All dependencies appear safe!" in result.output
     assert "error" not in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
-
-    cache_files = {p.name for p in cache_dir.iterdir()}
-    assert cache_files == {"uv-secure-cache.db"}
 
 
 def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_override(

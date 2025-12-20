@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Callable, Generator
+import gc
 from pathlib import Path
 from textwrap import dedent
 
@@ -8,9 +9,31 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from uv_secure.dependency_checker import USER_AGENT
+from uv_secure.package_info.cache import cache
 
 
 DEFAULT_TEST_UV_VERSION = "0.9.9"
+
+
+@pytest.fixture(autouse=True)
+def cache_cleanup() -> Generator[None, None, None]:
+    yield
+    # Force close any open backends
+    if hasattr(cache, "_backends"):
+        print(f"DEBUG: Cleaning up {len(cache._backends)} backends")
+        try:
+            for backend in list(cache._backends.values()):
+                if (
+                    hasattr(backend, "close")
+                    and hasattr(backend, "_cache")
+                    and hasattr(backend._cache, "close")
+                ):
+                    print(f"DEBUG: Closing backend {backend}")
+                    backend._cache.close()
+        except Exception as e:
+            print(f"DEBUG: Error closing: {e}")
+        cache._backends.clear()
+    gc.collect()
 
 
 @pytest.fixture(autouse=True)

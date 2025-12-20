@@ -1,14 +1,13 @@
 import asyncio
 from asyncio.subprocess import PIPE
 from collections.abc import Sequence
+from datetime import timedelta
 from enum import Enum
 from functools import cache
 from pathlib import Path
+from typing import Any
 
 from anyio import Path as APath
-import anysqlite
-from hishel import AsyncSqliteStorage
-from hishel.httpx import AsyncCacheClient
 from httpx import AsyncClient, Headers
 from packaging.specifiers import SpecifierSet
 from packaging.version import InvalidVersion, Version
@@ -48,22 +47,11 @@ from uv_secure.package_info import (
     ProjectState,
     Vulnerability,
 )
+from uv_secure.package_info.cache import cache as data_cache
 
 
 USER_AGENT = f"uv-secure/{__version__} (contact: owenrlamont@gmail.com)"
 GLOBAL_UV_TOOL_LABEL = "uv (global tool)"
-
-
-class ManagedAsyncSqliteStorage(AsyncSqliteStorage):
-    """AsyncSqliteStorage that ensures the underlying connection is closed."""
-
-    async def close(self) -> None:
-        """Close the storage and underlying sqlite connection if present."""
-        connection = getattr(self, "connection", None)
-        if connection is not None:
-            await connection.close()
-            self.connection = None
-        await super().close()
 
 
 @cache
@@ -332,7 +320,7 @@ async def _detect_uv_version() -> str | None:
 
 
 async def _check_global_uv_tool(
-    config: Configuration, http_client: AsyncClient, disable_cache: bool
+    config: Configuration, http_client: AsyncClient, disable_cache: bool, ttl: timedelta
 ) -> FileResultOutput | None:
     """Check vulnerabilities for the globally installed uv CLI.
 
@@ -347,8 +335,8 @@ async def _check_global_uv_tool(
 
     dependency = Dependency(name="uv", version=uv_version, direct=True)
     package_infos, package_indexes = await asyncio.gather(
-        download_packages([dependency], http_client, disable_cache),
-        download_package_indexes([dependency], http_client, disable_cache),
+        download_packages([dependency], http_client, disable_cache, ttl),
+        download_package_indexes([dependency], http_client, disable_cache, ttl),
     )
 
     ignore_packages = _build_ignore_packages(config)
@@ -378,6 +366,7 @@ async def _evaluate_dependency_files(
     lock_to_config_map: dict[APath, Configuration],
     http_client: AsyncClient,
     disable_cache: bool,
+    ttl: timedelta,
 ) -> list[FileResultOutput]:
     """Gather dependency results for dependency files and the uv CLI.
 
@@ -392,7 +381,7 @@ async def _evaluate_dependency_files(
     uv_task: asyncio.Task[FileResultOutput | None] | None = None
     if uv_config is not None:
         uv_task = asyncio.create_task(
-            _check_global_uv_tool(uv_config, http_client, disable_cache)
+            _check_global_uv_tool(uv_config, http_client, disable_cache, ttl)
         )
 
     file_results = list(
@@ -403,6 +392,7 @@ async def _evaluate_dependency_files(
                     lock_to_config_map[APath(dependency_file_path)],
                     http_client,
                     disable_cache,
+                    ttl,
                 )
                 for dependency_file_path in file_apaths
             ]
@@ -422,6 +412,7 @@ async def check_dependencies(
     config: Configuration,
     http_client: AsyncClient,
     disable_cache: bool,
+    ttl: timedelta,
 ) -> FileResultOutput:
     """Check dependencies for vulnerabilities and build structured output.
 
@@ -431,6 +422,7 @@ async def check_dependencies(
         config: Configuration to apply.
         http_client: HTTP client for downloads.
         disable_cache: Whether HTTP caching is disabled.
+        ttl: Cache TTL.
 
     Returns:
         FileResultOutput: Structured dependency results.
@@ -461,10 +453,10 @@ async def check_dependencies(
 
     # Download package info and indexes concurrently
     package_infos_task = asyncio.create_task(
-        download_packages(dependencies, http_client, disable_cache)
+        download_packages(dependencies, http_client, disable_cache, ttl)
     )
     package_indexes_task = asyncio.create_task(
-        download_package_indexes(dependencies, http_client, disable_cache)
+        download_package_indexes(dependencies, http_client, disable_cache, ttl)
     )
     package_infos, package_indexes = await asyncio.gather(
         package_infos_task, package_indexes_task
@@ -612,34 +604,13 @@ def _apply_cli_config_overrides(
     return lock_to_config_map
 
 
-async def _build_http_client(
-    cache_path: Path,
-    cache_ttl_seconds: float,
-    disable_cache: bool,
-    client_headers: Headers,
-    console: Console,
-) -> tuple[AsyncClient | AsyncCacheClient, ManagedAsyncSqliteStorage | None]:
-    """Construct an HTTP client with optional persistent caching.
+def _build_http_client(client_headers: Headers) -> AsyncClient:
+    """Construct an HTTP client.
 
     Returns:
-        tuple[AsyncClient | AsyncCacheClient, ManagedAsyncSqliteStorage | None]:
-        Client instance and cache storage (``None`` when caching is disabled or on
-        fallback).
+        AsyncClient: Client instance.
     """
-    if disable_cache:
-        return AsyncClient(timeout=10, headers=client_headers), None
-
-    cache_apath = APath(cache_path)
-    await cache_apath.mkdir(parents=True, exist_ok=True)
-
-    connection = await anysqlite.connect(str(cache_path / "uv-secure-cache.db"))
-    storage = ManagedAsyncSqliteStorage(
-        connection=connection,
-        default_ttl=cache_ttl_seconds,
-        refresh_ttl_on_access=False,
-    )
-    client = AsyncCacheClient(timeout=10, headers=client_headers, storage=storage)
-    return client, storage
+    return AsyncClient(timeout=10, headers=client_headers)
 
 
 def _determine_file_status(file_result: FileResultOutput) -> int:
@@ -731,6 +702,9 @@ async def check_lock_files(
     """
     console = Console()
 
+    # Close previous backends safely
+    await _cleanup_cache(console)
+
     try:
         file_apaths, lock_to_config_map = await _resolve_file_paths_and_configs(
             file_paths, config_path
@@ -760,20 +734,64 @@ async def check_lock_files(
         check_uv_tool,
     )
 
+    ttl = timedelta(seconds=cache_ttl_seconds)
+
+    if disable_cache:
+        data_cache.disable()
+    else:
+        cache_apath = APath(cache_path)
+        await cache_apath.mkdir(parents=True, exist_ok=True)
+        data_cache.setup(
+            "disk://", directory=str(cache_path), ttl=int(cache_ttl_seconds)
+        )
+
     client_headers = Headers({"User-Agent": USER_AGENT})
-    http_client_cm, storage = await _build_http_client(
-        cache_path, cache_ttl_seconds, disable_cache, client_headers, console
-    )
+    http_client = _build_http_client(client_headers)
 
     try:
-        async with http_client_cm as http_client:
+        async with http_client:
             file_results = await _evaluate_dependency_files(
-                file_apaths, lock_to_config_map, http_client, disable_cache
+                file_apaths, lock_to_config_map, http_client, disable_cache, ttl
             )
     finally:
-        if storage is not None:
-            await storage.close()
+        await _cleanup_cache(console)
 
+    _format_and_print_results(file_results, lock_to_config_map, console)
+
+    return _determine_final_status(file_results)
+
+
+async def _cleanup_cache(console: Console) -> None:
+    """Safe cache backend cleanup."""
+    try:
+        await data_cache.close()
+    except Exception:
+        # Loop mismatch or other issue, fallback to manual close
+        try:
+            for _, backend in list(data_cache._backends.items()):
+                await _close_backend(backend)
+        except Exception as e:
+            console.print(f"DEBUG: Error closing backends: {e}", style="red")
+    data_cache._backends.clear()
+    data_cache.setup("mem://")
+
+
+async def _close_backend(backend: Any) -> None:
+    """Close an individual cache backend."""
+    if hasattr(backend, "close"):
+        res = backend.close()
+        if asyncio.iscoroutine(res):
+            await res
+    if hasattr(backend, "_cache") and hasattr(backend._cache, "close"):
+        backend._cache.close()
+
+
+def _format_and_print_results(
+    file_results: list[FileResultOutput],
+    lock_to_config_map: dict[Any, Configuration],
+    console: Console,
+) -> None:
+    """Choose formatter and print results to console."""
     # Build scan results output
     scan_results = ScanResultsOutput(files=file_results)
 
@@ -790,5 +808,3 @@ async def check_lock_files(
     # Format and print output
     output = formatter.format(scan_results)
     console.print(output)
-
-    return _determine_final_status(file_results)
