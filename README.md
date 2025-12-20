@@ -335,7 +335,7 @@ future).
 Like Ruff, configuration files aren't hierarchically combined, the nearest / highest
 precedence configuration is used. If you set a specific configuration file that will
 take precedence and hierarchical configuration file discovery is disabled. If you do
-specify a configuration options directly, e.g. pass the  --ignore option that will
+specify a configuration options directly, e.g. pass the --ignore option that will
 overwrite the ignore_vulnerabilities setting of all found or manually specified
 configuration files.
 
