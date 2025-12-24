@@ -301,7 +301,9 @@ or on Windows
 %USERPROFILE%\.cache\uv-secure
 ```
 
-This can be configured to another location if you wish.
+This can be configured to another location if you wish. The disk cache stores a
+`cache.db` SQLite file (plus optional `cache.db-wal`/`cache.db-shm` files depending on
+your platform and filesystem settings).
 
 #### Cache Performance on Windows
 

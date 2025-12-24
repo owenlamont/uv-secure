@@ -1,6 +1,8 @@
 import asyncio
+from collections.abc import Awaitable, Callable
 from enum import Enum
 
+from cashews import Cache
 from httpx import AsyncClient
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -56,14 +58,54 @@ def _build_request_headers(
     return headers
 
 
+async def _get_cached_response(
+    cache: Cache,
+    cache_key: str,
+    cache_ttl_seconds: float,
+    disable_cache: bool,
+    fetcher: Callable[[], Awaitable[bytes]],
+) -> bytes:
+    if disable_cache:
+        return await fetcher()
+
+    cached_value = await cache.get(cache_key)
+    if isinstance(cached_value, bytes):
+        return cached_value
+    if isinstance(cached_value, bytearray):
+        return bytes(cached_value)
+    if isinstance(cached_value, str):
+        return cached_value.encode()
+
+    lock_ttl_seconds = max(1, min(30, int(cache_ttl_seconds)))
+    lock_key = f"{cache_key}:lock"
+    async with cache.lock(lock_key, expire=lock_ttl_seconds):
+        cached_value = await cache.get(cache_key)
+        if isinstance(cached_value, bytes):
+            return cached_value
+        if isinstance(cached_value, bytearray):
+            return bytes(cached_value)
+        if isinstance(cached_value, str):
+            return cached_value.encode()
+
+        response_content = await fetcher()
+        await cache.set(cache_key, response_content, expire=cache_ttl_seconds)
+        return response_content
+
+
 async def _download_package_index(
-    http_client: AsyncClient, dependency: Dependency, disable_cache: bool
+    http_client: AsyncClient,
+    dependency: Dependency,
+    cache: Cache,
+    cache_ttl_seconds: float,
+    disable_cache: bool,
 ) -> PackageIndex:
     """Query the PyPI Simple JSON API for dependency status.
 
     Args:
         http_client: HTTP client.
         dependency: Dependency to query.
+        cache: Cache instance for HTTP responses.
+        cache_ttl_seconds: Cache TTL in seconds.
         disable_cache: Whether caching is disabled.
 
     Returns:
@@ -74,25 +116,42 @@ async def _download_package_index(
     headers = _build_request_headers(
         disable_cache, {"Accept": "application/vnd.pypi.simple.v1+json"}
     )
-    response = await http_client.get(url, headers=headers)
-    response.raise_for_status()
-    return PackageIndex.model_validate_json(response.content)
+    cache_key = f"pypi:simple:{canonical_name}"
+
+    async def fetcher() -> bytes:
+        response = await http_client.get(url, headers=headers)
+        response.raise_for_status()
+        return response.content
+
+    response_content = await _get_cached_response(
+        cache, cache_key, cache_ttl_seconds, disable_cache, fetcher
+    )
+    return PackageIndex.model_validate_json(response_content)
 
 
 async def download_package_indexes(
-    dependencies: list[Dependency], http_client: AsyncClient, disable_cache: bool
+    dependencies: list[Dependency],
+    http_client: AsyncClient,
+    cache: Cache,
+    cache_ttl_seconds: float,
+    disable_cache: bool,
 ) -> list[PackageIndex | BaseException]:
     """Fetch package-index metadata concurrently.
 
     Args:
         dependencies: Dependencies to query.
         http_client: HTTP client.
+        cache: Cache instance for HTTP responses.
+        cache_ttl_seconds: Cache TTL in seconds.
         disable_cache: Whether caching is disabled.
 
     Returns:
         list[PackageIndex | BaseException]: Results or exceptions for each dependency.
     """
     tasks = [
-        _download_package_index(http_client, dep, disable_cache) for dep in dependencies
+        _download_package_index(
+            http_client, dep, cache, cache_ttl_seconds, disable_cache
+        )
+        for dep in dependencies
     ]
     return await asyncio.gather(*tasks, return_exceptions=True)

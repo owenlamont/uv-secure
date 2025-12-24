@@ -1,7 +1,9 @@
 import asyncio
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
 import re
 
+from cashews import Cache
 from httpx import AsyncClient
 from pydantic import BaseModel
 
@@ -131,14 +133,54 @@ def _build_request_headers(
     return headers
 
 
+async def _get_cached_response(
+    cache: Cache,
+    cache_key: str,
+    cache_ttl_seconds: float,
+    disable_cache: bool,
+    fetcher: Callable[[], Awaitable[bytes]],
+) -> bytes:
+    if disable_cache:
+        return await fetcher()
+
+    cached_value = await cache.get(cache_key)
+    if isinstance(cached_value, bytes):
+        return cached_value
+    if isinstance(cached_value, bytearray):
+        return bytes(cached_value)
+    if isinstance(cached_value, str):
+        return cached_value.encode()
+
+    lock_ttl_seconds = max(1, min(30, int(cache_ttl_seconds)))
+    lock_key = f"{cache_key}:lock"
+    async with cache.lock(lock_key, expire=lock_ttl_seconds):
+        cached_value = await cache.get(cache_key)
+        if isinstance(cached_value, bytes):
+            return cached_value
+        if isinstance(cached_value, bytearray):
+            return bytes(cached_value)
+        if isinstance(cached_value, str):
+            return cached_value.encode()
+
+        response_content = await fetcher()
+        await cache.set(cache_key, response_content, expire=cache_ttl_seconds)
+        return response_content
+
+
 async def _download_package(
-    http_client: AsyncClient, dependency: Dependency, disable_cache: bool
+    http_client: AsyncClient,
+    dependency: Dependency,
+    cache: Cache,
+    cache_ttl_seconds: float,
+    disable_cache: bool,
 ) -> PackageInfo:
     """Query the PyPI JSON API for vulnerabilities of a dependency.
 
     Args:
         http_client: HTTP client.
         dependency: Dependency to download.
+        cache: Cache instance for HTTP responses.
+        cache_ttl_seconds: Cache TTL in seconds.
         disable_cache: Whether caching is disabled.
 
     Returns:
@@ -146,25 +188,44 @@ async def _download_package(
     """
     canonical_name = canonicalize_name(dependency.name)
     url = f"https://pypi.org/pypi/{canonical_name}/{dependency.version}/json"
-    response = await http_client.get(url, headers=_build_request_headers(disable_cache))
-    response.raise_for_status()
-    package_info = PackageInfo.model_validate_json(response.content)
+    cache_key = f"pypi:json:{canonical_name}:{dependency.version}"
+
+    async def fetcher() -> bytes:
+        response = await http_client.get(
+            url, headers=_build_request_headers(disable_cache)
+        )
+        response.raise_for_status()
+        return response.content
+
+    response_content = await _get_cached_response(
+        cache, cache_key, cache_ttl_seconds, disable_cache, fetcher
+    )
+    package_info = PackageInfo.model_validate_json(response_content)
     package_info.direct_dependency = dependency.direct
     return package_info
 
 
 async def download_packages(
-    dependencies: list[Dependency], http_client: AsyncClient, disable_cache: bool
+    dependencies: list[Dependency],
+    http_client: AsyncClient,
+    cache: Cache,
+    cache_ttl_seconds: float,
+    disable_cache: bool,
 ) -> list[PackageInfo | BaseException]:
     """Fetch package metadata for all dependencies concurrently.
 
     Args:
         dependencies: Dependencies to download.
         http_client: HTTP client.
+        cache: Cache instance for HTTP responses.
+        cache_ttl_seconds: Cache TTL in seconds.
         disable_cache: Whether caching is disabled.
 
     Returns:
         list[PackageInfo | BaseException]: Metadata or exception per dependency.
     """
-    tasks = [_download_package(http_client, dep, disable_cache) for dep in dependencies]
+    tasks = [
+        _download_package(http_client, dep, cache, cache_ttl_seconds, disable_cache)
+        for dep in dependencies
+    ]
     return await asyncio.gather(*tasks, return_exceptions=True)
