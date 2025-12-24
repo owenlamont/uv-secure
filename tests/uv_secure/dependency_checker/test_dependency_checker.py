@@ -1,13 +1,8 @@
 import asyncio
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from pathlib import Path
 
 from anyio import Path as APath
-import anysqlite
-from hishel import AsyncSqliteStorage
-from hishel.httpx import AsyncCacheClient
-from httpx import AsyncClient, Headers
+from httpx import AsyncClient
 import pytest
 from pytest_httpx import HTTPXMock
 
@@ -16,28 +11,13 @@ from uv_secure.configuration import (
     MaintainabilityCriteria,
     VulnerabilityCriteria,
 )
-from uv_secure.dependency_checker import check_dependencies, USER_AGENT
+from uv_secure.dependency_checker import check_dependencies
 from uv_secure.dependency_checker.dependency_checker import (
     _check_global_uv_tool,
     _detect_uv_version,
     _extract_uv_version,
 )
 from uv_secure.output_models import DependencyOutput
-
-
-@asynccontextmanager
-async def cached_http_client() -> AsyncIterator[AsyncCacheClient]:
-    connection = await anysqlite.connect(":memory:")
-    storage = AsyncSqliteStorage(
-        connection=connection, default_ttl=86400.0, refresh_ttl_on_access=False
-    )
-    async with AsyncCacheClient(
-        timeout=10, storage=storage, headers=Headers({"User-Agent": USER_AGENT})
-    ) as http_client:
-        try:
-            yield http_client
-        finally:
-            await connection.close()
 
 
 @pytest.mark.asyncio
@@ -104,12 +84,12 @@ async def test_check_dependencies_alias_hyperlinks(
         },
     )
 
-    async with cached_http_client() as http_client:
+    async with AsyncClient() as http_client:
         result = await check_dependencies(
             APath(temp_uv_lock_file),
             Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),
             http_client,
-            True,
+            None,
         )
 
     # Verify structured output
@@ -163,12 +143,12 @@ async def test_check_dependencies_no_fix_versions(
         },
     )
 
-    async with cached_http_client() as http_client:
+    async with AsyncClient() as http_client:
         result = await check_dependencies(
             APath(temp_uv_lock_file),
             Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),
             http_client,
-            True,
+            None,
         )
 
     # Verify structured output
@@ -207,7 +187,7 @@ async def test_maintenance_issue_forbidden_status_triggers_issue(
         headers={"Content-Type": "application/vnd.pypi.simple.v1+json"},
     )
 
-    async with cached_http_client() as http_client:
+    async with AsyncClient() as http_client:
         if flag_field == "forbid_archived":
             maintain = MaintainabilityCriteria(forbid_archived=True)
         elif flag_field == "forbid_deprecated":
@@ -218,7 +198,7 @@ async def test_maintenance_issue_forbidden_status_triggers_issue(
             APath(temp_uv_lock_file),
             Configuration(maintainability_criteria=maintain),
             http_client,
-            True,
+            None,
         )
 
     # Verify structured output
@@ -245,9 +225,9 @@ async def test_maintenance_issue_not_reported_when_not_forbidden(
         headers={"Content-Type": "application/vnd.pypi.simple.v1+json"},
     )
 
-    async with cached_http_client() as http_client:
+    async with AsyncClient() as http_client:
         result = await check_dependencies(
-            APath(temp_uv_lock_file), Configuration(), http_client, True
+            APath(temp_uv_lock_file), Configuration(), http_client, None
         )
 
     # Verify structured output - no maintenance issues reported
@@ -269,14 +249,14 @@ async def test_maintenance_issue_forbidden_status_unknown_reason_shows_unknown(
         headers={"Content-Type": "application/vnd.pypi.simple.v1+json"},
     )
 
-    async with cached_http_client() as http_client:
+    async with AsyncClient() as http_client:
         result = await check_dependencies(
             APath(temp_uv_lock_file),
             Configuration(
                 maintainability_criteria=MaintainabilityCriteria(forbid_archived=True)
             ),
             http_client,
-            True,
+            None,
         )
 
     # Verify structured output
@@ -326,12 +306,12 @@ async def test_check_dependencies_no_aliases(
         },
     )
 
-    async with cached_http_client() as http_client:
+    async with AsyncClient() as http_client:
         result = await check_dependencies(
             APath(temp_uv_lock_file),
             Configuration(vulnerability_criteria=VulnerabilityCriteria(aliases=True)),
             http_client,
-            True,
+            None,
         )
 
     # Verify structured output
@@ -453,7 +433,7 @@ async def test_check_global_uv_returns_none_when_detection_fails(
     )
 
     async with AsyncClient() as client:
-        result = await _check_global_uv_tool(Configuration(), client, False)
+        result = await _check_global_uv_tool(Configuration(), client, None)
     assert result is None
 
 
@@ -490,7 +470,7 @@ async def test_check_global_uv_returns_none_when_metadata_skipped(
     )
 
     async with AsyncClient() as client:
-        result = await _check_global_uv_tool(Configuration(), client, False)
+        result = await _check_global_uv_tool(Configuration(), client, None)
     assert result is None
 
 
@@ -529,7 +509,7 @@ async def test_check_global_uv_returns_none_when_no_findings(
     )
 
     async with AsyncClient() as client:
-        result = await _check_global_uv_tool(Configuration(), client, False)
+        result = await _check_global_uv_tool(Configuration(), client, None)
     assert result is None
 
 
@@ -566,7 +546,7 @@ async def test_check_global_uv_returns_error_output_when_metadata_errors(
     )
 
     async with AsyncClient() as client:
-        result = await _check_global_uv_tool(Configuration(), client, False)
+        result = await _check_global_uv_tool(Configuration(), client, None)
     assert result is not None
     assert result.file_path == "uv (global tool)"
     assert result.error == "boom"

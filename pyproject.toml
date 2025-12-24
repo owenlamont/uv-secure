@@ -31,10 +31,10 @@ classifiers = [
 
 dependencies = [
     "anyio>=4.7.0",
-    "hishel[async]>=1.1.2",
     "httpx>=0.28.1",
     "humanize>=4.11.0",
     "inflect>=7.4.0",
+    "orjson>=3.11.5",
     "packaging>=25.0",
     "pydantic[email]>=2.10.3",
     "rich>=13.9.4",
