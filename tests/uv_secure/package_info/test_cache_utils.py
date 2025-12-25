@@ -41,6 +41,8 @@ async def test_get_cached_model_disable_cache_skips_store() -> None:
     def serializer(value: int) -> bytes:
         return str(value).encode()
 
+    assert serializer(42) == b"42"
+
     result = await get_cached_model(
         cache, "key:disabled", 10.0, True, fetcher, parser, serializer
     )
@@ -69,6 +71,10 @@ async def test_get_cached_model_cache_hit_uses_cached_value() -> None:
 
     def serializer(value: int) -> bytes:
         return str(value).encode()
+
+    await fetcher()
+    called = False
+    assert serializer(7) == b"7"
 
     result = await get_cached_model(
         cache, "key:hit", 10.0, False, fetcher, parser, serializer
@@ -204,6 +210,8 @@ async def test_close_cache_skips_missing_close_method() -> None:
     async def run_in_executor(_call: Callable[..., Any], *_args: Any) -> None:
         await asyncio.sleep(0)
         return
+
+    await run_in_executor(lambda: None)
 
     backend._run_in_executor = run_in_executor
     backend._cache = object()
