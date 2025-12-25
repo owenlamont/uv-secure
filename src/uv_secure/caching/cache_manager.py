@@ -1,11 +1,15 @@
 import asyncio
+from collections.abc import Awaitable, Callable
+import contextlib
+from dataclasses import dataclass
+import operator
 import sys
 import time
-from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, TypeVar
+from typing import Any, TypeVar
 
-import orjson
 from anyio import Path as APath
+import orjson
+
 
 T = TypeVar("T")
 
@@ -44,9 +48,7 @@ class CacheEntry:
 
 
 class CacheManager:
-    """
-    Two-tier cache manager (Memory + Disk) with stampede protection.
-    """
+    """Two-tier cache manager (Memory + Disk) with stampede protection."""
 
     def __init__(self, cache_dir: APath, ttl_seconds: float):
         self.memory_cache: dict[str, CacheEntry] = {}
@@ -66,12 +68,18 @@ class CacheManager:
         if entry:
             if time.time() < entry.expires_at:
                 return entry.data
-            else:
-                del self.memory_cache[key]
+            del self.memory_cache[key]
         return None
 
     def _resolve_path(self, key: str) -> APath:
-        """Resolve a cache key to a safe directory path."""
+        """Resolve a cache key to a safe directory path.
+
+        Args:
+            key: Cache key using forward slashes.
+
+        Returns:
+            APath: Safe directory path.
+        """
         parts = key.split("/")
         safe_parts = []
         for part in parts:
@@ -99,37 +107,26 @@ class CacheManager:
                 continue
 
             if now - ts > self.ttl_seconds:
-                try:
+                with contextlib.suppress(OSError):
                     await file_path.unlink()
-                except OSError as e:
-                    print(
-                        f"Failed to delete expired cache {file_path}: {e}",
-                        file=sys.stderr,
-                    )
                 continue
 
             candidates.append((ts, file_path))
 
         if not candidates:
-            try:
+            with contextlib.suppress(OSError):
                 await dir_path.rmdir()
-            except OSError:
-                pass
             return None
 
         # Sort by timestamp descending (newest first)
-        candidates.sort(key=lambda x: x[0], reverse=True)
+        candidates.sort(key=operator.itemgetter(0), reverse=True)
 
         best_ts, best_path = candidates[0]
 
         # Cleanup superseded files
         for _, path in candidates[1:]:
-            try:
+            with contextlib.suppress(OSError):
                 await path.unlink()
-            except OSError as e:
-                print(
-                    f"Failed to delete superseded cache {path}: {e}", file=sys.stderr
-                )
 
         try:
             content = await best_path.read_bytes()
@@ -153,6 +150,15 @@ class CacheManager:
     async def get_or_compute(
         self, key: str, coro_func: Callable[[], Awaitable[Any]]
     ) -> Any:
+        """Get data from cache or compute it using the provided coroutine.
+
+        Args:
+            key: Unique cache key.
+            coro_func: Coroutine function to fetch data if not cached.
+
+        Returns:
+            Any: The cached or computed data.
+        """
         # 1. Check Memory
         data = self._get_from_memory(key)
         if data is not None:
