@@ -185,7 +185,7 @@ def main(
     check_uv_tool: bool | None = _check_uv_tool_option,
 ) -> None:
     """Parse dependency manifests and display vulnerability summaries."""  # noqa: DOC501
-    # Use uvloop or winloop if present
+    # Use uvloop or winloop if present (uvloop triggers deprecations on Python 3.14)
     try:
         if sys.platform in {"win32", "cygwin", "cli"}:
             from winloop import run  # type: ignore[import-not-found, unused-ignore]
