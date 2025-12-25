@@ -1,5 +1,4 @@
 import asyncio
-from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
 import re
 
@@ -7,6 +6,7 @@ from cashews import Cache
 from httpx import AsyncClient
 from pydantic import BaseModel
 
+from uv_secure.package_info.cache_utils import get_cached_model
 from uv_secure.package_info.dependency_file_parser import Dependency
 
 
@@ -133,40 +133,6 @@ def _build_request_headers(
     return headers
 
 
-async def _get_cached_response(
-    cache: Cache,
-    cache_key: str,
-    cache_ttl_seconds: float,
-    disable_cache: bool,
-    fetcher: Callable[[], Awaitable[bytes]],
-) -> bytes:
-    if disable_cache:
-        return await fetcher()
-
-    cached_value = await cache.get(cache_key)
-    if isinstance(cached_value, bytes):
-        return cached_value
-    if isinstance(cached_value, bytearray):
-        return bytes(cached_value)
-    if isinstance(cached_value, str):
-        return cached_value.encode()
-
-    lock_ttl_seconds = max(1, min(30, int(cache_ttl_seconds)))
-    lock_key = f"{cache_key}:lock"
-    async with cache.lock(lock_key, expire=lock_ttl_seconds):
-        cached_value = await cache.get(cache_key)
-        if isinstance(cached_value, bytes):
-            return cached_value
-        if isinstance(cached_value, bytearray):
-            return bytes(cached_value)
-        if isinstance(cached_value, str):
-            return cached_value.encode()
-
-        response_content = await fetcher()
-        await cache.set(cache_key, response_content, expire=cache_ttl_seconds)
-        return response_content
-
-
 async def _download_package(
     http_client: AsyncClient,
     dependency: Dependency,
@@ -197,10 +163,15 @@ async def _download_package(
         response.raise_for_status()
         return response.content
 
-    response_content = await _get_cached_response(
-        cache, cache_key, cache_ttl_seconds, disable_cache, fetcher
+    package_info = await get_cached_model(
+        cache,
+        cache_key,
+        cache_ttl_seconds,
+        disable_cache,
+        fetcher,
+        PackageInfo.model_validate_json,
+        lambda model: model.model_dump_json(by_alias=True).encode(),
     )
-    package_info = PackageInfo.model_validate_json(response_content)
     package_info.direct_dependency = dependency.direct
     return package_info
 

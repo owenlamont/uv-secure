@@ -46,6 +46,7 @@ from uv_secure.package_info import (
     ProjectState,
     Vulnerability,
 )
+from uv_secure.package_info.cache_utils import close_cache, configure_diskcache_backend
 
 
 USER_AGENT = f"uv-secure/{__version__} (contact: owenrlamont@gmail.com)"
@@ -634,6 +635,7 @@ async def _build_cache(cache_path: Path, disable_cache: bool) -> Cache:
     cache_apath = APath(cache_path)
     await cache_apath.mkdir(parents=True, exist_ok=True)
     cache.setup("disk://", directory=str(cache_path), shards=0)
+    configure_diskcache_backend(cache)
     return cache
 
 
@@ -779,7 +781,7 @@ async def check_lock_files(
                 disable_cache,
             )
     finally:
-        await cache.close()
+        await close_cache(cache)
 
     # Build scan results output
     scan_results = ScanResultsOutput(files=file_results)
