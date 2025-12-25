@@ -78,7 +78,7 @@ async def test_get_or_compute_loads_from_disk(cache_dir: APath) -> None:
 
     calls = 0
 
-    async def fetch() -> dict[str, str]:
+    async def fetch() -> dict[str, str]:  # pragma: no cover
         nonlocal calls
         calls += 1
         await asyncio.sleep(0)
@@ -273,7 +273,7 @@ async def test_get_from_disk_superseded_cleanup(cache_dir: APath) -> None:
 
     cm = CacheManager(cache_dir, ttl_seconds=100.0)
 
-    async def fetch() -> str:
+    async def fetch() -> str:  # pragma: no cover
         await asyncio.sleep(0)
         return "fetch"
 
