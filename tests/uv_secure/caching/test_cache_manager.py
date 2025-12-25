@@ -20,11 +20,6 @@ def cache_manager(cache_dir: APath) -> CacheManager:
     return CacheManager(cache_dir, ttl_seconds=1.0)
 
 
-async def _fetch_helper(value: Any) -> Any:
-    await asyncio.sleep(0)
-    return value
-
-
 @pytest.mark.asyncio
 async def test_get_or_compute_fetches_and_caches_in_memory(
     cache_manager: CacheManager,
@@ -243,3 +238,94 @@ async def test_reserved_filenames(
     # And we can read it back
     result = await cache_manager.get_or_compute("info/CON/1.0", fetch)
     assert result == "data"
+
+
+@pytest.mark.asyncio
+async def test_get_from_disk_invalid_filename(cache_dir: APath) -> None:
+    dir_path = cache_dir / "invalid_name"
+    await dir_path.mkdir(parents=True, exist_ok=True)
+    file_path = dir_path / "not-a-float.json"
+    await file_path.write_bytes(orjson.dumps("data"))
+
+    cm = CacheManager(cache_dir, ttl_seconds=1.0)
+
+    async def fetch() -> str:
+        await asyncio.sleep(0)
+        return "fresh"
+
+    # Should ignore file with invalid name and fetch
+    result = await cm.get_or_compute("invalid_name", fetch)
+    assert result == "fresh"
+
+
+@pytest.mark.asyncio
+async def test_get_from_disk_superseded_cleanup(cache_dir: APath) -> None:
+    dir_path = cache_dir / "superseded"
+    await dir_path.mkdir(parents=True, exist_ok=True)
+
+    ts1 = time.time() - 10
+    ts2 = time.time() - 5
+    ts3 = time.time()
+
+    await (dir_path / f"{ts1}.json").write_bytes(orjson.dumps("oldest"))
+    await (dir_path / f"{ts2}.json").write_bytes(orjson.dumps("older"))
+    await (dir_path / f"{ts3}.json").write_bytes(orjson.dumps("newest"))
+
+    cm = CacheManager(cache_dir, ttl_seconds=100.0)
+
+    async def fetch() -> str:
+        await asyncio.sleep(0)
+        return "fetch"
+
+    result = await cm.get_or_compute("superseded", fetch)
+    assert result == "newest"
+
+    # Verify older files were cleaned up
+    files = [p async for p in dir_path.iterdir()]
+    assert len(files) == 1
+    assert files[0].name == f"{ts3}.json"
+
+
+@pytest.mark.asyncio
+async def test_get_from_disk_read_error(
+    cache_dir: APath, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dir_path = cache_dir / "read_error"
+    await dir_path.mkdir(parents=True, exist_ok=True)
+    ts = time.time()
+    file_path = dir_path / f"{ts}.json"
+    await file_path.write_bytes(orjson.dumps("data"))
+
+    cm = CacheManager(cache_dir, ttl_seconds=1.0)
+
+    async def fail_read(*args: Any, **kwargs: Any) -> bytes:
+        await asyncio.sleep(0)
+        raise OSError("Read failed")
+
+    monkeypatch.setattr(APath, "read_bytes", fail_read)
+
+    async def fetch() -> str:
+        await asyncio.sleep(0)
+        return "fresh"
+
+    # Should handle read error and return None from disk, then fetch
+    result = await cm.get_or_compute("read_error", fetch)
+    assert result == "fresh"
+
+
+@pytest.mark.asyncio
+async def test_get_from_disk_skips_non_json(cache_dir: APath) -> None:
+    dir_path = cache_dir / "non_json"
+    await dir_path.mkdir(parents=True, exist_ok=True)
+    file_path = dir_path / "extra.txt"
+    await file_path.write_bytes(b"data")
+
+    cm = CacheManager(cache_dir, ttl_seconds=1.0)
+
+    async def fetch() -> str:
+        await asyncio.sleep(0)
+        return "fresh"
+
+    # Should ignore extra.txt and fetch
+    result = await cm.get_or_compute("non_json", fetch)
+    assert result == "fresh"
