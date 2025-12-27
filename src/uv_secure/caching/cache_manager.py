@@ -1,17 +1,19 @@
 import asyncio
 from collections.abc import Awaitable, Callable
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 import sqlite3
-import sys
 import time
-from typing import Any, TypeVar
+from typing import Any
 
 import orjson
+import stamina
 
 
-T = TypeVar("T")
+class SqliteLockedError(RuntimeError):
+    """Raised when SQLite is locked or busy and should be retried."""
 
 
 @dataclass
@@ -48,7 +50,7 @@ class CacheManager:
         """Create the cache table if it doesn't exist (run in executor)."""
         # Ensure parent exists (this might be redundant if caller did it, but safe)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(str(self.db_path)) as conn:
+        with closing(sqlite3.connect(str(self.db_path), timeout=10.0)) as conn:
             conn.execute(
                 "CREATE TABLE IF NOT EXISTS cache "
                 "(key TEXT PRIMARY KEY, data BLOB, expires_at REAL)"
@@ -74,64 +76,76 @@ class CacheManager:
         return None
 
     async def _get_from_disk(self, key: str) -> tuple[Any, float] | None:
-        def _get() -> tuple[Any, float] | None:
-            now = time.time()
-            try:
-                with sqlite3.connect(str(self.db_path), timeout=10.0) as conn:
-                    cursor = conn.execute(
-                        "SELECT data, expires_at FROM cache WHERE key = ?", (key,)
-                    )
-                    row = cursor.fetchone()
-
-                    if row:
-                        _data_blob, expires_at = row
-                        # Lazy expiry check
-                        if now > expires_at:
-                            conn.execute("DELETE FROM cache WHERE key = ?", (key,))
-                            conn.commit()
-                            return None
-                        # mypy doesn't know row structure from sqlite3
-                        return row  # type: ignore[no-any-return]
-                    return None
-            except sqlite3.Error as e:
-                print(f"SQLite error reading key {key}: {e}", file=sys.stderr)
-                return None
-
         loop = asyncio.get_running_loop()
-        row = await loop.run_in_executor(self._executor, _get)
+        row = await loop.run_in_executor(self._executor, self._get_from_disk_sync, key)
 
-        if not row:
+        if row is None:
             return None
 
-        if not isinstance(row, tuple) or len(row) != 2:
-            return None
+        data, expires_at = row
+        return data, expires_at
 
-        data_blob, expires_at = row
+    def _get_from_disk_sync(self, key: str) -> tuple[Any, float] | None:
+        now = time.time()
+        return self._read_row_sync(key, now)
+
+    @stamina.retry(on=SqliteLockedError, attempts=3)
+    def _read_row_sync(self, key: str, now: float) -> tuple[Any, float] | None:
         try:
-            data = orjson.loads(data_blob)
-            return data, float(expires_at)
-        except Exception as e:
-            print(f"Failed to load cache for key {key}: {e}", file=sys.stderr)
-            return None
+            # Explicit open/close to avoid ResourceWarning
+            with closing(sqlite3.connect(str(self.db_path), timeout=10.0)) as conn:
+                row = conn.execute(
+                    "SELECT data, expires_at FROM cache WHERE key = ?", (key,)
+                ).fetchone()
+                if row is None:
+                    return None
+
+                data_blob, expires_at = row
+                if now > expires_at:
+                    conn.execute("DELETE FROM cache WHERE key = ?", (key,))
+                    conn.commit()
+                    return None
+
+                try:
+                    data = orjson.loads(data_blob)
+                except orjson.JSONDecodeError:
+                    conn.execute("DELETE FROM cache WHERE key = ?", (key,))
+                    conn.commit()
+                    return None
+
+                return data, float(expires_at)
+        except sqlite3.OperationalError as exc:
+            if self._is_lock_error(exc):
+                raise SqliteLockedError(str(exc)) from exc
+            raise
 
     async def _write_to_disk(self, key: str, data: Any, expires_at: float) -> None:
         def _write() -> None:
-            try:
-                data_blob = orjson.dumps(data)
-                with sqlite3.connect(str(self.db_path), timeout=10.0) as conn:
-                    conn.execute(
-                        "INSERT OR REPLACE INTO cache (key, data, expires_at) "
-                        "VALUES (?, ?, ?)",
-                        (key, data_blob, expires_at),
-                    )
-                    conn.commit()
-            except sqlite3.Error as e:
-                print(f"SQLite error writing key {key}: {e}", file=sys.stderr)
-            except Exception as e:
-                print(f"Failed to write cache for key {key}: {e}", file=sys.stderr)
+            self._write_row_sync(key, data, expires_at)
 
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(self._executor, _write)
+
+    @stamina.retry(on=SqliteLockedError, attempts=3)
+    def _write_row_sync(self, key: str, data: Any, expires_at: float) -> None:
+        try:
+            data_blob = orjson.dumps(data)
+            with closing(sqlite3.connect(str(self.db_path), timeout=10.0)) as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO cache (key, data, expires_at) "
+                    "VALUES (?, ?, ?)",
+                    (key, data_blob, expires_at),
+                )
+                conn.commit()
+        except sqlite3.OperationalError as exc:
+            if self._is_lock_error(exc):
+                raise SqliteLockedError(str(exc)) from exc
+            raise
+
+    @staticmethod
+    def _is_lock_error(exc: sqlite3.OperationalError) -> bool:
+        message = str(exc).lower()
+        return "database is locked" in message or "database table is locked" in message
 
     async def get_or_compute(
         self, key: str, coro_func: Callable[[], Awaitable[Any]]

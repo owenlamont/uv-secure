@@ -1,5 +1,6 @@
 import asyncio
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
+from contextlib import closing
 from pathlib import Path
 import sqlite3
 import time
@@ -9,6 +10,7 @@ from anyio import Path as APath
 import orjson
 import pytest
 import pytest_asyncio
+import stamina
 
 from uv_secure.caching.cache_manager import CacheManager
 
@@ -61,7 +63,7 @@ async def test_get_or_compute_persists_to_sqlite(
     db_path = cache_dir / "cache.db"
     assert db_path.exists()
 
-    with sqlite3.connect(str(db_path)) as conn:
+    with closing(sqlite3.connect(str(db_path))) as conn:
         row = conn.execute("SELECT data FROM cache WHERE key = 'persist'").fetchone()
         assert row is not None
         assert orjson.loads(row[0]) == {"data": "persistent"}
@@ -72,7 +74,7 @@ async def test_get_or_compute_loads_from_sqlite(cache_dir: Path) -> None:
     # Pre-populate SQLite
     db_path = cache_dir / "cache.db"
     await APath(cache_dir).mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(str(db_path)) as conn:
+    with closing(sqlite3.connect(str(db_path))) as conn:
         conn.execute(
             "CREATE TABLE cache (key TEXT PRIMARY KEY, data BLOB, expires_at REAL)"
         )
@@ -152,7 +154,7 @@ async def test_sqlite_cache_expiry(cache_dir: Path) -> None:
     # Populate expired entry
     db_path = cache_dir / "cache.db"
     await APath(cache_dir).mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(str(db_path)) as conn:
+    with closing(sqlite3.connect(str(db_path))) as conn:
         conn.execute(
             "CREATE TABLE cache (key TEXT PRIMARY KEY, data BLOB, expires_at REAL)"
         )
@@ -178,7 +180,7 @@ async def test_sqlite_cache_expiry(cache_dir: Path) -> None:
         assert calls == 1
 
         # Check if old entry was replaced/updated
-        with sqlite3.connect(str(db_path)) as conn:
+        with closing(sqlite3.connect(str(db_path))) as conn:
             row = conn.execute(
                 "SELECT data FROM cache WHERE key = 'expired'"
             ).fetchone()
@@ -192,7 +194,7 @@ async def test_sqlite_cache_expiry(cache_dir: Path) -> None:
 async def test_read_from_sqlite_corrupt_handling(cache_dir: Path) -> None:
     db_path = cache_dir / "cache.db"
     await APath(cache_dir).mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(str(db_path)) as conn:
+    with closing(sqlite3.connect(str(db_path))) as conn:
         conn.execute(
             "CREATE TABLE cache (key TEXT PRIMARY KEY, data BLOB, expires_at REAL)"
         )
@@ -218,25 +220,103 @@ async def test_read_from_sqlite_corrupt_handling(cache_dir: Path) -> None:
         await cm.close()
 
 
-@pytest.mark.asyncio
-async def test_write_to_sqlite_error_handling(
-    cache_manager: CacheManager,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+def test_init_db_raises_for_unhandled_sqlite_error(
+    cache_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def fail_connect(*args: Any, **kwargs: Any) -> None:
-        raise sqlite3.Error("Database locked")
+        raise sqlite3.OperationalError("disk I/O error")
 
-    # Mock sqlite3.connect to simulate database locked error
     monkeypatch.setattr(sqlite3, "connect", fail_connect)
+    cm = CacheManager(cache_dir, ttl_seconds=1.0)
+    with pytest.raises(sqlite3.OperationalError, match="disk I/O error"):
+        cm._init_db_sync()
 
-    async def fetch() -> str:
-        await asyncio.sleep(0)
-        return "data"
 
-    # Should not raise exception, but should print error to stderr
-    await cache_manager.get_or_compute("write_fail", fetch)
+@pytest.mark.asyncio
+async def test_read_row_retries_on_database_locked(
+    cache_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path = cache_dir / "cache.db"
+    await APath(cache_dir).mkdir(parents=True, exist_ok=True)
+    expires_at = time.time() + 100
+    with closing(sqlite3.connect(str(db_path))) as conn:
+        conn.execute(
+            "CREATE TABLE cache (key TEXT PRIMARY KEY, data BLOB, expires_at REAL)"
+        )
+        conn.execute(
+            "INSERT INTO cache (key, data, expires_at) VALUES (?, ?, ?)",
+            ("db_hit", orjson.dumps({"from": "db"}), expires_at),
+        )
+        conn.commit()
 
-    # Verify stderr output
-    captured = capsys.readouterr()
-    assert "SQLite error writing key write_fail: Database locked" in captured.err
+    cm = CacheManager(cache_dir, ttl_seconds=1.0)
+    await cm.init()
+    real_connect: Callable[..., sqlite3.Connection] = sqlite3.connect
+    calls = 0
+
+    def flaky_connect(*args: Any, **kwargs: Any) -> sqlite3.Connection:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise sqlite3.OperationalError("database is locked")
+        return real_connect(*args, **kwargs)
+
+    monkeypatch.setattr(sqlite3, "connect", flaky_connect)
+    try:
+        with stamina.set_testing(True, attempts=3, cap=True):
+            row = cm._read_row_sync("db_hit", time.time())
+        assert row is not None
+        data, row_expires_at = row
+        assert data == {"from": "db"}
+        assert row_expires_at == pytest.approx(expires_at)
+        assert calls >= 2
+    finally:
+        await cm.close()
+
+
+def test_read_row_raises_for_non_lock_operational_error(
+    cache_manager: CacheManager, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail_connect(*args: Any, **kwargs: Any) -> None:
+        raise sqlite3.OperationalError("disk I/O error")
+
+    monkeypatch.setattr(sqlite3, "connect", fail_connect)
+    with pytest.raises(sqlite3.OperationalError, match="disk I/O error"):
+        cache_manager._read_row_sync("missing", time.time())
+
+
+def test_write_row_retries_on_database_table_locked(
+    cache_manager: CacheManager, cache_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real_connect: Callable[..., sqlite3.Connection] = sqlite3.connect
+    calls = 0
+
+    def flaky_connect(*args: Any, **kwargs: Any) -> sqlite3.Connection:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise sqlite3.OperationalError("database table is locked")
+        return real_connect(*args, **kwargs)
+
+    monkeypatch.setattr(sqlite3, "connect", flaky_connect)
+    expires_at = time.time() + 100
+    with stamina.set_testing(True, attempts=3, cap=True):
+        cache_manager._write_row_sync("write_lock", {"ok": True}, expires_at)
+
+    db_path = cache_dir / "cache.db"
+    with closing(sqlite3.connect(str(db_path))) as conn:
+        row = conn.execute("SELECT data FROM cache WHERE key = 'write_lock'").fetchone()
+        assert row is not None
+        assert orjson.loads(row[0]) == {"ok": True}
+    assert calls >= 2
+
+
+def test_write_row_raises_for_non_lock_operational_error(
+    cache_manager: CacheManager, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail_connect(*args: Any, **kwargs: Any) -> None:
+        raise sqlite3.OperationalError("disk I/O error")
+
+    monkeypatch.setattr(sqlite3, "connect", fail_connect)
+    with pytest.raises(sqlite3.OperationalError, match="disk I/O error"):
+        cache_manager._write_row_sync("write_fail", {"nope": True}, time.time())
