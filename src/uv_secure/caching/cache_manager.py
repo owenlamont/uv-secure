@@ -1,44 +1,17 @@
 import asyncio
 from collections.abc import Awaitable, Callable
-import contextlib
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-import operator
+from pathlib import Path
+import sqlite3
 import sys
 import time
 from typing import Any, TypeVar
 
-from anyio import Path as APath
 import orjson
 
 
 T = TypeVar("T")
-
-# Reserved filenames on Windows that cannot be used as directory or file names
-# regardless of extension.
-RESERVED_NAMES = {
-    "CON",
-    "PRN",
-    "AUX",
-    "NUL",
-    "COM1",
-    "COM2",
-    "COM3",
-    "COM4",
-    "COM5",
-    "COM6",
-    "COM7",
-    "COM8",
-    "COM9",
-    "LPT1",
-    "LPT2",
-    "LPT3",
-    "LPT4",
-    "LPT5",
-    "LPT6",
-    "LPT7",
-    "LPT8",
-    "LPT9",
-}
 
 
 @dataclass
@@ -48,14 +21,43 @@ class CacheEntry:
 
 
 class CacheManager:
-    """Two-tier cache manager (Memory + Disk) with stampede protection."""
+    """Two-tier cache manager (Memory + SQLite) with stampede protection."""
 
-    def __init__(self, cache_dir: APath, ttl_seconds: float):
+    def __init__(self, cache_dir: Path, ttl_seconds: float):
         self.memory_cache: dict[str, CacheEntry] = {}
         self.cache_dir = cache_dir
+        self.db_path = cache_dir / "cache.db"
         self.ttl_seconds = ttl_seconds
         self._locks: dict[str, asyncio.Lock] = {}
         self._locks_lock = asyncio.Lock()
+
+        # Allow multiple workers for concurrency
+        # SQLite connection overhead is low, so we open/close per task to ensure safety
+        # and avoid thread-local leak issues.
+        self._max_workers = 4
+        self._executor = ThreadPoolExecutor(
+            max_workers=self._max_workers, thread_name_prefix="uv-secure-sqlite"
+        )
+
+    async def init(self) -> None:
+        """Initialize the database asynchronously."""
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(self._executor, self._init_db_sync)
+
+    def _init_db_sync(self) -> None:
+        """Create the cache table if it doesn't exist (run in executor)."""
+        # Ensure parent exists (this might be redundant if caller did it, but safe)
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(str(self.db_path)) as conn:
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS cache "
+                "(key TEXT PRIMARY KEY, data BLOB, expires_at REAL)"
+            )
+            # Use WAL mode for better concurrency and performance
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_expires_at ON cache(expires_at)"
+            )
 
     async def _get_lock(self, key: str) -> asyncio.Lock:
         async with self._locks_lock:
@@ -71,81 +73,65 @@ class CacheManager:
             del self.memory_cache[key]
         return None
 
-    def _resolve_path(self, key: str) -> APath:
-        """Resolve a cache key to a safe directory path.
-
-        Args:
-            key: Cache key using forward slashes.
-
-        Returns:
-            APath: Safe directory path.
-        """
-        parts = key.split("/")
-        safe_parts = []
-        for part in parts:
-            # Handle reserved names by appending an underscore
-            if part.upper() in RESERVED_NAMES:
-                safe_parts.append(f"{part}_")
-            else:
-                safe_parts.append(part)
-        return self.cache_dir.joinpath(*safe_parts)
-
     async def _get_from_disk(self, key: str) -> tuple[Any, float] | None:
-        dir_path = self._resolve_path(key)
-        if not await dir_path.is_dir():
-            return None
-
-        candidates: list[tuple[float, APath]] = []
-        now = time.time()
-
-        async for file_path in dir_path.iterdir():
-            if file_path.suffix != ".json":
-                continue
+        def _get() -> tuple[Any, float] | None:
+            now = time.time()
             try:
-                ts = float(file_path.stem)
-            except ValueError:
-                continue
+                with sqlite3.connect(str(self.db_path), timeout=10.0) as conn:
+                    cursor = conn.execute(
+                        "SELECT data, expires_at FROM cache WHERE key = ?", (key,)
+                    )
+                    row = cursor.fetchone()
 
-            if now - ts > self.ttl_seconds:
-                with contextlib.suppress(OSError):
-                    await file_path.unlink()
-                continue
+                    if row:
+                        _data_blob, expires_at = row
+                        # Lazy expiry check
+                        if now > expires_at:
+                            conn.execute("DELETE FROM cache WHERE key = ?", (key,))
+                            conn.commit()
+                            return None
+                        # mypy doesn't know row structure from sqlite3
+                        return row  # type: ignore[no-any-return]
+                    return None
+            except sqlite3.Error as e:
+                print(f"SQLite error reading key {key}: {e}", file=sys.stderr)
+                return None
 
-            candidates.append((ts, file_path))
+        loop = asyncio.get_running_loop()
+        row = await loop.run_in_executor(self._executor, _get)
 
-        if not candidates:
-            with contextlib.suppress(OSError):
-                await dir_path.rmdir()
+        if not row:
             return None
 
-        # Sort by timestamp descending (newest first)
-        candidates.sort(key=operator.itemgetter(0), reverse=True)
-
-        best_ts, best_path = candidates[0]
-
-        # Cleanup superseded files
-        for _, path in candidates[1:]:
-            with contextlib.suppress(OSError):
-                await path.unlink()
-
-        try:
-            content = await best_path.read_bytes()
-            data = orjson.loads(content)
-            return data, best_ts + self.ttl_seconds
-        except Exception as e:
-            print(f"Failed to read cache {best_path}: {e}", file=sys.stderr)
+        if not isinstance(row, tuple) or len(row) != 2:
             return None
 
-    async def _write_to_disk(self, key: str, data: Any) -> None:
-        dir_path = self._resolve_path(key)
+        data_blob, expires_at = row
         try:
-            await dir_path.mkdir(parents=True, exist_ok=True)
-            ts = time.time()
-            file_path = dir_path / f"{ts}.json"
-            content = orjson.dumps(data)
-            await file_path.write_bytes(content)
+            data = orjson.loads(data_blob)
+            return data, float(expires_at)
         except Exception as e:
-            print(f"Failed to write cache file {dir_path}: {e}", file=sys.stderr)
+            print(f"Failed to load cache for key {key}: {e}", file=sys.stderr)
+            return None
+
+    async def _write_to_disk(self, key: str, data: Any, expires_at: float) -> None:
+        def _write() -> None:
+            try:
+                data_blob = orjson.dumps(data)
+                with sqlite3.connect(str(self.db_path), timeout=10.0) as conn:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO cache (key, data, expires_at) "
+                        "VALUES (?, ?, ?)",
+                        (key, data_blob, expires_at),
+                    )
+                    conn.commit()
+            except sqlite3.Error as e:
+                print(f"SQLite error writing key {key}: {e}", file=sys.stderr)
+            except Exception as e:
+                print(f"Failed to write cache for key {key}: {e}", file=sys.stderr)
+
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(self._executor, _write)
 
     async def get_or_compute(
         self, key: str, coro_func: Callable[[], Awaitable[Any]]
@@ -164,7 +150,7 @@ class CacheManager:
         if data is not None:
             return data
 
-        # 2. Check Disk
+        # 2. Check Disk (SQLite)
         disk_result = await self._get_from_disk(key)
         if disk_result is not None:
             data, expires_at = disk_result
@@ -187,6 +173,10 @@ class CacheManager:
             self.memory_cache[key] = CacheEntry(data=result, expires_at=expires_at)
 
             # We await the disk write to ensure it persists
-            await self._write_to_disk(key, result)
+            await self._write_to_disk(key, result, expires_at)
 
             return result
+
+    async def close(self) -> None:
+        """Shut down the executor."""
+        self._executor.shutdown(wait=True)

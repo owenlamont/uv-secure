@@ -614,10 +614,10 @@ async def _build_http_client(
     if disable_cache:
         return AsyncClient(timeout=10, headers=client_headers), None
 
-    cache_apath = APath(cache_path)
-    await cache_apath.mkdir(parents=True, exist_ok=True)
+    await APath(cache_path).mkdir(parents=True, exist_ok=True)
 
-    cache_manager = CacheManager(cache_apath, cache_ttl_seconds)
+    cache_manager = CacheManager(cache_path, cache_ttl_seconds)
+    await cache_manager.init()
     client = AsyncClient(timeout=10, headers=client_headers)
     return client, cache_manager
 
@@ -745,10 +745,14 @@ async def check_lock_files(
         cache_path, cache_ttl_seconds, disable_cache, client_headers, console
     )
 
-    async with http_client:
-        file_results = await _evaluate_dependency_files(
-            file_apaths, lock_to_config_map, http_client, cache_manager
-        )
+    try:
+        async with http_client:
+            file_results = await _evaluate_dependency_files(
+                file_apaths, lock_to_config_map, http_client, cache_manager
+            )
+    finally:
+        if cache_manager is not None:
+            await cache_manager.close()
 
     # Build scan results output
     scan_results = ScanResultsOutput(files=file_results)
