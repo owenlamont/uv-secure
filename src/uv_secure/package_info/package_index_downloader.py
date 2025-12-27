@@ -1,9 +1,11 @@
 import asyncio
 from enum import Enum
+from typing import Any
 
 from httpx import AsyncClient
 from pydantic import BaseModel, ConfigDict, Field
 
+from uv_secure.caching.cache_manager import CacheManager
 from uv_secure.package_info.dependency_file_parser import Dependency
 from uv_secure.package_utils import canonicalize_name
 
@@ -38,18 +40,18 @@ class PackageIndex(BaseModel):
 
 
 def _build_request_headers(
-    disable_cache: bool, base_headers: dict[str, str] | None = None
+    cache_manager: CacheManager | None, base_headers: dict[str, str] | None = None
 ) -> dict[str, str] | None:
     """Construct request headers respecting cache settings.
 
     Args:
-        disable_cache: Whether caching is disabled.
+        cache_manager: Cache manager.
         base_headers: Headers to extend.
 
     Returns:
         dict[str, str] | None: Headers with cache directives when needed.
     """
-    if not disable_cache:
+    if cache_manager is not None:
         return base_headers
     headers: dict[str, str] = {} if base_headers is None else dict(base_headers)
     headers.setdefault("Cache-Control", "no-cache, no-store")
@@ -57,42 +59,56 @@ def _build_request_headers(
 
 
 async def _download_package_index(
-    http_client: AsyncClient, dependency: Dependency, disable_cache: bool
+    http_client: AsyncClient, dependency: Dependency, cache_manager: CacheManager | None
 ) -> PackageIndex:
     """Query the PyPI Simple JSON API for dependency status.
 
     Args:
         http_client: HTTP client.
         dependency: Dependency to query.
-        disable_cache: Whether caching is disabled.
+        cache_manager: Cache manager.
 
     Returns:
         PackageIndex: Parsed metadata for the dependency.
     """
     canonical_name = canonicalize_name(dependency.name)
-    url = f"https://pypi.org/simple/{canonical_name}/"
-    headers = _build_request_headers(
-        disable_cache, {"Accept": "application/vnd.pypi.simple.v1+json"}
-    )
-    response = await http_client.get(url, headers=headers)
-    response.raise_for_status()
-    return PackageIndex.model_validate_json(response.content)
+
+    async def fetch_from_api() -> dict[str, Any]:
+        url = f"https://pypi.org/simple/{canonical_name}/"
+        headers = _build_request_headers(
+            cache_manager, {"Accept": "application/vnd.pypi.simple.v1+json"}
+        )
+        response = await http_client.get(url, headers=headers)
+        response.raise_for_status()
+        data: dict[str, Any] = response.json()
+        # Parse and dump to ensure we only cache the fields we need
+        return PackageIndex.model_validate(data).model_dump(mode="json", by_alias=True)
+
+    if cache_manager:
+        key = f"index/{canonical_name}"
+        data = await cache_manager.get_or_compute(key, fetch_from_api)
+    else:
+        data = await fetch_from_api()
+
+    return PackageIndex.model_validate(data)
 
 
 async def download_package_indexes(
-    dependencies: list[Dependency], http_client: AsyncClient, disable_cache: bool
+    dependencies: list[Dependency],
+    http_client: AsyncClient,
+    cache_manager: CacheManager | None,
 ) -> list[PackageIndex | BaseException]:
     """Fetch package-index metadata concurrently.
 
     Args:
         dependencies: Dependencies to query.
         http_client: HTTP client.
-        disable_cache: Whether caching is disabled.
+        cache_manager: Cache manager.
 
     Returns:
         list[PackageIndex | BaseException]: Results or exceptions for each dependency.
     """
     tasks = [
-        _download_package_index(http_client, dep, disable_cache) for dep in dependencies
+        _download_package_index(http_client, dep, cache_manager) for dep in dependencies
     ]
     return await asyncio.gather(*tasks, return_exceptions=True)
