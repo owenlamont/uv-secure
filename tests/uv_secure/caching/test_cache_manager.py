@@ -106,6 +106,43 @@ async def test_get_or_compute_loads_from_sqlite(cache_dir: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_init_recreates_db_on_schema_mismatch(cache_dir: Path) -> None:
+    db_path = cache_dir / "cache.db"
+    await APath(cache_dir).mkdir(parents=True, exist_ok=True)
+    with closing(sqlite3.connect(str(db_path))) as conn:
+        conn.execute("CREATE TABLE cache (key TEXT PRIMARY KEY, data BLOB)")
+        conn.execute(
+            "INSERT INTO cache (key, data) VALUES (?, ?)",
+            ("old", orjson.dumps({"from": "old"})),
+        )
+        conn.commit()
+
+    cm = CacheManager(cache_dir, ttl_seconds=1.0)
+    await cm.init()
+    try:
+        with closing(sqlite3.connect(str(db_path))) as conn:
+            columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(cache)").fetchall()
+            }
+            assert columns == {"key", "data", "expires_at"}
+            old_row = conn.execute(
+                "SELECT data FROM cache WHERE key = 'old'"
+            ).fetchone()
+            assert old_row is None
+
+        await cm.get_or_compute("fresh", lambda: asyncio.sleep(0, result="ok"))
+        await cm.init()
+        with closing(sqlite3.connect(str(db_path))) as conn:
+            fresh_row = conn.execute(
+                "SELECT data FROM cache WHERE key = 'fresh'"
+            ).fetchone()
+            assert fresh_row is not None
+            assert orjson.loads(fresh_row[0]) == "ok"
+    finally:
+        await cm.close()
+
+
+@pytest.mark.asyncio
 async def test_ttl_expiry(cache_manager: CacheManager) -> None:
     cache_manager.ttl_seconds = 0.1
 

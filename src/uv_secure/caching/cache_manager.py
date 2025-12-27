@@ -50,11 +50,29 @@ class CacheManager:
         """Create the cache table if it doesn't exist (run in executor)."""
         # Ensure parent exists (this might be redundant if caller did it, but safe)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        expected_columns = {"key", "data", "expires_at"}
         with closing(sqlite3.connect(str(self.db_path), timeout=10.0)) as conn:
             conn.execute(
                 "CREATE TABLE IF NOT EXISTS cache "
                 "(key TEXT PRIMARY KEY, data BLOB, expires_at REAL)"
             )
+            columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(cache)").fetchall()
+            }
+            if columns != expected_columns:
+                conn.close()
+                self.db_path.unlink(missing_ok=True)
+                with closing(sqlite3.connect(str(self.db_path), timeout=10.0)) as fresh:
+                    fresh.execute(
+                        "CREATE TABLE IF NOT EXISTS cache "
+                        "(key TEXT PRIMARY KEY, data BLOB, expires_at REAL)"
+                    )
+                    fresh.execute("PRAGMA journal_mode=WAL")
+                    fresh.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_expires_at ON cache(expires_at)"
+                    )
+                return
+
             # Use WAL mode for better concurrency and performance
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute(
