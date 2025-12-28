@@ -109,7 +109,10 @@ _max_package_age_option = typer.Option(
 _ignore_vulns_option = typer.Option(
     None,
     "--ignore-vulns",
-    help="Comma-separated list of vulnerability IDs to ignore, e.g. VULN-123,VULN-456",
+    help=(
+        "Comma-separated list of vulnerability IDs or aliases to ignore, e.g. "
+        "VULN-123,CVE-2024-12345"
+    ),
 )
 
 _config_option = typer.Option(
