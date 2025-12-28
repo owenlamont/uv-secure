@@ -197,12 +197,19 @@ def _should_check_maintenance_issues(
 
 def _filter_vulnerabilities(package: PackageInfo, config: Configuration) -> None:
     """Filter out ignored and withdrawn vulnerabilities."""
+    ignore_vulnerabilities = config.vulnerability_criteria.ignore_vulnerabilities
     package.vulnerabilities = [
         vuln
         for vuln in package.vulnerabilities
         if (
-            config.vulnerability_criteria.ignore_vulnerabilities is None
-            or vuln.id not in config.vulnerability_criteria.ignore_vulnerabilities
+            ignore_vulnerabilities is None
+            or (
+                vuln.id not in ignore_vulnerabilities
+                and not (
+                    vuln.aliases
+                    and any(alias in ignore_vulnerabilities for alias in vuln.aliases)
+                )
+            )
         )
         and vuln.withdrawn is None
     ]

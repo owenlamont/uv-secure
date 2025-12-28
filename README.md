@@ -172,8 +172,9 @@ After installation, you can run uv-secure --help to see the options.
 │                                                                 packages in days     │
 │ --ignore-vulns                               TEXT               Comma-separated list │
 │                                                                 of vulnerability IDs │
-│                                                                 to ignore, e.g.      │
-│                                                                 VULN-123,VULN-456    │
+│                                                                 or aliases to        │
+│                                                                 ignore, e.g.         │
+│                                                                 VULN-123,CVE-2024-1… │
 │ --ignore-pkgs                                PKG:SPEC1|SPEC2|…  Dependency with      │
 │                                                                 optional version     │
 │                                                                 specifiers. Syntax:  │
@@ -245,7 +246,7 @@ urllib = [">=1.0, <2.0"] # Ignore issues between version 1.0 and less than 2.0
 jinja2 = [">=0.1, <1.0", "~=2.0"] # Ignore issues between version 0.1 and 1.0 or 2.0
 
 [vulnerability_criteria]
-ignore_vulnerabilities = ["VULN-123"]
+ignore_vulnerabilities = ["VULN-123", "CVE-2024-12345"]
 aliases = true # Defaults to false
 desc = true # Defaults to false
 check_direct_dependencies_only = true # Defaults to false (test transitive dependencies)
@@ -271,7 +272,7 @@ urllib = [">=1.0, <2.0"] # Ignore issues between version 1.0 and less than 2.0
 jinja2 = [">=0.1, <1.0", "~=2.0"] # Ignore issues between version 0.1 and 1.0 or 2.0
 
 [tool.uv-secure.vulnerability_criteria]
-ignore_vulnerabilities = ["VULN-123"]
+ignore_vulnerabilities = ["VULN-123", "CVE-2024-12345"]
 aliases = true # Defaults to false
 desc = true # Defaults to false
 check_direct_dependencies_only = true # Defaults to false (test transitive dependencies)

@@ -106,6 +106,30 @@ async def test_check_dependencies_alias_hyperlinks(
 
 
 @pytest.mark.asyncio
+async def test_check_dependencies_ignore_vulnerability_alias(
+    temp_uv_lock_file: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    async with AsyncClient() as http_client:
+        result = await check_dependencies(
+            APath(temp_uv_lock_file),
+            Configuration(
+                vulnerability_criteria=VulnerabilityCriteria(
+                    ignore_vulnerabilities={"CVE-2024-12345"}
+                )
+            ),
+            http_client,
+            None,
+        )
+
+    assert result.error is None
+    assert len(result.dependencies) == 1
+    dep = result.dependencies[0]
+    assert dep.vulns == []
+
+
+@pytest.mark.asyncio
 async def test_check_dependencies_no_fix_versions(
     temp_uv_lock_file: Path,
     httpx_mock: HTTPXMock,
