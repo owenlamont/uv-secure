@@ -347,7 +347,7 @@ uv-secure can be run as a pre-commit hook by adding this configuration to your
 
 ```yaml
   - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.15.2
+    rev: 0.15.4
     hooks:
       - id: uv-secure
 ```
