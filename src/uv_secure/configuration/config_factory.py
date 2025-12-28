@@ -15,7 +15,7 @@ from uv_secure.configuration.exceptions import UvSecureConfigurationError
 if sys.version_info >= (3, 11):
     import tomllib as toml
 else:
-    import tomli as toml
+    import tomli as toml  # ty: ignore[unresolved-import]
 
 
 def _parse_pkg_versions(raw: list[str] | None) -> dict[str, tuple[str, ...]] | None:

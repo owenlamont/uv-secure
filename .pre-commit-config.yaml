@@ -37,16 +37,10 @@ repos:
         pass_filenames: false
   - repo: local
     hooks:
-      - id: mypy
-        name: mypy (src)
+      - id: ty
+        name: ty
         language: system
-        entry: uv run mypy src/
-        pass_filenames: false
-        types: [python]
-      - id: mypy-tests
-        name: mypy (tests)
-        language: system
-        entry: uv run mypy tests/ --explicit-package-bases
+        entry: ty check .
         pass_filenames: false
         types: [python]
   - repo: https://github.com/rvben/rumdl-pre-commit
