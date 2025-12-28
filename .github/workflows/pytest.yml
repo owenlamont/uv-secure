@@ -24,6 +24,12 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
+      - name: Cache virtualenv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-py${{ matrix.python-version }}-${{ matrix.extra }}-${{ hashFiles('uv.lock') }}
+          restore-keys: venv-${{ runner.os }}-py${{ matrix.python-version }}-${{ matrix.extra }}-
       - name: Install the project (no extras)
         if: matrix.extra == 'none'
         run: |
@@ -53,6 +59,8 @@ jobs:
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
       - name: Install uv
         uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867
+        with:
+          enable-cache: true
       - name: Set up Python
         uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548
         with:

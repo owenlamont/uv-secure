@@ -34,7 +34,7 @@ concurrently and supports hierarchical configuration discovery.
   rarer tests checking functionality spanning several src modules.
 - **.complexipy.toml** - Complexipy configuration
 - **.coveragerc** - Coverage path mappings
-- **mypy.ini** - MyPy type checker configuration
+- **ty.toml** - ty type checker configuration
 - **pyproject.toml** - Package configuration
 - **.pre-commit-config.yaml** - Pre-commit linters and some configuration
 - **pytest.ini** - Pytest configuration

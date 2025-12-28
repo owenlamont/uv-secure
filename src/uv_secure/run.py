@@ -188,11 +188,11 @@ def main(
     # Use uvloop or winloop if present
     try:
         if sys.platform in {"win32", "cygwin", "cli"}:
-            from winloop import run  # type: ignore[import-not-found, unused-ignore]
+            from winloop import run  # ty: ignore[unresolved-import]
         else:
-            from uvloop import run  # type: ignore[no-redef, import-not-found, unused-ignore]  # noqa: I001
+            from uvloop import run  # ty: ignore[unresolved-import]
     except ImportError:
-        from asyncio import run  # type: ignore[assignment, unused-ignore]
+        from asyncio import run
 
     try:
         run_status = run(

@@ -1,0 +1,13 @@
+[rules]
+redundant-cast = "error"
+unused-ignore-comment = "error"
+
+[[overrides]]
+include = [
+  "src/uv_secure/configuration/config_factory.py",
+  "src/uv_secure/package_info/dependency_file_parser.py",
+  "src/uv_secure/run.py",
+]
+
+[overrides.rules]
+unused-ignore-comment = "ignore"
