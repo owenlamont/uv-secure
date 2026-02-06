@@ -36,7 +36,7 @@ jobs:
           private-key: ${{ secrets.AUTH_APP_PRIVATE_KEY }}
       - name: Create PR with updated .pre-commit-config.yaml
         if: steps.check_diff.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@98357b18bf14b5342f975ff684046ec3b2a07725
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0
         with:
           token: ${{ steps.generate-token.outputs.token }}
           commit-message: "chore: refresh .pre-commit-config.yaml"
