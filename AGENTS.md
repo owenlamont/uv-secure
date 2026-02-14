@@ -11,6 +11,8 @@ concurrently and supports hierarchical configuration discovery.
 
 ## Code Change Requirements
 
+- Use the uv CLI for all dependency and project changes. Do not edit
+  `pyproject.toml` or `uv.lock` directly.
 - Whenever code is changed, ensure all pre-commit linters pass
   (`prek run --all-files`) and all pytests pass
   (`uv run pytest -n logical --color=no`). Newly added code must keep full branch
@@ -89,6 +91,11 @@ concurrently and supports hierarchical configuration discovery.
   example `prek run --all-files`) instead of prefixing them with `cd`.
 - Being a uv project you never need to activate a virtual environment or call pip
   directly. Use `uv add` for dependencies and `uv run` for scripts or tooling.
+- If a task fails due to network, file access, dependency install, or local
+  system restrictions, request elevated permissions first rather than pivoting
+  to work-arounds. Escalation is preferred over brittle fallback solutions.
+- Never `git commit`, `git push`, or open/create pull requests unless the user
+  explicitly asks or gives consent for those actions.
 - Install `complexipy`, `markitdown`, `prek`, `rg`, `ruff`, `rumdl`, `typos`, and
   `zizmor` as global uv tools so they can be invoked without `uv run`.
 
