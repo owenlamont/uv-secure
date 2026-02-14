@@ -14,7 +14,8 @@ jobs:
       pull-requests: write
     steps:
       - name: Set up Python
-        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548
+        id: setup-python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
         with:
           python-version: ${{ matrix.python-version }}
       - name: Checkout repository
@@ -25,11 +26,11 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
       - name: Cache virtualenv
-        uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306
         with:
           path: .venv
-          key: venv-${{ runner.os }}-py${{ matrix.python-version }}-${{ matrix.extra }}-${{ hashFiles('uv.lock') }}
-          restore-keys: venv-${{ runner.os }}-py${{ matrix.python-version }}-${{ matrix.extra }}-
+          key: venv-${{ runner.os }}-py${{ steps.setup-python.outputs.python-version }}-${{ matrix.extra }}-${{ hashFiles('uv.lock') }}
+          restore-keys: venv-${{ runner.os }}-py${{ steps.setup-python.outputs.python-version }}-${{ matrix.extra }}-
       - name: Install the project (no extras)
         if: matrix.extra == 'none'
         run: |
@@ -62,7 +63,7 @@ jobs:
         with:
           enable-cache: true
       - name: Set up Python
-        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
         with:
           python-version: "3.13"
       - name: Install the project
