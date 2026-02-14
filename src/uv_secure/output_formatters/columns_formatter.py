@@ -225,6 +225,7 @@ class ColumnsFormatter(OutputFormatter):
         table.add_column(
             "Vulnerability ID", style="bold cyan", min_width=20, max_width=24
         )
+        table.add_column("Severity", min_width=8, max_width=10)
         table.add_column("Fix Versions", min_width=10, max_width=20)
         if self.config.vulnerability_criteria.aliases:
             table.add_column("Aliases", min_width=20, max_width=24)
@@ -261,6 +262,7 @@ class ColumnsFormatter(OutputFormatter):
             Text.assemble((vuln.id, f"link {vuln.link}"))
             if vuln.link
             else Text(vuln.id),
+            self._create_severity_text(vuln),
             self._create_fix_versions_text(dep.name, vuln),
         ]
 
@@ -323,6 +325,18 @@ class ColumnsFormatter(OutputFormatter):
                 alias_links.append(Text(alias))
 
         return Text(", ").join(alias_links) if alias_links else Text("")
+
+    def _create_severity_text(self, vuln: VulnerabilityOutput) -> Text:
+        """Create severity text, optionally linked to severity source.
+
+        Returns:
+            Text: Severity renderable for the vulnerabilities table.
+        """
+
+        severity_text = (vuln.severity or "unknown").upper()
+        if vuln.severity_source_link:
+            return Text.assemble((severity_text, f"link {vuln.severity_source_link}"))
+        return Text(severity_text)
 
     def _get_alias_hyperlink(self, alias: str, package_name: str) -> str | None:
         """Get hyperlink URL for vulnerability alias.

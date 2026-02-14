@@ -8,6 +8,7 @@ from uv_secure.configuration import (
     config_file_factory,
     Configuration,
     OutputFormat,
+    SeverityLevel,
     VulnerabilityCriteria,
 )
 
@@ -60,6 +61,23 @@ from uv_secure.configuration import (
             """,
             Configuration(check_uv_tool=False, check_uv_secure=True),
             id="Independent uv and uv-secure check toggles",
+        ),
+        pytest.param(
+            "uv-secure.toml",
+            """
+            [vulnerability_criteria]
+            severity = "high"
+            ignore_unfixed = true
+            allow_unused_ignores = true
+            """,
+            Configuration(
+                vulnerability_criteria=VulnerabilityCriteria(
+                    severity=SeverityLevel.HIGH,
+                    ignore_unfixed=True,
+                    allow_unused_ignores=True,
+                )
+            ),
+            id="Vulnerability severity and ignore controls",
         ),
         pytest.param(
             "pyproject.toml",

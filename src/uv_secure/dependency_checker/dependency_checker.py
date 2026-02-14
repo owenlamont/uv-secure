@@ -9,6 +9,7 @@ from anyio import Path as APath
 from httpx import AsyncClient, Headers, HTTPStatusError
 from packaging.specifiers import SpecifierSet
 from packaging.version import InvalidVersion, Version
+from pydantic import BaseModel, ConfigDict, ValidationError
 from rich.console import Console
 
 from uv_secure import __version__
@@ -19,6 +20,7 @@ from uv_secure.configuration import (
     Configuration,
     OutputFormat,
     override_config,
+    SeverityLevel,
 )
 from uv_secure.configuration.exceptions import UvSecureConfigurationError
 from uv_secure.directory_scanner import get_dependency_file_to_config_map
@@ -54,6 +56,23 @@ GLOBAL_UV_TOOL_LABEL = "uv (global tool)"
 GLOBAL_UV_SECURE_PACKAGE_LABEL = "uv-secure (installed package)"
 
 
+class OsvSeverityEntry(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    score: str
+
+
+class OsvDatabaseSpecific(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    severity: str | None = None
+
+
+class OsvVulnerabilityPayload(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str | None = None
+    severity: list[OsvSeverityEntry] | None = None
+    database_specific: OsvDatabaseSpecific | None = None
+
+
 @cache
 def get_specifier_sets(specifiers: tuple[str, ...]) -> tuple[SpecifierSet, ...]:
     """Convert string specifiers into cached ``SpecifierSet`` instances.
@@ -76,6 +95,8 @@ def _convert_vulnerability_to_output(vuln: Vulnerability) -> VulnerabilityOutput
     return VulnerabilityOutput(
         id=vuln.id,
         details=vuln.details,
+        severity=vuln.severity if isinstance(vuln.severity, str) else None,
+        severity_source_link=vuln.severity_source_link,
         fix_versions=vuln.fixed_in,
         aliases=vuln.aliases,
         link=vuln.link,
@@ -106,6 +127,7 @@ def _process_package_metadata(
     dependency_name: str,
     config: Configuration,
     ignore_packages: dict[str, tuple[SpecifierSet, ...]],
+    used_ignore_vulnerabilities: set[str],
 ) -> DependencyOutput | str | None:
     """Process package metadata into output rows.
 
@@ -125,7 +147,9 @@ def _process_package_metadata(
 
     # Filter and check vulnerabilities based on config
     if _should_check_vulnerabilities(package_info, config):
-        _filter_vulnerabilities(package_info, config)
+        used_ignore_vulnerabilities.update(
+            _filter_vulnerabilities(package_info, config)
+        )
         vulns = [
             _convert_vulnerability_to_output(v) for v in package_info.vulnerabilities
         ]
@@ -197,24 +221,126 @@ def _should_check_maintenance_issues(
     )
 
 
-def _filter_vulnerabilities(package: PackageInfo, config: Configuration) -> None:
-    """Filter out ignored and withdrawn vulnerabilities."""
+def _filter_vulnerabilities(package: PackageInfo, config: Configuration) -> set[str]:
+    """Filter vulnerabilities and return used ignore identifiers.
+
+    Returns:
+        set[str]: Ignore IDs matched while filtering vulnerabilities.
+    """
     ignore_vulnerabilities = config.vulnerability_criteria.ignore_vulnerabilities
-    package.vulnerabilities = [
-        vuln
-        for vuln in package.vulnerabilities
+    severity_threshold = config.vulnerability_criteria.severity
+    used_ignore_ids: set[str] = set()
+    filtered_vulnerabilities: list[Vulnerability] = []
+    for vuln in package.vulnerabilities:
+        if vuln.withdrawn is not None:
+            continue
+
+        matched_ignore_ids = _matched_ignore_ids(vuln, ignore_vulnerabilities)
+        if matched_ignore_ids:
+            used_ignore_ids.update(matched_ignore_ids)
+            continue
+
+        if _is_unfixed(vuln) and config.vulnerability_criteria.ignore_unfixed:
+            continue
+
+        vulnerability_severity = _extract_vulnerability_severity(vuln)
         if (
-            ignore_vulnerabilities is None
-            or (
-                vuln.id not in ignore_vulnerabilities
-                and not (
-                    vuln.aliases
-                    and any(alias in ignore_vulnerabilities for alias in vuln.aliases)
-                )
-            )
+            vulnerability_severity is not None
+            and vulnerability_severity.rank < severity_threshold.rank
+        ):
+            continue
+
+        filtered_vulnerabilities.append(vuln)
+
+    package.vulnerabilities = filtered_vulnerabilities
+    return used_ignore_ids
+
+
+def _matched_ignore_ids(
+    vulnerability: Vulnerability, ignore_vulnerabilities: set[str] | None
+) -> set[str]:
+    """Return configured ignore IDs that match a vulnerability."""
+
+    if ignore_vulnerabilities is None:
+        return set()
+
+    matched_ids: set[str] = set()
+    if vulnerability.id in ignore_vulnerabilities:
+        matched_ids.add(vulnerability.id)
+    if vulnerability.aliases:
+        matched_ids.update(
+            alias for alias in vulnerability.aliases if alias in ignore_vulnerabilities
         )
-        and vuln.withdrawn is None
-    ]
+    return matched_ids
+
+
+def _is_unfixed(vulnerability: Vulnerability) -> bool:
+    """Return whether a vulnerability currently has no known fix versions."""
+
+    return vulnerability.fixed_in is None or len(vulnerability.fixed_in) == 0
+
+
+def _extract_vulnerability_severity(
+    vulnerability: Vulnerability,
+) -> SeverityLevel | None:
+    """Extract normalized severity for a vulnerability, if available.
+
+    Returns:
+        SeverityLevel | None: Normalized severity or ``None`` when unknown.
+    """
+
+    severity = vulnerability.severity
+    if severity is None:
+        return None
+    return _severity_from_str(severity)
+
+
+def _severity_from_str(raw_severity: str) -> SeverityLevel | None:
+    """Map a raw severity string or score string to an enum value.
+
+    Returns:
+        SeverityLevel | None: Parsed severity or ``None`` when unrecognized.
+    """
+
+    normalized = raw_severity.strip().lower()
+    try:
+        return SeverityLevel(normalized)
+    except ValueError:
+        pass
+
+    parsed_score = _safe_float(normalized)
+    if parsed_score is None:
+        return None
+    return _severity_from_cvss_score(parsed_score)
+
+
+def _safe_float(value: str) -> float | None:
+    """Parse a float-like string and return ``None`` when invalid.
+
+    Returns:
+        float | None: Parsed float value or ``None`` when conversion fails.
+    """
+
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+def _severity_from_cvss_score(score: float) -> SeverityLevel:
+    """Convert a CVSS score to a normalized severity bucket.
+
+    Returns:
+        SeverityLevel: Severity bucket mapped from the CVSS score.
+    """
+
+    if score >= 9.0:
+        return SeverityLevel.CRITICAL
+    if score >= 7.0:
+        return SeverityLevel.HIGH
+    if score >= 4.0:
+        return SeverityLevel.MEDIUM
+    return SeverityLevel.LOW
 
 
 def _has_maintenance_issues(
@@ -326,6 +452,199 @@ async def _detect_uv_version() -> str | None:
     return _extract_uv_version(decoded)
 
 
+def _is_known_advisory_id(advisory_id: str) -> bool:
+    """Return whether an advisory ID is likely queryable via OSV."""
+
+    return advisory_id.startswith(("GHSA-", "CVE-", "PYSEC-", "OSV-"))
+
+
+def _parse_database_specific_severity(raw_severity: str) -> SeverityLevel | None:
+    """Map OSV database-specific severity text to ``SeverityLevel``.
+
+    Returns:
+        SeverityLevel | None: Normalized severity for known labels.
+    """
+
+    normalized = raw_severity.strip().lower()
+    if normalized in {"moderate", "medium"}:
+        return SeverityLevel.MEDIUM
+    if normalized == "important":
+        return SeverityLevel.HIGH
+    try:
+        return SeverityLevel(normalized)
+    except ValueError:
+        return None
+
+
+def _extract_osv_database_specific_severity(
+    payload: OsvVulnerabilityPayload,
+) -> SeverityLevel | None:
+    """Extract severity from OSV's ``database_specific.severity`` field.
+
+    Returns:
+        SeverityLevel | None: Parsed severity when present.
+    """
+    db_severity = (
+        payload.database_specific.severity
+        if payload.database_specific is not None
+        else None
+    )
+    if isinstance(db_severity, str):
+        return _parse_database_specific_severity(db_severity)
+    return None
+
+
+def _extract_osv_max_numeric_cvss_score(
+    payload: OsvVulnerabilityPayload,
+) -> float | None:
+    """Extract the maximum numeric CVSS score from OSV severity entries.
+
+    Returns:
+        float | None: Highest parsed numeric score, when available.
+    """
+    if not payload.severity:
+        return None
+
+    max_score: float | None = None
+    for entry in payload.severity:
+        score = _safe_float(entry.score)
+        if score is None:
+            continue
+        if max_score is None or score > max_score:
+            max_score = score
+    return max_score
+
+
+def _extract_osv_severity(payload: OsvVulnerabilityPayload) -> SeverityLevel | None:
+    """Extract a normalized severity from an OSV vulnerability payload.
+
+    Returns:
+        SeverityLevel | None: Parsed severity when available.
+    """
+
+    database_specific_severity = _extract_osv_database_specific_severity(payload)
+    if database_specific_severity is not None:
+        return database_specific_severity
+
+    max_numeric_cvss_score = _extract_osv_max_numeric_cvss_score(payload)
+    if max_numeric_cvss_score is None:
+        return None
+    return _severity_from_cvss_score(max_numeric_cvss_score)
+
+
+async def _fetch_osv_severity_data(
+    advisory_id: str, http_client: AsyncClient, cache_manager: CacheManager | None
+) -> tuple[SeverityLevel | None, str | None]:
+    """Fetch severity metadata for an advisory ID from OSV.
+
+    Returns:
+        tuple[SeverityLevel | None, str | None]: Severity and source link.
+    """
+
+    advisory_url = f"https://api.osv.dev/v1/vulns/{advisory_id}"
+
+    async def fetch_from_api() -> dict[str, str | None]:
+        response = await http_client.get(advisory_url)
+        if response.status_code != 200:
+            return {"severity": None, "source_link": None}
+        try:
+            payload = OsvVulnerabilityPayload.model_validate(response.json())
+        except ValidationError:
+            return {"severity": None, "source_link": None}
+        severity = _extract_osv_severity(payload)
+        if severity is None:
+            return {"severity": None, "source_link": None}
+        source_id = payload.id or advisory_id
+        return {
+            "severity": severity.value,
+            "source_link": f"https://osv.dev/vulnerability/{source_id}",
+        }
+
+    if cache_manager is None:
+        osv_data = await fetch_from_api()
+    else:
+        cache_key = f"osv-severity/{advisory_id}"
+        osv_data = await cache_manager.get_or_compute(cache_key, fetch_from_api)
+
+    raw_severity = osv_data.get("severity")
+    severity = SeverityLevel(raw_severity) if isinstance(raw_severity, str) else None
+    source_link = osv_data.get("source_link")
+    return severity, source_link if isinstance(source_link, str) else None
+
+
+def _prepare_vulnerability_for_enrichment(vulnerability: Vulnerability) -> str | None:
+    """Return queryable advisory ID for a vulnerability needing enrichment.
+
+    Returns:
+        str | None: Advisory ID to query, when enrichment is needed.
+    """
+
+    if _extract_vulnerability_severity(vulnerability) is not None:
+        if vulnerability.severity_source_link is None and vulnerability.link:
+            vulnerability.severity_source_link = vulnerability.link
+        return None
+    if _is_known_advisory_id(vulnerability.id):
+        return vulnerability.id
+    return None
+
+
+def _collect_enrichment_advisory_ids(
+    package_infos: list[PackageInfo | BaseException],
+) -> tuple[list[Vulnerability], set[str]]:
+    """Collect vulnerabilities needing enrichment and their advisory IDs.
+
+    Returns:
+        tuple[list[Vulnerability], set[str]]: Targets and queryable advisory IDs.
+    """
+
+    vulnerabilities_to_enrich: list[Vulnerability] = []
+    advisory_ids: set[str] = set()
+    for package_info in package_infos:
+        if not isinstance(package_info, PackageInfo):
+            continue
+        for vulnerability in package_info.vulnerabilities:
+            advisory_id = _prepare_vulnerability_for_enrichment(vulnerability)
+            if advisory_id is None:
+                continue
+            vulnerabilities_to_enrich.append(vulnerability)
+            advisory_ids.add(advisory_id)
+    return vulnerabilities_to_enrich, advisory_ids
+
+
+async def _enrich_vulnerability_severity_data(
+    package_infos: list[PackageInfo | BaseException],
+    http_client: AsyncClient,
+    cache_manager: CacheManager | None,
+) -> None:
+    """Populate missing vulnerability severities using OSV advisory metadata."""
+
+    vulnerabilities_to_enrich, advisory_ids = _collect_enrichment_advisory_ids(
+        package_infos
+    )
+
+    if not advisory_ids:
+        return
+
+    advisory_tasks = {
+        advisory_id: asyncio.create_task(
+            _fetch_osv_severity_data(advisory_id, http_client, cache_manager)
+        )
+        for advisory_id in advisory_ids
+    }
+    advisory_results = {
+        advisory_id: await advisory_task
+        for advisory_id, advisory_task in advisory_tasks.items()
+    }
+
+    for vulnerability in vulnerabilities_to_enrich:
+        severity_data = advisory_results[vulnerability.id]
+        severity, source_link = severity_data
+        if severity is None:
+            continue
+        vulnerability.severity = severity.value
+        vulnerability.severity_source_link = source_link
+
+
 def _detect_uv_secure_version() -> str | None:
     """Return the installed ``uv-secure`` package version when valid."""
 
@@ -351,7 +670,10 @@ def _is_missing_pypi_release_version(
 
 
 async def _check_global_uv_tool(
-    config: Configuration, http_client: AsyncClient, cache_manager: CacheManager | None
+    config: Configuration,
+    http_client: AsyncClient,
+    cache_manager: CacheManager | None,
+    used_ignore_vulnerabilities: set[str] | None = None,
 ) -> FileResultOutput | None:
     """Check vulnerabilities for the globally installed uv CLI.
 
@@ -363,12 +685,18 @@ async def _check_global_uv_tool(
     uv_version = await _detect_uv_version()
     if uv_version is None:
         return None
+    used_ignore_tracker = (
+        used_ignore_vulnerabilities
+        if used_ignore_vulnerabilities is not None
+        else set()
+    )
 
     dependency = Dependency(name="uv", version=uv_version, direct=True)
     package_infos, package_indexes = await asyncio.gather(
         download_packages([dependency], http_client, cache_manager),
         download_package_indexes([dependency], http_client, cache_manager),
     )
+    await _enrich_vulnerability_severity_data(package_infos, http_client, cache_manager)
 
     ignore_packages = _build_ignore_packages(config)
     package_info = package_infos[0]
@@ -378,7 +706,12 @@ async def _check_global_uv_tool(
     ):
         return None
     result = _process_package_metadata(
-        package_info, package_index, dependency.name, config, ignore_packages
+        package_info,
+        package_index,
+        dependency.name,
+        config,
+        ignore_packages,
+        used_ignore_tracker,
     )
 
     if result is None:
@@ -397,7 +730,10 @@ async def _check_global_uv_tool(
 
 
 async def _check_installed_uv_secure_package(
-    config: Configuration, http_client: AsyncClient, cache_manager: CacheManager | None
+    config: Configuration,
+    http_client: AsyncClient,
+    cache_manager: CacheManager | None,
+    used_ignore_vulnerabilities: set[str] | None = None,
 ) -> FileResultOutput | None:
     """Check vulnerabilities for the installed ``uv-secure`` package.
 
@@ -409,12 +745,18 @@ async def _check_installed_uv_secure_package(
     uv_secure_version = _detect_uv_secure_version()
     if uv_secure_version is None:
         return None
+    used_ignore_tracker = (
+        used_ignore_vulnerabilities
+        if used_ignore_vulnerabilities is not None
+        else set()
+    )
 
     dependency = Dependency(name="uv-secure", version=uv_secure_version, direct=True)
     package_infos, package_indexes = await asyncio.gather(
         download_packages([dependency], http_client, cache_manager),
         download_package_indexes([dependency], http_client, cache_manager),
     )
+    await _enrich_vulnerability_severity_data(package_infos, http_client, cache_manager)
 
     ignore_packages = _build_ignore_packages(config)
     package_info = package_infos[0]
@@ -424,7 +766,12 @@ async def _check_installed_uv_secure_package(
     ):
         return None
     result = _process_package_metadata(
-        package_info, package_index, dependency.name, config, ignore_packages
+        package_info,
+        package_index,
+        dependency.name,
+        config,
+        ignore_packages,
+        used_ignore_tracker,
     )
 
     if result is None:
@@ -447,7 +794,7 @@ async def _evaluate_dependency_files(
     lock_to_config_map: dict[APath, Configuration],
     http_client: AsyncClient,
     cache_manager: CacheManager | None,
-) -> list[FileResultOutput]:
+) -> tuple[list[FileResultOutput], dict[str, set[str]]]:
     """Gather dependency results for dependency files and global tool checks.
 
     Returns:
@@ -462,19 +809,36 @@ async def _evaluate_dependency_files(
         (config for config in lock_to_config_map.values() if config.check_uv_secure),
         None,
     )
+    used_ignore_vulnerabilities_by_scope: dict[str, set[str]] = {}
     uv_task: asyncio.Task[FileResultOutput | None] | None = None
     uv_secure_task: asyncio.Task[FileResultOutput | None] | None = None
     if uv_config is not None:
+        uv_used_ignore_vulnerabilities: set[str] = set()
+        used_ignore_vulnerabilities_by_scope[GLOBAL_UV_TOOL_LABEL] = (
+            uv_used_ignore_vulnerabilities
+        )
         uv_task = asyncio.create_task(
-            _check_global_uv_tool(uv_config, http_client, cache_manager)
+            _check_global_uv_tool(
+                uv_config, http_client, cache_manager, uv_used_ignore_vulnerabilities
+            )
         )
     if uv_secure_config is not None:
+        uv_secure_used_ignore_vulnerabilities: set[str] = set()
+        used_ignore_vulnerabilities_by_scope[GLOBAL_UV_SECURE_PACKAGE_LABEL] = (
+            uv_secure_used_ignore_vulnerabilities
+        )
         uv_secure_task = asyncio.create_task(
             _check_installed_uv_secure_package(
-                uv_secure_config, http_client, cache_manager
+                uv_secure_config,
+                http_client,
+                cache_manager,
+                uv_secure_used_ignore_vulnerabilities,
             )
         )
 
+    used_ignore_vulnerabilities_for_dependency_files: list[set[str]] = [
+        set() for _ in file_apaths
+    ]
     file_results = list(
         await asyncio.gather(
             *[
@@ -483,10 +847,17 @@ async def _evaluate_dependency_files(
                     lock_to_config_map[APath(dependency_file_path)],
                     http_client,
                     cache_manager,
+                    used_ignore_vulnerabilities_for_dependency_files[idx],
                 )
-                for dependency_file_path in file_apaths
+                for idx, dependency_file_path in enumerate(file_apaths)
             ]
         )
+    )
+    used_ignore_vulnerabilities_by_scope.update(
+        {
+            file_path.as_posix(): used_ignore_vulnerabilities_for_dependency_files[idx]
+            for idx, file_path in enumerate(file_apaths)
+        }
     )
 
     if uv_task is not None:
@@ -498,7 +869,7 @@ async def _evaluate_dependency_files(
         if uv_secure_result is not None:
             file_results.append(uv_secure_result)
 
-    return file_results
+    return file_results, used_ignore_vulnerabilities_by_scope
 
 
 async def check_dependencies(
@@ -506,6 +877,7 @@ async def check_dependencies(
     config: Configuration,
     http_client: AsyncClient,
     cache_manager: CacheManager | None,
+    used_ignore_vulnerabilities: set[str] | None = None,
 ) -> FileResultOutput:
     """Check dependencies for vulnerabilities and build structured output.
 
@@ -515,11 +887,17 @@ async def check_dependencies(
         config: Configuration to apply.
         http_client: HTTP client for downloads.
         cache_manager: Cache manager.
+        used_ignore_vulnerabilities: Mutable set updated with matched ignore IDs.
 
     Returns:
         FileResultOutput: Structured dependency results.
     """
     file_path_str = dependency_file_path.as_posix()
+    used_ignore_tracker = (
+        used_ignore_vulnerabilities
+        if used_ignore_vulnerabilities is not None
+        else set()
+    )
 
     # Load and parse dependencies
     if not await dependency_file_path.exists():
@@ -553,6 +931,7 @@ async def check_dependencies(
     package_infos, package_indexes = await asyncio.gather(
         package_infos_task, package_indexes_task
     )
+    await _enrich_vulnerability_severity_data(package_infos, http_client, cache_manager)
 
     package_metadata: list[
         tuple[PackageInfo | BaseException, PackageIndex | BaseException]
@@ -560,11 +939,15 @@ async def check_dependencies(
 
     ignore_packages = _build_ignore_packages(config)
     dependency_outputs: list[DependencyOutput] = []
-
     # Process each package
     for idx, (package_info, package_index) in enumerate(package_metadata):
         result = _process_package_metadata(
-            package_info, package_index, dependencies[idx].name, config, ignore_packages
+            package_info,
+            package_index,
+            dependencies[idx].name,
+            config,
+            ignore_packages,
+            used_ignore_tracker,
         )
 
         # Handle error
@@ -587,6 +970,7 @@ class RunStatus(Enum):
     MAINTENANCE_ISSUES_FOUND = 1
     VULNERABILITIES_FOUND = 2
     RUNTIME_ERROR = 3
+    UNUSED_IGNORES_FOUND = 4
 
 
 async def _resolve_file_paths_and_configs(
@@ -641,6 +1025,9 @@ def _apply_cli_config_overrides(
     aliases: bool | None,
     desc: bool | None,
     ignore_vulns: str | None,
+    severity: SeverityLevel | None,
+    ignore_unfixed: bool | None,
+    allow_unused_ignores: bool | None,
     ignore_pkgs: list[str] | None,
     forbid_archived: bool | None,
     forbid_deprecated: bool | None,
@@ -663,6 +1050,9 @@ def _apply_cli_config_overrides(
             aliases,
             desc,
             ignore_vulns,
+            severity is not None,
+            ignore_unfixed is not None,
+            allow_unused_ignores is not None,
             ignore_pkgs,
             forbid_archived,
             forbid_deprecated,
@@ -681,6 +1071,9 @@ def _apply_cli_config_overrides(
             check_direct_dependency_maintenance_issues_only,
             check_direct_dependency_vulnerabilities_only,
             desc,
+            severity,
+            ignore_unfixed,
+            allow_unused_ignores,
             forbid_archived,
             forbid_deprecated,
             forbid_quarantined,
@@ -762,6 +1155,27 @@ def _determine_final_status(file_results: list[FileResultOutput]) -> RunStatus:
     return RunStatus.NO_VULNERABILITIES
 
 
+def _find_unused_ignore_vulnerability_ids(
+    lock_to_config_map: dict[APath, Configuration],
+    used_ignore_vulnerabilities_by_scope: dict[str, set[str]],
+) -> set[str]:
+    """Return ignore IDs configured but unused in this run."""
+
+    unused_ignore_ids: set[str] = set()
+    for dependency_file_path, config in lock_to_config_map.items():
+        if config.vulnerability_criteria.allow_unused_ignores:
+            continue
+        configured_ignore_ids = config.vulnerability_criteria.ignore_vulnerabilities
+        if not configured_ignore_ids:
+            continue
+        used_for_scope = used_ignore_vulnerabilities_by_scope.get(
+            dependency_file_path.as_posix(), set()
+        )
+        unused_ignore_ids.update(configured_ignore_ids - used_for_scope)
+
+    return unused_ignore_ids
+
+
 async def check_lock_files(
     file_paths: Sequence[Path] | None,
     aliases: bool | None,
@@ -775,6 +1189,9 @@ async def check_lock_files(
     forbid_yanked: bool | None,
     max_package_age: int | None,
     ignore_vulns: str | None,
+    severity: SeverityLevel | None,
+    ignore_unfixed: bool | None,
+    allow_unused_ignores: bool | None,
     ignore_pkgs: list[str] | None,
     check_direct_dependency_vulnerabilities_only: bool | None,
     check_direct_dependency_maintenance_issues_only: bool | None,
@@ -798,6 +1215,9 @@ async def check_lock_files(
         forbid_yanked: Reject yanked packages when True.
         max_package_age: Maximum package age in days.
         ignore_vulns: Comma-separated vulnerability IDs to ignore.
+        severity: Minimum severity threshold to report.
+        ignore_unfixed: Ignore vulnerabilities without fix versions.
+        allow_unused_ignores: Allow configured ignore IDs with no matches.
         ignore_pkgs: Package ignore strings.
         check_direct_dependency_vulnerabilities_only: Restrict vulnerability checks to
             direct dependencies.
@@ -832,6 +1252,9 @@ async def check_lock_files(
         aliases,
         desc,
         ignore_vulns,
+        severity,
+        ignore_unfixed,
+        allow_unused_ignores,
         ignore_pkgs,
         forbid_archived,
         forbid_deprecated,
@@ -852,7 +1275,10 @@ async def check_lock_files(
 
     try:
         async with http_client:
-            file_results = await _evaluate_dependency_files(
+            (
+                file_results,
+                used_ignore_vulnerabilities_by_scope,
+            ) = await _evaluate_dependency_files(
                 file_apaths, lock_to_config_map, http_client, cache_manager
             )
     finally:
@@ -879,4 +1305,19 @@ async def check_lock_files(
     else:
         console.print(output)
 
-    return _determine_final_status(file_results)
+    final_status = _determine_final_status(file_results)
+    if final_status == RunStatus.RUNTIME_ERROR:
+        return final_status
+
+    unused_ignore_ids = _find_unused_ignore_vulnerability_ids(
+        lock_to_config_map, used_ignore_vulnerabilities_by_scope
+    )
+    if unused_ignore_ids:
+        unused_ignore_display = ", ".join(sorted(unused_ignore_ids))
+        console.print(
+            "[bold red]Error:[/] Found unused vulnerability ignore IDs: "
+            f"{unused_ignore_display}"
+        )
+        return RunStatus.UNUSED_IGNORES_FOUND
+
+    return final_status

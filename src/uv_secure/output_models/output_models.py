@@ -6,6 +6,8 @@ class VulnerabilityOutput(BaseModel):
 
     id: str
     details: str
+    severity: str | None = None
+    severity_source_link: str | None = None
     fix_versions: list[str] | None = None
     aliases: list[str] | None = None
     link: str | None = None

@@ -339,6 +339,40 @@ def temp_uv_secure_toml_file_direct_dependency_vulnerabilities_only(
 
 
 @pytest.fixture
+def temp_uv_secure_toml_file_severity_high(tmp_path: Path) -> Path:
+    uv_secure_toml_path = tmp_path / "uv-secure.toml"
+    uv_lock_data = """
+        [vulnerability_criteria]
+        severity = "high"
+    """
+    uv_secure_toml_path.write_text(dedent(uv_lock_data).strip())
+    return uv_secure_toml_path
+
+
+@pytest.fixture
+def temp_uv_secure_toml_file_ignore_unfixed(tmp_path: Path) -> Path:
+    uv_secure_toml_path = tmp_path / "uv-secure.toml"
+    uv_lock_data = """
+        [vulnerability_criteria]
+        ignore_unfixed = true
+    """
+    uv_secure_toml_path.write_text(dedent(uv_lock_data).strip())
+    return uv_secure_toml_path
+
+
+@pytest.fixture
+def temp_uv_secure_toml_file_allow_unused_ignores(tmp_path: Path) -> Path:
+    uv_secure_toml_path = tmp_path / "uv-secure.toml"
+    uv_lock_data = """
+        [vulnerability_criteria]
+        ignore_vulnerabilities = ["VULN-999"]
+        allow_unused_ignores = true
+    """
+    uv_secure_toml_path.write_text(dedent(uv_lock_data).strip())
+    return uv_secure_toml_path
+
+
+@pytest.fixture
 def temp_uv_secure_toml_file_direct_dependency_maintenance_issues_only(
     tmp_path: Path,
 ) -> Path:
@@ -1032,6 +1066,32 @@ def jinja2_two_longer_vulnerability_responses(httpx_mock: HTTPXMock) -> HTTPXMoc
             ],
         },
     )
+    httpx_mock.add_response(
+        url="https://api.osv.dev/v1/vulns/GHSA-q2x7-8rv6-6q7h",
+        json={
+            "id": "GHSA-q2x7-8rv6-6q7h",
+            "severity": [
+                {
+                    "type": "CVSS_V3",
+                    "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+                }
+            ],
+            "database_specific": {"severity": "HIGH"},
+        },
+    )
+    httpx_mock.add_response(
+        url="https://api.osv.dev/v1/vulns/GHSA-gmj6-6f8f-6699",
+        json={
+            "id": "GHSA-gmj6-6f8f-6699",
+            "severity": [
+                {
+                    "type": "CVSS_V3",
+                    "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+                }
+            ],
+            "database_specific": {"severity": "HIGH"},
+        },
+    )
     return httpx_mock
 
 
@@ -1377,6 +1437,61 @@ def vulnerability_no_fix_versions_response(httpx_mock: HTTPXMock) -> HTTPXMock:
                     "aliases": ["CVE-2024-12345"],
                     "link": "https://example.com/v",
                 }
+            ],
+        },
+    )
+    return httpx_mock
+
+
+@pytest.fixture
+def vulnerability_mixed_severity_response(httpx_mock: HTTPXMock) -> HTTPXMock:
+    """Configure vulnerabilities across severities including unknown.
+
+    Returns:
+        HTTPXMock: Mock primed with mixed-severity vulnerability data.
+    """
+
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "A minimal package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "A minimal package example",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
+            "vulnerabilities": [
+                {
+                    "id": "VULN-LOW",
+                    "details": "Low severity vulnerability",
+                    "fixed_in": ["1.0.1"],
+                    "aliases": ["CVE-2024-LOW"],
+                    "severity": "low",
+                },
+                {
+                    "id": "VULN-HIGH",
+                    "details": "High severity vulnerability",
+                    "fixed_in": ["1.0.2"],
+                    "aliases": ["CVE-2024-HIGH"],
+                    "severity": "high",
+                },
+                {
+                    "id": "VULN-UNKNOWN",
+                    "details": "Unknown severity vulnerability",
+                    "fixed_in": ["1.0.3"],
+                    "aliases": ["CVE-2024-UNKNOWN"],
+                },
             ],
         },
     )
