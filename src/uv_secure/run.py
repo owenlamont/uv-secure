@@ -134,8 +134,8 @@ _allow_unused_ignores_option = typer.Option(
     None,
     "--allow-unused-ignores",
     help=(
-        "Allow ignore-vulns / ignore_vulnerabilities entries that match no "
-        "vulnerability in this run"
+        "Allow ignore-vulns / ignore_vulnerabilities / ignore-pkgs entries that "
+        "match nothing in this run"
     ),
 )
 

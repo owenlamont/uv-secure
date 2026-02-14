@@ -53,11 +53,14 @@ def _convert_maintenance_to_output(
 
 
 def _should_skip_package(
-    package: PackageInfo, ignore_packages: dict[str, tuple[SpecifierSet, ...]]
+    package: PackageInfo,
+    ignore_packages: dict[str, tuple[SpecifierSet, ...]],
+    used_ignore_packages: set[str],
 ) -> bool:
     if package.info.name not in ignore_packages:
         return False
 
+    used_ignore_packages.add(package.info.name)
     specifiers = ignore_packages[package.info.name]
     return len(specifiers) == 0 or any(
         specifier.contains(package.info.version) for specifier in specifiers
@@ -133,6 +136,7 @@ def process_package_metadata(
     config: Configuration,
     ignore_packages: dict[str, tuple[SpecifierSet, ...]],
     used_ignore_vulnerabilities: set[str],
+    used_ignore_packages: set[str],
 ) -> DependencyOutput | str | None:
     """Process package metadata into output rows.
 
@@ -145,7 +149,7 @@ def process_package_metadata(
         ex = package_info if isinstance(package_info, BaseException) else package_index
         return f"{dependency_name} raised exception: {ex}"
 
-    if _should_skip_package(package_info, ignore_packages):
+    if _should_skip_package(package_info, ignore_packages, used_ignore_packages):
         return None
 
     if _should_check_vulnerabilities(package_info, config):

@@ -2436,6 +2436,21 @@ def test_unused_ignore_vulnerability_can_be_allowed_by_config(
     assert "[/]" not in result.output
 
 
+def test_unused_ignore_vulnerability_alias_identifier_is_counted_as_used(
+    temp_uv_lock_file: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [str(temp_uv_lock_file), "--disable-cache", "--ignore-vulns", "CVE-2024-12345"],
+    )
+
+    assert result.exit_code == 0
+    assert "unused vulnerability ignore ids" not in result.output.lower()
+    assert "[/]" not in result.output
+
+
 def test_unused_ignore_vulnerability_used_in_other_scope_does_not_fail(
     temp_uv_lock_file: Path,
     temp_nested_uv_lock_file: Path,
@@ -2456,6 +2471,42 @@ def test_unused_ignore_vulnerability_used_in_other_scope_does_not_fail(
 
     assert result.exit_code == 0
     assert "unused vulnerability ignore ids" not in result.output.lower()
+    assert "[/]" not in result.output
+
+
+def test_unused_ignore_package_fails_by_default(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--ignore-pkgs", "missing-pkg"]
+    )
+
+    assert result.exit_code == 4
+    assert "unused package ignore ids" in result.output.lower()
+    assert "missing-pkg" in result.output
+    assert "[/]" not in result.output
+
+
+def test_unused_ignore_package_can_be_allowed_by_cli_flag(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            "--disable-cache",
+            "--ignore-pkgs",
+            "missing-pkg",
+            "--allow-unused-ignores",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "unused package ignore ids" not in result.output.lower()
     assert "[/]" not in result.output
 
 
