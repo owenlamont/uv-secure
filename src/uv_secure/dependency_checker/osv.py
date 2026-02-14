@@ -1,7 +1,8 @@
 import asyncio
 
-from httpx import AsyncClient
+from httpx import AsyncClient, HTTPStatusError, RequestError
 from pydantic import BaseModel, ConfigDict, ValidationError
+import stamina
 
 from uv_secure.caching.cache_manager import CacheManager
 from uv_secure.configuration import SeverityLevel
@@ -29,6 +30,10 @@ class OsvVulnerabilityPayload(BaseModel):
     id: str | None = None
     severity: list[OsvSeverityEntry] | None = None
     database_specific: OsvDatabaseSpecific | None = None
+
+
+def _is_retryable_osv_status(status_code: int) -> bool:
+    return status_code in {408, 429, 500, 502, 503, 504}
 
 
 def is_known_advisory_id(advisory_id: str) -> bool:
@@ -106,8 +111,15 @@ async def fetch_osv_severity_data(
 
     advisory_url = f"https://api.osv.dev/v1/vulns/{advisory_id}"
 
+    @stamina.retry(on=(RequestError, HTTPStatusError), attempts=3)
     async def fetch_from_api() -> dict[str, str | None]:
         response = await http_client.get(advisory_url)
+        if _is_retryable_osv_status(response.status_code):
+            raise HTTPStatusError(
+                f"Retryable OSV response status: {response.status_code}",
+                request=response.request,
+                response=response,
+            )
         if response.status_code != 200:
             return {"severity": None, "source_link": None}
         try:
@@ -123,11 +135,14 @@ async def fetch_osv_severity_data(
             "source_link": f"https://osv.dev/vulnerability/{source_id}",
         }
 
-    if cache_manager is None:
-        osv_data = await fetch_from_api()
-    else:
-        cache_key = f"osv-severity/{advisory_id}"
-        osv_data = await cache_manager.get_or_compute(cache_key, fetch_from_api)
+    try:
+        if cache_manager is None:
+            osv_data = await fetch_from_api()
+        else:
+            cache_key = f"osv-severity/{advisory_id}"
+            osv_data = await cache_manager.get_or_compute(cache_key, fetch_from_api)
+    except (RequestError, HTTPStatusError):
+        return None, None
 
     raw_severity = osv_data.get("severity")
     severity = SeverityLevel(raw_severity) if isinstance(raw_severity, str) else None

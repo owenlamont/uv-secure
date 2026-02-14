@@ -9,6 +9,7 @@ from textwrap import dedent
 from typing import Any
 
 from freezegun import freeze_time
+from httpx import Request, RequestError
 import pytest
 from pytest_httpx import HTTPXMock
 from pytest_mock import MockerFixture
@@ -2433,6 +2434,123 @@ def test_unused_ignore_vulnerability_can_be_allowed_by_config(
     assert result.exit_code == 0
     assert "unused vulnerability ignore IDs" not in result.output.lower()
     assert "[/]" not in result.output
+
+
+def test_unused_ignore_vulnerability_used_in_other_scope_does_not_fail(
+    temp_uv_lock_file: Path,
+    temp_nested_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    one_vulnerability_response_v2: HTTPXMock,
+    pypi_simple_example_package_twice: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            str(temp_nested_uv_lock_file),
+            "--disable-cache",
+            "--ignore-vulns",
+            "VULN-123",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "unused vulnerability ignore ids" not in result.output.lower()
+    assert "[/]" not in result.output
+
+
+def test_json_severity_enrichment_retries_transient_osv_request_error(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    osv_url = "https://api.osv.dev/v1/vulns/GHSA-retry-1111-2222"
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "A minimal package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "A minimal package example",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
+            "vulnerabilities": [{"id": "GHSA-retry-1111-2222", "details": "retry me"}],
+        },
+    )
+    httpx_mock.add_exception(
+        RequestError("temporary OSV transport error", request=Request("GET", osv_url)),
+        url=osv_url,
+    )
+    httpx_mock.add_response(
+        url=osv_url,
+        json={"id": "GHSA-retry-1111-2222", "database_specific": {"severity": "high"}},
+    )
+
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--format", "json"]
+    )
+
+    assert result.exit_code == 2
+    output = json.loads(result.output)
+    file_result = get_file_output(output, temp_uv_lock_file.as_posix())
+    vuln = file_result["dependencies"][0]["vulns"][0]
+    assert vuln["severity"] == "high"
+
+
+def test_json_severity_enrichment_retryable_osv_status_is_non_fatal(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    osv_url = "https://api.osv.dev/v1/vulns/GHSA-status-1111-2222"
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "A minimal package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "A minimal package example",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
+            "vulnerabilities": [{"id": "GHSA-status-1111-2222", "details": "retry me"}],
+        },
+    )
+    httpx_mock.add_response(url=osv_url, status_code=503)
+    httpx_mock.add_response(url=osv_url, status_code=503)
+    httpx_mock.add_response(url=osv_url, status_code=503)
+
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--format", "json"]
+    )
+
+    assert result.exit_code == 2
+    output = json.loads(result.output)
+    file_result = get_file_output(output, temp_uv_lock_file.as_posix())
+    vuln = file_result["dependencies"][0]["vulns"][0]
+    assert vuln["id"] == "GHSA-status-1111-2222"
+    assert "severity" not in vuln
 
 
 def test_vulnerability_with_all_alias_types(

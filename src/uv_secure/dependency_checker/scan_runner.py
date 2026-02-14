@@ -64,17 +64,19 @@ def _find_unused_ignore_vulnerability_ids(
     lock_to_config_map: dict[APath, Configuration],
     used_ignore_vulnerabilities_by_scope: dict[str, set[str]],
 ) -> set[str]:
+    all_used_ignore_ids = {
+        ignore_id
+        for used_ignore_ids in used_ignore_vulnerabilities_by_scope.values()
+        for ignore_id in used_ignore_ids
+    }
     unused_ignore_ids: set[str] = set()
-    for dependency_file_path, config in lock_to_config_map.items():
+    for config in lock_to_config_map.values():
         if config.vulnerability_criteria.allow_unused_ignores:
             continue
         configured_ignore_ids = config.vulnerability_criteria.ignore_vulnerabilities
         if not configured_ignore_ids:
             continue
-        used_for_scope = used_ignore_vulnerabilities_by_scope.get(
-            dependency_file_path.as_posix(), set()
-        )
-        unused_ignore_ids.update(configured_ignore_ids - used_for_scope)
+        unused_ignore_ids.update(configured_ignore_ids - all_used_ignore_ids)
 
     return unused_ignore_ids
 
