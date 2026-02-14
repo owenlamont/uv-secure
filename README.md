@@ -256,6 +256,9 @@ jinja2 = [">=0.1, <1.0", "~=2.0"] # Ignore issues between version 0.1 and 1.0 or
 
 [vulnerability_criteria]
 ignore_vulnerabilities = ["VULN-123", "CVE-2024-12345"]
+severity = "medium" # Defaults to "low". Unknown severities are always included.
+ignore_unfixed = true # Defaults to false
+allow_unused_ignores = false # Defaults to false. false => unused ignores fail the run.
 aliases = true # Defaults to false
 desc = true # Defaults to false
 check_direct_dependencies_only = true # Defaults to false (test transitive dependencies)
@@ -282,6 +285,9 @@ jinja2 = [">=0.1, <1.0", "~=2.0"] # Ignore issues between version 0.1 and 1.0 or
 
 [tool.uv-secure.vulnerability_criteria]
 ignore_vulnerabilities = ["VULN-123", "CVE-2024-12345"]
+severity = "medium" # Defaults to "low". Unknown severities are always included.
+ignore_unfixed = true # Defaults to false
+allow_unused_ignores = false # Defaults to false. false => unused ignores fail the run.
 aliases = true # Defaults to false
 desc = true # Defaults to false
 check_direct_dependencies_only = true # Defaults to false (test transitive dependencies)
@@ -345,9 +351,17 @@ future).
 Like Ruff, configuration files aren't hierarchically combined, the nearest / highest
 precedence configuration is used. If you set a specific configuration file that will
 take precedence and hierarchical configuration file discovery is disabled. If you do
-specify a configuration options directly, e.g. pass the --ignore option that will
-overwrite the ignore_vulnerabilities setting of all found or manually specified
-configuration files.
+specify configuration options directly on CLI (for example `--ignore-vulns`,
+`--severity`, `--ignore-unfixed`, or `--allow-unused-ignores`) those values override
+the equivalent settings from discovered or manually specified configuration files.
+
+### Vulnerability Severity Data
+
+PyPI package JSON responses currently do not include normalized vulnerability severities
+for package/version vulnerability entries. uv-secure enriches severity values by
+querying OSV advisory data for recognized advisory IDs (for example `GHSA-*`,
+`CVE-*`, `PYSEC-*`, `OSV-*`) and shows the resulting severity in table and JSON output.
+When available, severity entries link to the advisory source used for that severity.
 
 ## Pre-commit Usage
 
@@ -386,7 +400,6 @@ Below are some ideas (in no particular order) I have for improving uv-secure:
 - Add support for other lock file formats beyond uv.lock
 - Support some of the other output file formats pip-audit does
 - Consider adding support for scanning dependencies from the current venv
-- Add a severity threshold option for reporting vulnerabilities against
 - Add an autofix option for updating package versions with known vulnerabilities if
   there is a more recent fixed version
 - Investigate supporting private PyPi repos

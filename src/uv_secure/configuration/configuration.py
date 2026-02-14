@@ -21,11 +21,32 @@ class MaintainabilityCriteria(BaseModel):
     check_direct_dependencies_only: bool = False
 
 
+class SeverityLevel(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+    @property
+    def rank(self) -> int:
+        """Return numeric severity rank for threshold comparisons."""
+        if self == SeverityLevel.LOW:
+            return 1
+        if self == SeverityLevel.MEDIUM:
+            return 2
+        if self == SeverityLevel.HIGH:
+            return 3
+        return 4
+
+
 class VulnerabilityCriteria(BaseModel):
     model_config = ConfigDict(extra="forbid")
     aliases: bool = False
     desc: bool = False
+    severity: SeverityLevel = SeverityLevel.LOW
+    ignore_unfixed: bool = False
     ignore_vulnerabilities: set[str] | None = None
+    allow_unused_ignores: bool = False
     check_direct_dependencies_only: bool = False
 
 
@@ -44,7 +65,10 @@ class OverrideConfiguration(BaseModel):
     check_direct_dependency_maintenance_issues_only: bool | None = None
     check_direct_dependency_vulnerabilities_only: bool | None = None
     desc: bool | None = None
+    severity: SeverityLevel | None = None
+    ignore_unfixed: bool | None = None
     ignore_vulnerabilities: set[str] | None = None
+    allow_unused_ignores: bool | None = None
     ignore_packages: dict[str, tuple[str, ...]] | None = None
     forbid_archived: bool | None = None
     forbid_deprecated: bool | None = None
@@ -70,49 +94,59 @@ def override_config(
     """
 
     new_configuration = original_config.model_copy()
-    if overrides.aliases is not None:
-        new_configuration.vulnerability_criteria.aliases = overrides.aliases
-    if overrides.check_direct_dependency_maintenance_issues_only is not None:
-        new_configuration.maintainability_criteria.check_direct_dependencies_only = (
-            overrides.check_direct_dependency_maintenance_issues_only
-        )
-    if overrides.check_direct_dependency_vulnerabilities_only is not None:
-        new_configuration.vulnerability_criteria.check_direct_dependencies_only = (
-            overrides.check_direct_dependency_vulnerabilities_only
-        )
-    if overrides.desc is not None:
-        new_configuration.vulnerability_criteria.desc = overrides.desc
-    if overrides.ignore_vulnerabilities is not None:
-        new_configuration.vulnerability_criteria.ignore_vulnerabilities = (
-            overrides.ignore_vulnerabilities
-        )
-    if overrides.ignore_packages is not None:
-        new_configuration.ignore_packages = overrides.ignore_packages
-    if overrides.forbid_archived is not None:
-        new_configuration.maintainability_criteria.forbid_archived = (
-            overrides.forbid_archived
-        )
-    if overrides.forbid_deprecated is not None:
-        new_configuration.maintainability_criteria.forbid_deprecated = (
-            overrides.forbid_deprecated
-        )
-    if overrides.forbid_quarantined is not None:
-        new_configuration.maintainability_criteria.forbid_quarantined = (
-            overrides.forbid_quarantined
-        )
-    if overrides.forbid_yanked is not None:
-        new_configuration.maintainability_criteria.forbid_yanked = (
-            overrides.forbid_yanked
-        )
-    if overrides.max_package_age is not None:
-        new_configuration.maintainability_criteria.max_package_age = (
-            overrides.max_package_age
-        )
-    if overrides.format is not None:
-        new_configuration.format = overrides.format
-    if overrides.check_uv_tool is not None:
-        new_configuration.check_uv_tool = overrides.check_uv_tool
-    if overrides.check_uv_secure is not None:
-        new_configuration.check_uv_secure = overrides.check_uv_secure
-
+    override_mappings = (
+        ("aliases", new_configuration.vulnerability_criteria, "aliases"),
+        (
+            "check_direct_dependency_maintenance_issues_only",
+            new_configuration.maintainability_criteria,
+            "check_direct_dependencies_only",
+        ),
+        (
+            "check_direct_dependency_vulnerabilities_only",
+            new_configuration.vulnerability_criteria,
+            "check_direct_dependencies_only",
+        ),
+        ("desc", new_configuration.vulnerability_criteria, "desc"),
+        ("severity", new_configuration.vulnerability_criteria, "severity"),
+        ("ignore_unfixed", new_configuration.vulnerability_criteria, "ignore_unfixed"),
+        (
+            "ignore_vulnerabilities",
+            new_configuration.vulnerability_criteria,
+            "ignore_vulnerabilities",
+        ),
+        (
+            "allow_unused_ignores",
+            new_configuration.vulnerability_criteria,
+            "allow_unused_ignores",
+        ),
+        ("ignore_packages", new_configuration, "ignore_packages"),
+        (
+            "forbid_archived",
+            new_configuration.maintainability_criteria,
+            "forbid_archived",
+        ),
+        (
+            "forbid_deprecated",
+            new_configuration.maintainability_criteria,
+            "forbid_deprecated",
+        ),
+        (
+            "forbid_quarantined",
+            new_configuration.maintainability_criteria,
+            "forbid_quarantined",
+        ),
+        ("forbid_yanked", new_configuration.maintainability_criteria, "forbid_yanked"),
+        (
+            "max_package_age",
+            new_configuration.maintainability_criteria,
+            "max_package_age",
+        ),
+        ("format", new_configuration, "format"),
+        ("check_uv_tool", new_configuration, "check_uv_tool"),
+        ("check_uv_secure", new_configuration, "check_uv_secure"),
+    )
+    for override_attr_name, target_obj, target_attr_name in override_mappings:
+        override_value = getattr(overrides, override_attr_name)
+        if override_value is not None:
+            setattr(target_obj, target_attr_name, override_value)
     return new_configuration

@@ -4,9 +4,11 @@ import sys
 import typer
 
 from uv_secure import __version__
-from uv_secure.configuration import OutputFormat
+from uv_secure.configuration import OutputFormat, SeverityLevel
 from uv_secure.configuration.exceptions import UvSecureConfigurationError
 from uv_secure.dependency_checker import check_lock_files, RunStatus
+from uv_secure.output_formatters import JsonFormatter
+from uv_secure.output_models import ErrorOutput, ScanResultsOutput
 
 
 DEFAULT_HTTPX_CACHE_TTL_SECONDS = 24.0 * 60.0 * 60.0
@@ -115,6 +117,30 @@ _ignore_vulns_option = typer.Option(
     ),
 )
 
+_severity_option = typer.Option(
+    None,
+    "--severity",
+    help=(
+        "Minimum vulnerability severity to include: low, medium, high, or critical. "
+        "Vulnerabilities with unknown severity are always included."
+    ),
+)
+
+_ignore_unfixed_option = typer.Option(
+    None,
+    "--ignore-unfixed",
+    help="Ignore vulnerabilities that do not provide any fix version",
+)
+
+_allow_unused_ignores_option = typer.Option(
+    None,
+    "--allow-unused-ignores",
+    help=(
+        "Allow ignore-vulns / ignore_vulnerabilities / ignore-pkgs entries that "
+        "match nothing in this run"
+    ),
+)
+
 _config_option = typer.Option(
     None,
     "--config",
@@ -186,6 +212,9 @@ def main(
     forbid_yanked: bool | None = _forbid_yanked_option,
     max_package_age: int | None = _max_package_age_option,
     ignore_vulns: str | None = _ignore_vulns_option,
+    severity: SeverityLevel | None = _severity_option,
+    ignore_unfixed: bool | None = _ignore_unfixed_option,
+    allow_unused_ignores: bool | None = _allow_unused_ignores_option,
     ignore_pkgs: list[str] | None = _ignore_pkg_options,
     check_direct_dependency_vulnerabilities_only: bool
     | None = _check_direct_dependency_vulnerabilities_only_option,
@@ -222,6 +251,9 @@ def main(
                 forbid_yanked,
                 max_package_age,
                 ignore_vulns,
+                severity,
+                ignore_unfixed,
+                allow_unused_ignores,
                 ignore_pkgs,
                 check_direct_dependency_vulnerabilities_only,
                 check_direct_dependency_maintenance_issues_only,
@@ -232,7 +264,13 @@ def main(
             )
         )
     except UvSecureConfigurationError as exc:
-        typer.echo(f"Error: {exc}")
+        if format_type == OutputFormat.JSON:
+            scan_results = ScanResultsOutput(
+                errors=[ErrorOutput(code="configuration_error", message=str(exc))]
+            )
+            typer.echo(JsonFormatter().format(scan_results))
+        else:
+            typer.echo(f"Error: {exc}")
         raise typer.Exit(code=3) from exc
     if run_status == RunStatus.MAINTENANCE_ISSUES_FOUND:
         raise typer.Exit(code=1)
@@ -240,6 +278,8 @@ def main(
         raise typer.Exit(code=2)
     if run_status == RunStatus.RUNTIME_ERROR:
         raise typer.Exit(code=3)
+    if run_status == RunStatus.UNUSED_IGNORES_FOUND:
+        raise typer.Exit(code=4)
 
 
 if __name__ == "__main__":

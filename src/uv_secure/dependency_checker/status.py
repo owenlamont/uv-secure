@@ -1,0 +1,9 @@
+from enum import Enum
+
+
+class RunStatus(Enum):
+    NO_VULNERABILITIES = 0
+    MAINTENANCE_ISSUES_FOUND = 1
+    VULNERABILITIES_FOUND = 2
+    RUNTIME_ERROR = 3
+    UNUSED_IGNORES_FOUND = 4

@@ -5,6 +5,7 @@ from uv_secure.configuration import (
     OutputFormat,
     override_config,
     OverrideConfiguration,
+    SeverityLevel,
     VulnerabilityCriteria,
 )
 
@@ -55,6 +56,28 @@ from uv_secure.configuration import (
             OverrideConfiguration(check_uv_tool=True),
             Configuration(check_uv_tool=True),
             id="check_uv_tool override to True",
+        ),
+        pytest.param(
+            Configuration(
+                vulnerability_criteria=VulnerabilityCriteria(
+                    severity=SeverityLevel.LOW,
+                    ignore_unfixed=False,
+                    allow_unused_ignores=False,
+                )
+            ),
+            OverrideConfiguration(
+                severity=SeverityLevel.HIGH,
+                ignore_unfixed=True,
+                allow_unused_ignores=True,
+            ),
+            Configuration(
+                vulnerability_criteria=VulnerabilityCriteria(
+                    severity=SeverityLevel.HIGH,
+                    ignore_unfixed=True,
+                    allow_unused_ignores=True,
+                )
+            ),
+            id="severity and ignore controls override",
         ),
     ],
 )

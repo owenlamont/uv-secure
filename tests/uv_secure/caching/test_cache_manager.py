@@ -10,6 +10,7 @@ from anyio import Path as APath
 import orjson
 import pytest
 import pytest_asyncio
+from pytest_mock import MockerFixture
 import stamina
 
 from uv_secure.caching.cache_manager import CacheManager
@@ -258,12 +259,12 @@ async def test_read_from_sqlite_corrupt_handling(cache_dir: Path) -> None:
 
 
 def test_init_db_raises_for_unhandled_sqlite_error(
-    cache_dir: Path, monkeypatch: pytest.MonkeyPatch
+    cache_dir: Path, mocker: MockerFixture
 ) -> None:
     def fail_connect(*args: Any, **kwargs: Any) -> None:
         raise sqlite3.OperationalError("disk I/O error")
 
-    monkeypatch.setattr(sqlite3, "connect", fail_connect)
+    mocker.patch.object(sqlite3, "connect", fail_connect)
     cm = CacheManager(cache_dir, ttl_seconds=1.0)
     with pytest.raises(sqlite3.OperationalError, match="disk I/O error"):
         cm._init_db_sync()
@@ -271,7 +272,7 @@ def test_init_db_raises_for_unhandled_sqlite_error(
 
 @pytest.mark.asyncio
 async def test_read_row_retries_on_database_locked(
-    cache_dir: Path, monkeypatch: pytest.MonkeyPatch
+    cache_dir: Path, mocker: MockerFixture
 ) -> None:
     db_path = cache_dir / "cache.db"
     await APath(cache_dir).mkdir(parents=True, exist_ok=True)
@@ -298,7 +299,7 @@ async def test_read_row_retries_on_database_locked(
             raise sqlite3.OperationalError("database is locked")
         return real_connect(*args, **kwargs)
 
-    monkeypatch.setattr(sqlite3, "connect", flaky_connect)
+    mocker.patch.object(sqlite3, "connect", flaky_connect)
     try:
         with stamina.set_testing(True, attempts=3, cap=True):
             row = cm._read_row_sync("db_hit", time.time())
@@ -312,18 +313,18 @@ async def test_read_row_retries_on_database_locked(
 
 
 def test_read_row_raises_for_non_lock_operational_error(
-    cache_manager: CacheManager, monkeypatch: pytest.MonkeyPatch
+    cache_manager: CacheManager, mocker: MockerFixture
 ) -> None:
     def fail_connect(*args: Any, **kwargs: Any) -> None:
         raise sqlite3.OperationalError("disk I/O error")
 
-    monkeypatch.setattr(sqlite3, "connect", fail_connect)
+    mocker.patch.object(sqlite3, "connect", fail_connect)
     with pytest.raises(sqlite3.OperationalError, match="disk I/O error"):
         cache_manager._read_row_sync("missing", time.time())
 
 
 def test_write_row_retries_on_database_table_locked(
-    cache_manager: CacheManager, cache_dir: Path, monkeypatch: pytest.MonkeyPatch
+    cache_manager: CacheManager, cache_dir: Path, mocker: MockerFixture
 ) -> None:
     real_connect: Callable[..., sqlite3.Connection] = sqlite3.connect
     calls = 0
@@ -335,7 +336,7 @@ def test_write_row_retries_on_database_table_locked(
             raise sqlite3.OperationalError("database table is locked")
         return real_connect(*args, **kwargs)
 
-    monkeypatch.setattr(sqlite3, "connect", flaky_connect)
+    mocker.patch.object(sqlite3, "connect", flaky_connect)
     expires_at = time.time() + 100
     with stamina.set_testing(True, attempts=3, cap=True):
         cache_manager._write_row_sync("write_lock", {"ok": True}, expires_at)
@@ -349,11 +350,11 @@ def test_write_row_retries_on_database_table_locked(
 
 
 def test_write_row_raises_for_non_lock_operational_error(
-    cache_manager: CacheManager, monkeypatch: pytest.MonkeyPatch
+    cache_manager: CacheManager, mocker: MockerFixture
 ) -> None:
     def fail_connect(*args: Any, **kwargs: Any) -> None:
         raise sqlite3.OperationalError("disk I/O error")
 
-    monkeypatch.setattr(sqlite3, "connect", fail_connect)
+    mocker.patch.object(sqlite3, "connect", fail_connect)
     with pytest.raises(sqlite3.OperationalError, match="disk I/O error"):
         cache_manager._write_row_sync("write_fail", {"nope": True}, time.time())

@@ -8,6 +8,7 @@ from uv_secure.configuration.configuration import (
     OutputFormat,
     override_config,
     OverrideConfiguration,
+    SeverityLevel,
     VulnerabilityCriteria,
 )
 from uv_secure.configuration.exceptions import UvSecureConfigurationError
@@ -18,6 +19,7 @@ __all__ = [
     "MaintainabilityCriteria",
     "OutputFormat",
     "OverrideConfiguration",
+    "SeverityLevel",
     "UvSecureConfigurationError",
     "VulnerabilityCriteria",
     "config_cli_arg_factory",
