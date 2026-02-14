@@ -36,6 +36,7 @@ class Configuration(BaseModel):
     ignore_packages: dict[str, tuple[str, ...]] | None = None
     format: OutputFormat = OutputFormat.COLUMNS
     check_uv_tool: bool = True
+    check_uv_secure: bool = True
 
 
 class OverrideConfiguration(BaseModel):
@@ -52,6 +53,7 @@ class OverrideConfiguration(BaseModel):
     max_package_age: timedelta | None = None
     format: OutputFormat | None = None
     check_uv_tool: bool | None = None
+    check_uv_secure: bool | None = None
 
 
 def override_config(
@@ -110,5 +112,7 @@ def override_config(
         new_configuration.format = overrides.format
     if overrides.check_uv_tool is not None:
         new_configuration.check_uv_tool = overrides.check_uv_tool
+    if overrides.check_uv_secure is not None:
+        new_configuration.check_uv_secure = overrides.check_uv_secure
 
     return new_configuration

@@ -157,8 +157,17 @@ _check_uv_tool_option = typer.Option(
     None,
     "--check-uv-tool/--no-check-uv-tool",
     help=(
-        "Enable or disable scanning the globally installed uv CLI for vulnerabilities"
-        " (enabled by default)"
+        "Enable or disable scanning the globally installed uv CLI for "
+        "vulnerabilities (enabled by default)"
+    ),
+)
+
+_check_uv_secure_option = typer.Option(
+    None,
+    "--check-uv-secure/--no-check-uv-secure",
+    help=(
+        "Enable or disable scanning the installed uv-secure package for "
+        "vulnerabilities (enabled by default)"
     ),
 )
 
@@ -186,6 +195,7 @@ def main(
     version: bool = _version_option,
     format_type: OutputFormat | None = _format_option,
     check_uv_tool: bool | None = _check_uv_tool_option,
+    check_uv_secure: bool | None = _check_uv_secure_option,
 ) -> None:
     """Parse dependency manifests and display vulnerability summaries."""  # noqa: DOC501
     # Use uvloop or winloop if present
@@ -218,6 +228,7 @@ def main(
                 config_path,
                 format_type.value if format_type is not None else None,
                 check_uv_tool,
+                check_uv_secure,
             )
         )
     except UvSecureConfigurationError as exc:

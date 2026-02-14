@@ -6,7 +6,7 @@ from functools import cache
 from pathlib import Path
 
 from anyio import Path as APath
-from httpx import AsyncClient, Headers
+from httpx import AsyncClient, Headers, HTTPStatusError
 from packaging.specifiers import SpecifierSet
 from packaging.version import InvalidVersion, Version
 from rich.console import Console
@@ -46,10 +46,12 @@ from uv_secure.package_info import (
     ProjectState,
     Vulnerability,
 )
+from uv_secure.package_utils import canonicalize_name
 
 
 USER_AGENT = f"uv-secure/{__version__} (contact: owenrlamont@gmail.com)"
 GLOBAL_UV_TOOL_LABEL = "uv (global tool)"
+GLOBAL_UV_SECURE_PACKAGE_LABEL = "uv-secure (installed package)"
 
 
 @cache
@@ -324,6 +326,30 @@ async def _detect_uv_version() -> str | None:
     return _extract_uv_version(decoded)
 
 
+def _detect_uv_secure_version() -> str | None:
+    """Return the installed ``uv-secure`` package version when valid."""
+
+    try:
+        Version(__version__)
+    except InvalidVersion:
+        return None
+    return __version__
+
+
+def _is_missing_pypi_release_version(
+    package_info: PackageInfo | BaseException, package_name: str, package_version: str
+) -> bool:
+    """Return True when PyPI does not have the specific package version."""
+
+    if not isinstance(package_info, HTTPStatusError):
+        return False
+    if package_info.response.status_code != 404:
+        return False
+    request_url = str(package_info.request.url)
+    expected_suffix = f"/pypi/{canonicalize_name(package_name)}/{package_version}/json"
+    return request_url.endswith(expected_suffix)
+
+
 async def _check_global_uv_tool(
     config: Configuration, http_client: AsyncClient, cache_manager: CacheManager | None
 ) -> FileResultOutput | None:
@@ -347,6 +373,10 @@ async def _check_global_uv_tool(
     ignore_packages = _build_ignore_packages(config)
     package_info = package_infos[0]
     package_index = package_indexes[0]
+    if _is_missing_pypi_release_version(
+        package_info, dependency.name, dependency.version
+    ):
+        return None
     result = _process_package_metadata(
         package_info, package_index, dependency.name, config, ignore_packages
     )
@@ -366,26 +396,83 @@ async def _check_global_uv_tool(
     )
 
 
+async def _check_installed_uv_secure_package(
+    config: Configuration, http_client: AsyncClient, cache_manager: CacheManager | None
+) -> FileResultOutput | None:
+    """Check vulnerabilities for the installed ``uv-secure`` package.
+
+    Returns:
+        FileResultOutput | None: Results specific to installed ``uv-secure`` or
+        ``None`` when no actionable findings are present.
+    """
+
+    uv_secure_version = _detect_uv_secure_version()
+    if uv_secure_version is None:
+        return None
+
+    dependency = Dependency(name="uv-secure", version=uv_secure_version, direct=True)
+    package_infos, package_indexes = await asyncio.gather(
+        download_packages([dependency], http_client, cache_manager),
+        download_package_indexes([dependency], http_client, cache_manager),
+    )
+
+    ignore_packages = _build_ignore_packages(config)
+    package_info = package_infos[0]
+    package_index = package_indexes[0]
+    if _is_missing_pypi_release_version(
+        package_info, dependency.name, dependency.version
+    ):
+        return None
+    result = _process_package_metadata(
+        package_info, package_index, dependency.name, config, ignore_packages
+    )
+
+    if result is None:
+        return None
+
+    if isinstance(result, str):
+        return FileResultOutput(file_path=GLOBAL_UV_SECURE_PACKAGE_LABEL, error=result)
+
+    has_findings = bool(result.vulns) or result.maintenance_issues is not None
+    if not has_findings:
+        return None
+
+    return FileResultOutput(
+        file_path=GLOBAL_UV_SECURE_PACKAGE_LABEL, dependencies=[result], ignored_count=0
+    )
+
+
 async def _evaluate_dependency_files(
     file_apaths: tuple[APath, ...],
     lock_to_config_map: dict[APath, Configuration],
     http_client: AsyncClient,
     cache_manager: CacheManager | None,
 ) -> list[FileResultOutput]:
-    """Gather dependency results for dependency files and the uv CLI.
+    """Gather dependency results for dependency files and global tool checks.
 
     Returns:
         list[FileResultOutput]: Combined scan results for dependency files and
-        the optional ``uv`` check.
+        the optional ``uv`` and ``uv-secure`` checks.
     """
 
     uv_config = next(
         (config for config in lock_to_config_map.values() if config.check_uv_tool), None
     )
+    uv_secure_config = next(
+        (config for config in lock_to_config_map.values() if config.check_uv_secure),
+        None,
+    )
     uv_task: asyncio.Task[FileResultOutput | None] | None = None
+    uv_secure_task: asyncio.Task[FileResultOutput | None] | None = None
     if uv_config is not None:
         uv_task = asyncio.create_task(
             _check_global_uv_tool(uv_config, http_client, cache_manager)
+        )
+    if uv_secure_config is not None:
+        uv_secure_task = asyncio.create_task(
+            _check_installed_uv_secure_package(
+                uv_secure_config, http_client, cache_manager
+            )
         )
 
     file_results = list(
@@ -406,6 +493,10 @@ async def _evaluate_dependency_files(
         uv_result = await uv_task
         if uv_result is not None:
             file_results.append(uv_result)
+    if uv_secure_task is not None:
+        uv_secure_result = await uv_secure_task
+        if uv_secure_result is not None:
+            file_results.append(uv_secure_result)
 
     return file_results
 
@@ -560,6 +651,7 @@ def _apply_cli_config_overrides(
     max_package_age: int | None,
     format_type: str | None,
     check_uv_tool: bool | None,
+    check_uv_secure: bool | None,
 ) -> dict[APath, Configuration]:
     """Apply CLI overrides to lock-to-config mapping.
 
@@ -581,6 +673,7 @@ def _apply_cli_config_overrides(
             max_package_age is not None,
             format_type is not None,
             check_uv_tool is not None,
+            check_uv_secure is not None,
         )
     ):
         cli_config = config_cli_arg_factory(
@@ -597,6 +690,7 @@ def _apply_cli_config_overrides(
             ignore_pkgs,
             OutputFormat(format_type) if format_type else None,
             check_uv_tool,
+            check_uv_secure,
         )
         return {
             lock_file: override_config(config, cli_config)
@@ -687,6 +781,7 @@ async def check_lock_files(
     config_path: Path | None,
     format_type: str | None,
     check_uv_tool: bool | None,
+    check_uv_secure: bool | None,
 ) -> RunStatus:
     """Scan dependency files for vulnerabilities and maintenance issues.
 
@@ -711,6 +806,8 @@ async def check_lock_files(
         config_path: Optional configuration file path.
         format_type: Output format override ("columns" or "json").
         check_uv_tool: Toggle scanning the globally installed uv CLI for
+            vulnerabilities.
+        check_uv_secure: Toggle scanning the installed uv-secure package for
             vulnerabilities.
 
     Returns:
@@ -745,6 +842,7 @@ async def check_lock_files(
         max_package_age,
         format_type,
         check_uv_tool,
+        check_uv_secure,
     )
 
     client_headers = Headers({"User-Agent": USER_AGENT})
@@ -776,6 +874,9 @@ async def check_lock_files(
 
     # Format and print output
     output = formatter.format(scan_results)
-    console.print(output)
+    if config.format.value == "json":
+        console.print(output, soft_wrap=True, markup=False, highlight=False)
+    else:
+        console.print(output)
 
     return _determine_final_status(file_results)

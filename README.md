@@ -15,9 +15,11 @@ future enhancements.
 
 When a globally installed `uv` CLI is available, uv-secure will also query the PyPI
 metadata for that executable's version and report any known vulnerabilities alongside
-your dependency scan results. This safety check is enabled by default but can be
-disabled with `--no-check-uv-tool` or the equivalent configuration setting if
-uv-secure is used in environments that do not rely on `uv`.
+your dependency scan results. uv-secure also performs the same check for its own
+installed package version. If a local version is not yet published on PyPI, that
+self-check is skipped without failing the scan. These safety checks are enabled by
+default but can be disabled independently with `--no-check-uv-tool`,
+`--no-check-uv-secure`, or equivalent configuration settings.
 
 I don't intend uv-secure to ever create virtual environments or do dependency
 resolution - the plan is to leave that all to uv since it does that so well and just
@@ -207,6 +209,12 @@ After installation, you can run uv-secure --help to see the options.
 │                                                                 uv CLI for           │
 │                                                                 vulnerabilities      │
 │                                                                 (enabled by default) │
+│ --check-uv-secure      --no-check-uv-sec…                       Enable or disable    │
+│                                                                 scanning the         │
+│                                                                 installed uv-secure  │
+│                                                                 package for          │
+│                                                                 vulnerabilities      │
+│                                                                 (enabled by default) │
 │ --install-completi…                                             Install completion   │
 │                                                                 for the current      │
 │                                                                 shell.               │
@@ -238,7 +246,8 @@ uv-secure can read configuration from a toml file specified with the config opti
 
 ```toml
 format = "columns"
-check_uv_tool = true # Disable with false to skip checking the global uv CLI
+check_uv_tool = true # Disable with false to skip checking global uv CLI
+check_uv_secure = true # Disable with false to skip checking installed uv-secure
 
 [ignore_packages]
 requests = [] # Ignore issues with all versions of the requests package
@@ -347,7 +356,7 @@ uv-secure can be run as a pre-commit hook by adding this configuration to your
 
 ```yaml
   - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.15.4
+    rev: 0.16.0
     hooks:
       - id: uv-secure
 ```

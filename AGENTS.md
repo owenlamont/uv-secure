@@ -11,13 +11,12 @@ concurrently and supports hierarchical configuration discovery.
 
 ## Code Change Requirements
 
+- Use the uv CLI for all dependency and project changes. Do not edit
+  `pyproject.toml` or `uv.lock` directly.
 - Whenever code is changed, ensure all pre-commit linters pass
   (`prek run --all-files`) and all pytests pass
   (`uv run pytest -n logical --color=no`). Newly added code must keep full branch
-  coverage. Always invoke these commands with a multi-minute timeout (>= 4 minutes)
-  and, when using sandboxed Codex tooling, request elevated permissions each time so
-  the commands can access the full workspace and any required local services. In
-  unrestricted environments just make sure the resources are reachable.
+  coverage.
 - When running ad-hoc Python (inspecting objects, small scripts, etc.), use
   `uv run python` so the project venv and pinned dependencies are active.
 - Update documentation whenever behaviour or feature changes are introduced.
@@ -89,6 +88,8 @@ concurrently and supports hierarchical configuration discovery.
   example `prek run --all-files`) instead of prefixing them with `cd`.
 - Being a uv project you never need to activate a virtual environment or call pip
   directly. Use `uv add` for dependencies and `uv run` for scripts or tooling.
+- Never `git commit`, `git push`, or open/create pull requests unless the user
+  explicitly asks or gives consent for those actions.
 - Install `complexipy`, `markitdown`, `prek`, `rg`, `ruff`, `rumdl`, `typos`, and
   `zizmor` as global uv tools so they can be invoked without `uv run`.
 
@@ -102,9 +103,6 @@ concurrently and supports hierarchical configuration discovery.
   inspect any uncovered lines. Some conditional logic is platform- or
   version-specific, so 100% branch coverage may require CI, but treat any gaps as
   suspect until proven otherwise.
-- Future integration tests may rely on AWS emulators such as DynamoDB Local on
-  `http://localhost:8000`. Request elevated permissions when needed so those
-  endpoints remain reachable.
 - Tests treat warnings as errors. Fix warnings raised by this repo. Third-party
   warnings can be explicitly ignored when necessary.
 - Only use test functions (no classes). Put setup into fixtures or parameters so the

@@ -44,6 +44,18 @@ from uv_secure.configuration import (
             Configuration(format=OutputFormat.COLUMNS),
             id="format override to COLUMNS",
         ),
+        pytest.param(
+            Configuration(check_uv_secure=True),
+            OverrideConfiguration(check_uv_secure=False),
+            Configuration(check_uv_secure=False),
+            id="check_uv_secure override to False",
+        ),
+        pytest.param(
+            Configuration(check_uv_tool=False),
+            OverrideConfiguration(check_uv_tool=True),
+            Configuration(check_uv_tool=True),
+            id="check_uv_tool override to True",
+        ),
     ],
 )
 def test_override_config(
