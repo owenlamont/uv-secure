@@ -60,11 +60,13 @@ def _should_skip_package(
     if package.info.name not in ignore_packages:
         return False
 
-    used_ignore_packages.add(package.info.name)
     specifiers = ignore_packages[package.info.name]
-    return len(specifiers) == 0 or any(
+    should_skip = len(specifiers) == 0 or any(
         specifier.contains(package.info.version) for specifier in specifiers
     )
+    if should_skip:
+        used_ignore_packages.add(package.info.name)
+    return should_skip
 
 
 def _should_check_vulnerabilities(package: PackageInfo, config: Configuration) -> bool:

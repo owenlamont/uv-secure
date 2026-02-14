@@ -104,6 +104,45 @@ def _find_unused_ignore_package_ids(
     return unused_ignore_packages
 
 
+def _apply_unused_ignore_policy(
+    lock_to_config_map: dict[APath, Configuration],
+    used_ignore_vulnerabilities_by_scope: dict[str, set[str]],
+    used_ignore_packages_by_scope: dict[str, set[str]],
+    config: Configuration,
+    scan_results: ScanResultsOutput,
+    console: Console,
+    final_status: RunStatus,
+) -> RunStatus:
+    unused_ignore_ids = _find_unused_ignore_vulnerability_ids(
+        lock_to_config_map, used_ignore_vulnerabilities_by_scope
+    )
+    unused_ignore_packages = _find_unused_ignore_package_ids(
+        lock_to_config_map, used_ignore_packages_by_scope
+    )
+    if not unused_ignore_ids and not unused_ignore_packages:
+        return final_status
+
+    unused_ignore_display = ", ".join(sorted(unused_ignore_ids))
+    unused_package_display = ", ".join(sorted(unused_ignore_packages))
+    message_parts: list[str] = []
+    if unused_ignore_display:
+        message_parts.append(
+            f"unused vulnerability ignore IDs: {unused_ignore_display}"
+        )
+    if unused_package_display:
+        message_parts.append(f"unused package ignore IDs: {unused_package_display}")
+    unused_ignore_message = "Found " + "; ".join(message_parts)
+    if config.format.value == "json":
+        scan_results.errors.append(
+            ErrorOutput(code="unused_ignores", message=unused_ignore_message)
+        )
+    else:
+        console.print(f"[bold red]Error:[/] {unused_ignore_message}")
+    if final_status == RunStatus.RUNTIME_ERROR:
+        return final_status
+    return RunStatus.UNUSED_IGNORES_FOUND
+
+
 async def _resolve_file_paths_and_configs(
     file_paths: Sequence[Path] | None, config_path: Path | None
 ) -> tuple[tuple[APath, ...], dict[APath, Configuration]]:
@@ -420,31 +459,15 @@ async def check_lock_files(
     config = next(iter(lock_to_config_map.values()))
 
     final_status = _determine_final_status(file_results)
-
-    unused_ignore_ids = _find_unused_ignore_vulnerability_ids(
-        lock_to_config_map, used_ignore_vulnerabilities_by_scope
+    final_status = _apply_unused_ignore_policy(
+        lock_to_config_map,
+        used_ignore_vulnerabilities_by_scope,
+        used_ignore_packages_by_scope,
+        config,
+        scan_results,
+        console,
+        final_status,
     )
-    unused_ignore_packages = _find_unused_ignore_package_ids(
-        lock_to_config_map, used_ignore_packages_by_scope
-    )
-    if unused_ignore_ids or unused_ignore_packages:
-        unused_ignore_display = ", ".join(sorted(unused_ignore_ids))
-        unused_package_display = ", ".join(sorted(unused_ignore_packages))
-        message_parts: list[str] = []
-        if unused_ignore_display:
-            message_parts.append(
-                f"unused vulnerability ignore IDs: {unused_ignore_display}"
-            )
-        if unused_package_display:
-            message_parts.append(f"unused package ignore IDs: {unused_package_display}")
-        unused_ignore_message = "Found " + "; ".join(message_parts)
-        if config.format.value == "json":
-            scan_results.errors.append(
-                ErrorOutput(code="unused_ignores", message=unused_ignore_message)
-            )
-        else:
-            console.print(f"[bold red]Error:[/] {unused_ignore_message}")
-        final_status = RunStatus.UNUSED_IGNORES_FOUND
 
     formatter: OutputFormatter
     if config.format.value == "json":

@@ -1100,10 +1100,8 @@ def test_app_with_arg_ignored_package_with_specifiers_no_match(
         ],
     )
 
-    assert result.exit_code == 2
-    assert "Vulnerabilities detected!" in result.output
-    assert "Checked: 1 dependency" in result.output
-    assert "Vulnerable: 1 vulnerability" in result.output
+    assert result.exit_code == 4
+    assert "unused package ignore ids" in result.output.lower()
     assert "example-package" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
@@ -2559,6 +2557,28 @@ def test_unused_ignore_package_can_be_allowed_by_cli_flag(
     assert result.exit_code == 0
     assert "unused package ignore ids" not in result.output.lower()
     assert "[/]" not in result.output
+
+
+def test_runtime_error_takes_precedence_over_unused_ignores(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+    tmp_path: Path,
+) -> None:
+    missing_uv_lock_file = tmp_path / "missing.lock" / "uv.lock"
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            str(missing_uv_lock_file),
+            "--disable-cache",
+            "--ignore-vulns",
+            "VULN-999",
+        ],
+    )
+
+    assert result.exit_code == 3
+    assert "does not exist" in result.output
 
 
 def test_json_severity_enrichment_retries_transient_osv_request_error(
