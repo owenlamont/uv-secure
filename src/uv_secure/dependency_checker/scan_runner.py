@@ -29,7 +29,7 @@ from uv_secure.directory_scanner.directory_scanner import (
     get_dependency_files_to_config_map,
 )
 from uv_secure.output_formatters import ColumnsFormatter, JsonFormatter, OutputFormatter
-from uv_secure.output_models import FileResultOutput, ScanResultsOutput
+from uv_secure.output_models import ErrorOutput, FileResultOutput, ScanResultsOutput
 
 
 def _determine_file_status(file_result: FileResultOutput) -> int:
@@ -359,11 +359,22 @@ async def check_lock_files(
             file_paths, config_path
         )
     except ValueError:
-        console.print(
-            "[bold red]Error:[/] file_paths must either reference a single "
-            "project root directory or a sequence of uv.lock / pylock.toml / "
-            "requirements.txt file paths"
+        error_message = (
+            "file_paths must either reference a single project root directory "
+            "or a sequence of uv.lock / pylock.toml / requirements.txt file paths"
         )
+        if format_type == OutputFormat.JSON.value:
+            scan_results = ScanResultsOutput(
+                errors=[ErrorOutput(code="invalid_file_paths", message=error_message)]
+            )
+            console.print(
+                JsonFormatter().format(scan_results),
+                soft_wrap=True,
+                markup=False,
+                highlight=False,
+            )
+        else:
+            console.print(f"[bold red]Error:[/] {error_message}")
         return RunStatus.RUNTIME_ERROR
 
     lock_to_config_map = _apply_cli_config_overrides(
@@ -408,21 +419,7 @@ async def check_lock_files(
     scan_results = ScanResultsOutput(files=file_results)
     config = next(iter(lock_to_config_map.values()))
 
-    formatter: OutputFormatter
-    if config.format.value == "json":
-        formatter = JsonFormatter()
-    else:
-        formatter = ColumnsFormatter(config)
-
-    output = formatter.format(scan_results)
-    if config.format.value == "json":
-        console.print(output, soft_wrap=True, markup=False, highlight=False)
-    else:
-        console.print(output)
-
     final_status = _determine_final_status(file_results)
-    if final_status == RunStatus.RUNTIME_ERROR:
-        return final_status
 
     unused_ignore_ids = _find_unused_ignore_vulnerability_ids(
         lock_to_config_map, used_ignore_vulnerabilities_by_scope
@@ -440,7 +437,25 @@ async def check_lock_files(
             )
         if unused_package_display:
             message_parts.append(f"unused package ignore IDs: {unused_package_display}")
-        console.print("[bold red]Error:[/] Found " + "; ".join(message_parts))
-        return RunStatus.UNUSED_IGNORES_FOUND
+        unused_ignore_message = "Found " + "; ".join(message_parts)
+        if config.format.value == "json":
+            scan_results.errors.append(
+                ErrorOutput(code="unused_ignores", message=unused_ignore_message)
+            )
+        else:
+            console.print(f"[bold red]Error:[/] {unused_ignore_message}")
+        final_status = RunStatus.UNUSED_IGNORES_FOUND
+
+    formatter: OutputFormatter
+    if config.format.value == "json":
+        formatter = JsonFormatter()
+    else:
+        formatter = ColumnsFormatter(config)
+
+    output = formatter.format(scan_results)
+    if config.format.value == "json":
+        console.print(output, soft_wrap=True, markup=False, highlight=False)
+    else:
+        console.print(output)
 
     return final_status

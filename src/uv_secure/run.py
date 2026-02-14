@@ -7,6 +7,8 @@ from uv_secure import __version__
 from uv_secure.configuration import OutputFormat, SeverityLevel
 from uv_secure.configuration.exceptions import UvSecureConfigurationError
 from uv_secure.dependency_checker import check_lock_files, RunStatus
+from uv_secure.output_formatters import JsonFormatter
+from uv_secure.output_models import ErrorOutput, ScanResultsOutput
 
 
 DEFAULT_HTTPX_CACHE_TTL_SECONDS = 24.0 * 60.0 * 60.0
@@ -262,7 +264,13 @@ def main(
             )
         )
     except UvSecureConfigurationError as exc:
-        typer.echo(f"Error: {exc}")
+        if format_type == OutputFormat.JSON:
+            scan_results = ScanResultsOutput(
+                errors=[ErrorOutput(code="configuration_error", message=str(exc))]
+            )
+            typer.echo(JsonFormatter().format(scan_results))
+        else:
+            typer.echo(f"Error: {exc}")
         raise typer.Exit(code=3) from exc
     if run_status == RunStatus.MAINTENANCE_ISSUES_FOUND:
         raise typer.Exit(code=1)

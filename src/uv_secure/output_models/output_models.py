@@ -42,7 +42,15 @@ class FileResultOutput(BaseModel):
     error: str | None = None
 
 
+class ErrorOutput(BaseModel):
+    """Represents a top-level error in JSON output."""
+
+    code: str
+    message: str
+
+
 class ScanResultsOutput(BaseModel):
     """Top-level output structure containing results for all scanned files"""
 
     files: list[FileResultOutput] = []
+    errors: list[ErrorOutput] = []

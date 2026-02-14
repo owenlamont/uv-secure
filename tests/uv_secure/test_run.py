@@ -86,6 +86,16 @@ def test_bad_file_name() -> None:
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
+def test_bad_file_name_json_error_envelope() -> None:
+    result = runner.invoke(
+        app, ["i_dont_exist.txt", "--disable-cache", "--format", "json"]
+    )
+    assert result.exit_code == 3
+    output = json.loads(result.output)
+    assert output["files"] == []
+    assert output["errors"][0]["code"] == "invalid_file_paths"
+
+
 def test_bad_pyproject_toml_config_file(tmp_path: Path) -> None:
     pyproject_toml_path = tmp_path / "pyproject.toml"
     pyproject_toml_contents = """
@@ -97,6 +107,23 @@ def test_bad_pyproject_toml_config_file(tmp_path: Path) -> None:
     result = runner.invoke(app, [str(tmp_path / "uv.lock"), "--disable-cache"])
     assert "Error: Parsing uv-secure configuration at: " in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
+
+
+def test_bad_pyproject_toml_config_file_json_error_envelope(tmp_path: Path) -> None:
+    pyproject_toml_path = tmp_path / "pyproject.toml"
+    pyproject_toml_contents = """
+        [tool.uv-secure]
+        aliases = true
+        desc = true
+    """
+    pyproject_toml_path.write_text(dedent(pyproject_toml_contents).strip())
+    result = runner.invoke(
+        app, [str(tmp_path / "uv.lock"), "--disable-cache", "--format", "json"]
+    )
+    assert result.exit_code == 3
+    output = json.loads(result.output)
+    assert output["files"] == []
+    assert output["errors"][0]["code"] == "configuration_error"
 
 
 def test_bad_uv_secure_toml_config_file(tmp_path: Path) -> None:
@@ -2400,6 +2427,30 @@ def test_unused_ignore_vulnerability_fails_by_default(
     assert "unused vulnerability ignore ids" in result.output.lower()
     assert "VULN-999" in result.output
     assert "[/]" not in result.output
+
+
+def test_unused_ignore_vulnerability_json_output_stays_valid_json(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            "--disable-cache",
+            "--ignore-vulns",
+            "VULN-999",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 4
+    output = json.loads(result.output)
+    file_result = get_file_output(output, temp_uv_lock_file.as_posix())
+    assert file_result["file_path"] == temp_uv_lock_file.as_posix()
+    assert output["errors"][0]["code"] == "unused_ignores"
 
 
 def test_unused_ignore_vulnerability_can_be_allowed_by_cli_flag(
