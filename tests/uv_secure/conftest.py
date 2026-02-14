@@ -6,6 +6,7 @@ from textwrap import dedent
 from httpx import Request, RequestError
 import pytest
 from pytest_httpx import HTTPXMock
+from pytest_mock import MockerFixture
 
 from uv_secure import __version__
 from uv_secure.dependency_checker import USER_AGENT
@@ -15,14 +16,13 @@ DEFAULT_TEST_UV_VERSION = "0.9.9"
 
 
 @pytest.fixture(autouse=True)
-def _stub_uv_cli_version(monkeypatch: pytest.MonkeyPatch) -> None:
+def _stub_uv_cli_version(mocker: MockerFixture) -> None:
     async def _fake_version() -> str | None:
         await asyncio.sleep(0)
         return DEFAULT_TEST_UV_VERSION
 
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_version",
-        _fake_version,
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_version", _fake_version
     )
 
 

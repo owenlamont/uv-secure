@@ -11,6 +11,7 @@ from typing import Any
 from freezegun import freeze_time
 import pytest
 from pytest_httpx import HTTPXMock
+from pytest_mock import MockerFixture
 from typer.testing import CliRunner
 
 from uv_secure import __version__, app
@@ -243,15 +244,14 @@ def test_app_reports_uv_tool_vulnerability(
     httpx_mock: HTTPXMock,
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
     async def _fake_version() -> str | None:
         await asyncio.sleep(0)
         return "0.9.5"
 
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_version",
-        _fake_version,
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_version", _fake_version
     )
 
     httpx_mock.add_response(
@@ -297,7 +297,7 @@ def test_app_disable_uv_tool_flag_skips_check(
     temp_uv_lock_file: Path,
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
     uv_called = False
     uv_secure_called = False
@@ -313,12 +313,11 @@ def test_app_disable_uv_tool_flag_skips_check(
         uv_secure_called = True
         return __version__
 
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_version",
-        _fake_version,
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_version", _fake_version
     )
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_secure_version",
         _fake_uv_secure_version,
     )
 
@@ -340,7 +339,7 @@ def test_app_config_disables_uv_tool_check(
     temp_uv_lock_file: Path,
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
     config_path = temp_uv_lock_file.with_name("uv-secure.toml")
     config_path.write_text("check_uv_tool = false\n")
@@ -359,12 +358,11 @@ def test_app_config_disables_uv_tool_check(
         uv_secure_called = True
         return __version__
 
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_version",
-        _fake_version,
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_version", _fake_version
     )
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_secure_version",
         _fake_uv_secure_version,
     )
 
@@ -384,7 +382,7 @@ def test_app_disable_uv_secure_flag_skips_check(
     temp_uv_lock_file: Path,
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
     uv_called = False
     uv_secure_called = False
@@ -400,12 +398,11 @@ def test_app_disable_uv_secure_flag_skips_check(
         uv_secure_called = True
         return __version__
 
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_version",
-        _fake_version,
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_version", _fake_version
     )
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_secure_version",
         _fake_uv_secure_version,
     )
 
@@ -426,7 +423,7 @@ def test_app_config_disables_uv_secure_check(
     temp_uv_lock_file: Path,
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
     config_path = temp_uv_lock_file.with_name("uv-secure.toml")
     config_path.write_text("check_uv_secure = false\n")
@@ -445,12 +442,11 @@ def test_app_config_disables_uv_secure_check(
         uv_secure_called = True
         return __version__
 
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_version",
-        _fake_version,
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_version", _fake_version
     )
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_secure_version",
         _fake_uv_secure_version,
     )
 
@@ -471,13 +467,13 @@ def test_app_reports_uv_secure_package_vulnerability(
     httpx_mock: HTTPXMock,
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
     def _fake_uv_secure_version() -> str | None:
         return "9.9.9"
 
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_secure_version",
         _fake_uv_secure_version,
     )
 
@@ -524,10 +520,10 @@ def test_app_invalid_uv_secure_local_version_is_skipped(
     temp_uv_lock_file: Path,
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker.__version__", "local-dev-build"
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.__version__", "local-dev-build"
     )
 
     result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
@@ -542,13 +538,13 @@ def test_app_unpublished_uv_secure_version_is_skipped(
     httpx_mock: HTTPXMock,
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
     def _fake_uv_secure_version() -> str | None:
         return "9999.0.0"
 
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_secure_version",
         _fake_uv_secure_version,
     )
 
@@ -570,13 +566,13 @@ def test_app_ignore_pkgs_skips_uv_secure_package_check(
     httpx_mock: HTTPXMock,
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
     def _fake_uv_secure_version() -> str | None:
         return "9.9.8"
 
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_secure_version",
         _fake_uv_secure_version,
     )
     httpx_mock.add_response(
@@ -624,13 +620,13 @@ def test_app_non_404_uv_secure_error_is_reported(
     httpx_mock: HTTPXMock,
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
     def _fake_uv_secure_version() -> str | None:
         return "9.9.7"
 
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_secure_version",
         _fake_uv_secure_version,
     )
     httpx_mock.add_response(
@@ -650,15 +646,14 @@ def test_app_unpublished_uv_tool_version_is_skipped(
     httpx_mock: HTTPXMock,
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
     async def _fake_uv_version() -> str | None:
         await asyncio.sleep(0)
         return "9999.0.0"
 
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_version",
-        _fake_uv_version,
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_version", _fake_uv_version
     )
     httpx_mock.add_response(
         url="https://pypi.org/pypi/uv/9999.0.0/json",

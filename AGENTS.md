@@ -105,6 +105,8 @@ concurrently and supports hierarchical configuration discovery.
   suspect until proven otherwise.
 - Tests treat warnings as errors. Fix warnings raised by this repo. Third-party
   warnings can be explicitly ignored when necessary.
+- Prefer the `pytest-mock` `mocker` fixture for patching and creating mocks in tests.
+  Avoid using `pytest.MonkeyPatch` directly when `mocker` can cover the case.
 - Only use test functions (no classes). Put setup into fixtures or parameters so the
   code under test is near the top of each function.
 - Use explicit `pytest.param` entries with meaningful `id` strings for parametrized
