@@ -8,8 +8,8 @@ from uv_secure.caching.cache_manager import CacheManager
 from uv_secure.configuration import SeverityLevel
 from uv_secure.dependency_checker.severity import (
     extract_vulnerability_severity,
+    parse_cvss_score,
     parse_database_specific_severity,
-    safe_float,
     severity_from_cvss_score,
 )
 from uv_secure.package_info import PackageInfo, Vulnerability
@@ -75,7 +75,7 @@ def extract_osv_max_numeric_cvss_score(
 
     max_score: float | None = None
     for entry in payload.severity:
-        score = safe_float(entry.score)
+        score = parse_cvss_score(entry.score)
         if score is None:
             continue
         if max_score is None or score > max_score:

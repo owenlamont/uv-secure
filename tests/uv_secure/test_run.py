@@ -2879,6 +2879,78 @@ def test_json_format_enriches_severity_from_osv(
     )
 
 
+def test_json_format_enriches_severity_from_osv_cvss_vector_without_database_specific(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "maintainer@example.com",
+                "classifiers": [],
+                "description": "Example package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.10",
+                "summary": "Example package release",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 42,
+            "urls": [],
+            "vulnerabilities": [
+                {
+                    "id": "GHSA-vector-1111-2222",
+                    "details": "OSV-backed vulnerability",
+                    "fixed_in": ["2.6.0"],
+                    "aliases": ["CVE-2025-12345"],
+                    "link": "https://osv.dev/vulnerability/GHSA-vector-1111-2222",
+                }
+            ],
+        },
+    )
+    httpx_mock.add_response(
+        url="https://api.osv.dev/v1/vulns/GHSA-vector-1111-2222",
+        json={
+            "id": "GHSA-vector-1111-2222",
+            "severity": [
+                {
+                    "type": "CVSS_V3",
+                    "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+                }
+            ],
+        },
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            "--format",
+            "json",
+            "--disable-cache",
+            "--severity",
+            "high",
+        ],
+    )
+
+    assert result.exit_code == 2
+    output = json.loads(result.output)
+    file_result = get_file_output(output, temp_uv_lock_file.as_posix())
+    vuln = file_result["dependencies"][0]["vulns"][0]
+    assert vuln["severity"] == "high"
+    assert (
+        vuln["severity_source_link"]
+        == "https://osv.dev/vulnerability/GHSA-vector-1111-2222"
+    )
+
+
 def test_columns_format_shows_severity_column(
     temp_uv_lock_file: Path,
     httpx_mock: HTTPXMock,
