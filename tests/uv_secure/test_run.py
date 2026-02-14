@@ -2534,7 +2534,25 @@ def test_unused_ignore_package_fails_by_default(
 
     assert result.exit_code == 4
     assert "unused package ignore ids" in result.output.lower()
+    assert "no matching scanned package" in result.output.lower()
     assert "missing-pkg" in result.output
+    assert "[/]" not in result.output
+
+
+def test_unused_ignore_package_fails_when_match_has_no_findings(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [str(temp_uv_lock_file), "--disable-cache", "--ignore-pkgs", "example-package"],
+    )
+
+    assert result.exit_code == 4
+    assert "unused package ignore ids" in result.output.lower()
+    assert "matched package would have no findings" in result.output.lower()
+    assert "example-package" in result.output
     assert "[/]" not in result.output
 
 
@@ -2579,6 +2597,36 @@ def test_runtime_error_takes_precedence_over_unused_ignores(
 
     assert result.exit_code == 3
     assert "does not exist" in result.output
+    assert "unused vulnerability ignore ids" not in result.output.lower()
+
+
+def test_runtime_error_does_not_emit_unused_ignore_error_in_json_mode(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+    tmp_path: Path,
+) -> None:
+    missing_uv_lock_file = tmp_path / "missing.lock" / "uv.lock"
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            str(missing_uv_lock_file),
+            "--disable-cache",
+            "--ignore-vulns",
+            "VULN-999",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 3
+    output = json.loads(result.output)
+    error_codes = [error["code"] for error in output["errors"]]
+    assert "unused_ignores" not in error_codes
+    missing_file_result = get_file_output(output, missing_uv_lock_file.as_posix())
+    assert missing_file_result["error"] is not None
+    assert "does not exist" in missing_file_result["error"]
 
 
 def test_json_severity_enrichment_retries_transient_osv_request_error(

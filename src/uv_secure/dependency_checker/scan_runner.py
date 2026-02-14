@@ -83,54 +83,87 @@ def _find_unused_ignore_vulnerability_ids(
 
 def _find_unused_ignore_package_ids(
     lock_to_config_map: dict[APath, Configuration],
+    matched_ignore_packages_by_scope: dict[str, set[str]],
     used_ignore_packages_by_scope: dict[str, set[str]],
-) -> set[str]:
+) -> tuple[set[str], set[str]]:
+    all_matched_ignore_packages = {
+        package_name
+        for matched_ignore_packages in matched_ignore_packages_by_scope.values()
+        for package_name in matched_ignore_packages
+    }
     all_used_ignore_packages = {
         package_name
         for used_ignore_packages in used_ignore_packages_by_scope.values()
         for package_name in used_ignore_packages
     }
-    unused_ignore_packages: set[str] = set()
+    unmatched_ignore_packages: set[str] = set()
+    matched_but_clean_ignore_packages: set[str] = set()
     for config in lock_to_config_map.values():
         if config.vulnerability_criteria.allow_unused_ignores:
             continue
         configured_ignore_packages = set(config.ignore_packages or {})
         if not configured_ignore_packages:
             continue
-        unused_ignore_packages.update(
-            configured_ignore_packages - all_used_ignore_packages
+        unmatched_ignore_packages.update(
+            configured_ignore_packages - all_matched_ignore_packages
+        )
+        matched_but_clean_ignore_packages.update(
+            (configured_ignore_packages & all_matched_ignore_packages)
+            - all_used_ignore_packages
         )
 
-    return unused_ignore_packages
+    return unmatched_ignore_packages, matched_but_clean_ignore_packages
 
 
 def _apply_unused_ignore_policy(
     lock_to_config_map: dict[APath, Configuration],
     used_ignore_vulnerabilities_by_scope: dict[str, set[str]],
+    matched_ignore_packages_by_scope: dict[str, set[str]],
     used_ignore_packages_by_scope: dict[str, set[str]],
     config: Configuration,
     scan_results: ScanResultsOutput,
     console: Console,
     final_status: RunStatus,
 ) -> RunStatus:
+    if final_status == RunStatus.RUNTIME_ERROR:
+        return final_status
+
     unused_ignore_ids = _find_unused_ignore_vulnerability_ids(
         lock_to_config_map, used_ignore_vulnerabilities_by_scope
     )
-    unused_ignore_packages = _find_unused_ignore_package_ids(
-        lock_to_config_map, used_ignore_packages_by_scope
+    unmatched_ignore_packages, matched_but_clean_ignore_packages = (
+        _find_unused_ignore_package_ids(
+            lock_to_config_map,
+            matched_ignore_packages_by_scope,
+            used_ignore_packages_by_scope,
+        )
+    )
+    unused_ignore_packages = (
+        unmatched_ignore_packages | matched_but_clean_ignore_packages
     )
     if not unused_ignore_ids and not unused_ignore_packages:
         return final_status
 
     unused_ignore_display = ", ".join(sorted(unused_ignore_ids))
-    unused_package_display = ", ".join(sorted(unused_ignore_packages))
+    unmatched_package_display = ", ".join(sorted(unmatched_ignore_packages))
+    matched_but_clean_package_display = ", ".join(
+        sorted(matched_but_clean_ignore_packages)
+    )
     message_parts: list[str] = []
     if unused_ignore_display:
         message_parts.append(
             f"unused vulnerability ignore IDs: {unused_ignore_display}"
         )
-    if unused_package_display:
-        message_parts.append(f"unused package ignore IDs: {unused_package_display}")
+    if unmatched_package_display:
+        message_parts.append(
+            "unused package ignore IDs (no matching scanned package): "
+            f"{unmatched_package_display}"
+        )
+    if matched_but_clean_package_display:
+        message_parts.append(
+            "unused package ignore IDs (matched package would have no findings): "
+            f"{matched_but_clean_package_display}"
+        )
     unused_ignore_message = "Found " + "; ".join(message_parts)
     if config.format.value == "json":
         scan_results.errors.append(
@@ -138,8 +171,6 @@ def _apply_unused_ignore_policy(
         )
     else:
         console.print(f"[bold red]Error:[/] {unused_ignore_message}")
-    if final_status == RunStatus.RUNTIME_ERROR:
-        return final_status
     return RunStatus.UNUSED_IGNORES_FOUND
 
 
@@ -264,7 +295,12 @@ async def _evaluate_dependency_files(
     lock_to_config_map: dict[APath, Configuration],
     http_client: AsyncClient,
     cache_manager: CacheManager | None,
-) -> tuple[list[FileResultOutput], dict[str, set[str]], dict[str, set[str]]]:
+) -> tuple[
+    list[FileResultOutput],
+    dict[str, set[str]],
+    dict[str, set[str]],
+    dict[str, set[str]],
+]:
     uv_config = next(
         (config for config in lock_to_config_map.values() if config.check_uv_tool), None
     )
@@ -273,14 +309,19 @@ async def _evaluate_dependency_files(
         None,
     )
     used_ignore_vulnerabilities_by_scope: dict[str, set[str]] = {}
+    matched_ignore_packages_by_scope: dict[str, set[str]] = {}
     used_ignore_packages_by_scope: dict[str, set[str]] = {}
     uv_task: asyncio.Task[FileResultOutput | None] | None = None
     uv_secure_task: asyncio.Task[FileResultOutput | None] | None = None
     if uv_config is not None:
         uv_used_ignore_vulnerabilities: set[str] = set()
+        uv_matched_ignore_packages: set[str] = set()
         uv_used_ignore_packages: set[str] = set()
         used_ignore_vulnerabilities_by_scope[GLOBAL_UV_TOOL_LABEL] = (
             uv_used_ignore_vulnerabilities
+        )
+        matched_ignore_packages_by_scope[GLOBAL_UV_TOOL_LABEL] = (
+            uv_matched_ignore_packages
         )
         used_ignore_packages_by_scope[GLOBAL_UV_TOOL_LABEL] = uv_used_ignore_packages
         uv_task = asyncio.create_task(
@@ -289,14 +330,19 @@ async def _evaluate_dependency_files(
                 http_client,
                 cache_manager,
                 uv_used_ignore_vulnerabilities,
+                uv_matched_ignore_packages,
                 uv_used_ignore_packages,
             )
         )
     if uv_secure_config is not None:
         uv_secure_used_ignore_vulnerabilities: set[str] = set()
+        uv_secure_matched_ignore_packages: set[str] = set()
         uv_secure_used_ignore_packages: set[str] = set()
         used_ignore_vulnerabilities_by_scope[GLOBAL_UV_SECURE_PACKAGE_LABEL] = (
             uv_secure_used_ignore_vulnerabilities
+        )
+        matched_ignore_packages_by_scope[GLOBAL_UV_SECURE_PACKAGE_LABEL] = (
+            uv_secure_matched_ignore_packages
         )
         used_ignore_packages_by_scope[GLOBAL_UV_SECURE_PACKAGE_LABEL] = (
             uv_secure_used_ignore_packages
@@ -307,6 +353,7 @@ async def _evaluate_dependency_files(
                 http_client,
                 cache_manager,
                 uv_secure_used_ignore_vulnerabilities,
+                uv_secure_matched_ignore_packages,
                 uv_secure_used_ignore_packages,
             )
         )
@@ -315,6 +362,9 @@ async def _evaluate_dependency_files(
         set() for _ in file_apaths
     ]
     used_ignore_packages_for_dependency_files: list[set[str]] = [
+        set() for _ in file_apaths
+    ]
+    matched_ignore_packages_for_dependency_files: list[set[str]] = [
         set() for _ in file_apaths
     ]
     file_results = list(
@@ -326,6 +376,7 @@ async def _evaluate_dependency_files(
                     http_client,
                     cache_manager,
                     used_ignore_vulnerabilities_for_dependency_files[idx],
+                    matched_ignore_packages_for_dependency_files[idx],
                     used_ignore_packages_for_dependency_files[idx],
                 )
                 for idx, dependency_file_path in enumerate(file_apaths)
@@ -344,6 +395,12 @@ async def _evaluate_dependency_files(
             for idx, file_path in enumerate(file_apaths)
         }
     )
+    matched_ignore_packages_by_scope.update(
+        {
+            file_path.as_posix(): matched_ignore_packages_for_dependency_files[idx]
+            for idx, file_path in enumerate(file_apaths)
+        }
+    )
 
     if uv_task is not None:
         uv_result = await uv_task
@@ -357,6 +414,7 @@ async def _evaluate_dependency_files(
     return (
         file_results,
         used_ignore_vulnerabilities_by_scope,
+        matched_ignore_packages_by_scope,
         used_ignore_packages_by_scope,
     )
 
@@ -447,6 +505,7 @@ async def check_lock_files(
             (
                 file_results,
                 used_ignore_vulnerabilities_by_scope,
+                matched_ignore_packages_by_scope,
                 used_ignore_packages_by_scope,
             ) = await _evaluate_dependency_files(
                 file_apaths, lock_to_config_map, http_client, cache_manager
@@ -462,6 +521,7 @@ async def check_lock_files(
     final_status = _apply_unused_ignore_policy(
         lock_to_config_map,
         used_ignore_vulnerabilities_by_scope,
+        matched_ignore_packages_by_scope,
         used_ignore_packages_by_scope,
         config,
         scan_results,

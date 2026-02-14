@@ -55,7 +55,7 @@ def _convert_maintenance_to_output(
 def _should_skip_package(
     package: PackageInfo,
     ignore_packages: dict[str, tuple[SpecifierSet, ...]],
-    used_ignore_packages: set[str],
+    matched_ignore_packages: set[str],
 ) -> bool:
     if package.info.name not in ignore_packages:
         return False
@@ -65,7 +65,7 @@ def _should_skip_package(
         specifier.contains(package.info.version) for specifier in specifiers
     )
     if should_skip:
-        used_ignore_packages.add(package.info.name)
+        matched_ignore_packages.add(package.info.name)
     return should_skip
 
 
@@ -138,6 +138,7 @@ def process_package_metadata(
     config: Configuration,
     ignore_packages: dict[str, tuple[SpecifierSet, ...]],
     used_ignore_vulnerabilities: set[str],
+    matched_ignore_packages: set[str],
     used_ignore_packages: set[str],
 ) -> DependencyOutput | str | None:
     """Process package metadata into output rows.
@@ -151,15 +152,13 @@ def process_package_metadata(
         ex = package_info if isinstance(package_info, BaseException) else package_index
         return f"{dependency_name} raised exception: {ex}"
 
-    if _should_skip_package(package_info, ignore_packages, used_ignore_packages):
-        return None
-
     if _should_check_vulnerabilities(package_info, config):
-        used_ignore_vulnerabilities.update(filter_vulnerabilities(package_info, config))
+        matched_vulnerability_ignores = filter_vulnerabilities(package_info, config)
         vulns = [
             _convert_vulnerability_to_output(v) for v in package_info.vulnerabilities
         ]
     else:
+        matched_vulnerability_ignores = set()
         vulns = []
 
     pkg_index = (
@@ -173,6 +172,14 @@ def process_package_metadata(
         and _has_maintenance_issues(package_index, package_info, config)
         else None
     )
+    has_findings = bool(vulns) or maintenance_issues is not None
+
+    if _should_skip_package(package_info, ignore_packages, matched_ignore_packages):
+        if has_findings:
+            used_ignore_packages.add(package_info.info.name)
+        return None
+
+    used_ignore_vulnerabilities.update(matched_vulnerability_ignores)
 
     return DependencyOutput(
         name=package_info.info.name,

@@ -53,6 +53,7 @@ async def check_global_uv_tool(
     http_client: AsyncClient,
     cache_manager: CacheManager | None,
     used_ignore_vulnerabilities: set[str] | None = None,
+    matched_ignore_packages: set[str] | None = None,
     used_ignore_packages: set[str] | None = None,
 ) -> FileResultOutput | None:
     """Check vulnerabilities for the globally installed uv CLI.
@@ -71,6 +72,9 @@ async def check_global_uv_tool(
     )
     used_ignore_packages_tracker = (
         used_ignore_packages if used_ignore_packages is not None else set()
+    )
+    matched_ignore_packages_tracker = (
+        matched_ignore_packages if matched_ignore_packages is not None else set()
     )
 
     dependency = Dependency(name="uv", version=uv_version, direct=True)
@@ -94,6 +98,7 @@ async def check_global_uv_tool(
         config,
         ignore_packages,
         used_ignore_tracker,
+        matched_ignore_packages_tracker,
         used_ignore_packages_tracker,
     )
 
@@ -117,6 +122,7 @@ async def check_installed_uv_secure_package(
     http_client: AsyncClient,
     cache_manager: CacheManager | None,
     used_ignore_vulnerabilities: set[str] | None = None,
+    matched_ignore_packages: set[str] | None = None,
     used_ignore_packages: set[str] | None = None,
 ) -> FileResultOutput | None:
     """Check vulnerabilities for the installed ``uv-secure`` package.
@@ -135,6 +141,9 @@ async def check_installed_uv_secure_package(
     )
     used_ignore_packages_tracker = (
         used_ignore_packages if used_ignore_packages is not None else set()
+    )
+    matched_ignore_packages_tracker = (
+        matched_ignore_packages if matched_ignore_packages is not None else set()
     )
 
     dependency = Dependency(name="uv-secure", version=uv_secure_version, direct=True)
@@ -158,6 +167,7 @@ async def check_installed_uv_secure_package(
         config,
         ignore_packages,
         used_ignore_tracker,
+        matched_ignore_packages_tracker,
         used_ignore_packages_tracker,
     )
 

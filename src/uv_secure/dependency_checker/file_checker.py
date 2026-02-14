@@ -37,6 +37,7 @@ async def check_dependencies(
     http_client: AsyncClient,
     cache_manager: CacheManager | None,
     used_ignore_vulnerabilities: set[str] | None = None,
+    matched_ignore_packages: set[str] | None = None,
     used_ignore_packages: set[str] | None = None,
 ) -> FileResultOutput:
     """Check dependencies for vulnerabilities and build structured output.
@@ -52,6 +53,9 @@ async def check_dependencies(
     )
     used_ignore_packages_tracker = (
         used_ignore_packages if used_ignore_packages is not None else set()
+    )
+    matched_ignore_packages_tracker = (
+        matched_ignore_packages if matched_ignore_packages is not None else set()
     )
 
     if not await dependency_file_path.exists():
@@ -100,6 +104,7 @@ async def check_dependencies(
             config,
             ignore_packages,
             used_ignore_tracker,
+            matched_ignore_packages_tracker,
             used_ignore_packages_tracker,
         )
         if isinstance(result, str):
