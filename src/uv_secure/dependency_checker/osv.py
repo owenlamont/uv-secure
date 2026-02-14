@@ -199,16 +199,14 @@ async def enrich_vulnerability_severity_data(
     if not advisory_ids:
         return
 
-    advisory_tasks = {
-        advisory_id: asyncio.create_task(
+    ordered_advisory_ids = sorted(advisory_ids)
+    advisory_values = await asyncio.gather(
+        *[
             fetch_osv_severity_data(advisory_id, http_client, cache_manager)
-        )
-        for advisory_id in advisory_ids
-    }
-    advisory_results = {
-        advisory_id: await advisory_task
-        for advisory_id, advisory_task in advisory_tasks.items()
-    }
+            for advisory_id in ordered_advisory_ids
+        ]
+    )
+    advisory_results = dict(zip(ordered_advisory_ids, advisory_values, strict=True))
 
     for vulnerability in vulnerabilities_to_enrich:
         severity_data = advisory_results[vulnerability.id]
