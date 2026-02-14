@@ -53,6 +53,15 @@ from uv_secure.configuration import (
             id="Format set to JSON in uv-secure.toml",
         ),
         pytest.param(
+            "uv-secure.toml",
+            """
+            check_uv_tool = false
+            check_uv_secure = true
+            """,
+            Configuration(check_uv_tool=False, check_uv_secure=True),
+            id="Independent uv and uv-secure check toggles",
+        ),
+        pytest.param(
             "pyproject.toml",
             """
             [tool.uv-secure]

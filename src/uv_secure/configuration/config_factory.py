@@ -53,6 +53,7 @@ def config_cli_arg_factory(
     ignore_pkgs: list[str] | None,
     format_type: OutputFormat | None,
     check_uv_tool: bool | None,
+    check_uv_secure: bool | None,
 ) -> OverrideConfiguration:
     """Build overrides from CLI arguments.
 
@@ -72,6 +73,7 @@ def config_cli_arg_factory(
         ignore_pkgs: Package ignore strings in ``name:spec|spec`` format.
         format_type: Output format override.
         check_uv_tool: Toggle scanning of the globally installed uv CLI.
+        check_uv_secure: Toggle scanning of the installed uv-secure package.
 
     Returns:
         OverrideConfiguration: CLI override instance.
@@ -96,6 +98,7 @@ def config_cli_arg_factory(
         ignore_packages=_parse_pkg_versions(ignore_pkgs),
         format=format_type,
         check_uv_tool=check_uv_tool,
+        check_uv_secure=check_uv_secure,
     )
 
 

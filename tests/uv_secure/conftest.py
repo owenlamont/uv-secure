@@ -7,6 +7,7 @@ from httpx import Request, RequestError
 import pytest
 from pytest_httpx import HTTPXMock
 
+from uv_secure import __version__
 from uv_secure.dependency_checker import USER_AGENT
 
 
@@ -55,6 +56,45 @@ def uv_http_responses(httpx_mock: HTTPXMock) -> None:
     httpx_mock.add_response(
         url="https://pypi.org/simple/uv/",
         json={"name": "uv", "project-status": {"status": "active", "reason": None}},
+        headers={"Content-Type": "application/vnd.pypi.simple.v1+json"},
+        is_optional=True,
+        is_reusable=True,
+    )
+
+
+@pytest.fixture
+def uv_secure_http_responses(httpx_mock: HTTPXMock) -> None:
+    httpx_mock.add_response(
+        url=f"https://pypi.org/pypi/uv-secure/{__version__}/json",
+        json={
+            "info": {
+                "author_email": "maintainer@example.com",
+                "classifiers": [],
+                "description": "uv-secure CLI",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "uv-secure",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": f"https://pypi.org/project/uv-secure/{__version__}/",
+                "requires_python": ">=3.10",
+                "summary": "stub uv-secure release",
+                "version": __version__,
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
+            "vulnerabilities": [],
+        },
+        is_optional=True,
+        is_reusable=True,
+    )
+    httpx_mock.add_response(
+        url="https://pypi.org/simple/uv-secure/",
+        json={
+            "name": "uv-secure",
+            "project-status": {"status": "active", "reason": None},
+        },
         headers={"Content-Type": "application/vnd.pypi.simple.v1+json"},
         is_optional=True,
         is_reusable=True,

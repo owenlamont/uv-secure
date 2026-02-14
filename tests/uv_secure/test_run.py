@@ -13,13 +13,13 @@ import pytest
 from pytest_httpx import HTTPXMock
 from typer.testing import CliRunner
 
-from uv_secure import app
+from uv_secure import __version__, app
 
 
 runner = CliRunner()
 
 
-pytestmark = pytest.mark.usefixtures("uv_http_responses")
+pytestmark = pytest.mark.usefixtures("uv_http_responses", "uv_secure_http_responses")
 
 
 def assert_no_markup_escape_artifacts(output: str) -> None:
@@ -299,17 +299,27 @@ def test_app_disable_uv_tool_flag_skips_check(
     pypi_simple_example_package: HTTPXMock,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    called = False
+    uv_called = False
+    uv_secure_called = False
 
     async def _fake_version() -> str | None:
-        nonlocal called
-        called = True
+        nonlocal uv_called
+        uv_called = True
         await asyncio.sleep(0)
         return "0.9.9"
+
+    def _fake_uv_secure_version() -> str | None:
+        nonlocal uv_secure_called
+        uv_secure_called = True
+        return __version__
 
     monkeypatch.setattr(
         "uv_secure.dependency_checker.dependency_checker._detect_uv_version",
         _fake_version,
+    )
+    monkeypatch.setattr(
+        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+        _fake_uv_secure_version,
     )
 
     result = runner.invoke(
@@ -317,10 +327,13 @@ def test_app_disable_uv_tool_flag_skips_check(
     )
 
     assert result.exit_code == 0
-    assert called is False
+    assert uv_called is False
+    assert uv_secure_called is True
     assert "uv (global tool)" not in result.output
+    assert "uv-secure (installed package)" not in result.output
 
     asyncio.run(_fake_version())
+    _fake_uv_secure_version()
 
 
 def test_app_config_disables_uv_tool_check(
@@ -332,17 +345,27 @@ def test_app_config_disables_uv_tool_check(
     config_path = temp_uv_lock_file.with_name("uv-secure.toml")
     config_path.write_text("check_uv_tool = false\n")
 
-    called = False
+    uv_called = False
+    uv_secure_called = False
 
     async def _fake_version() -> str | None:
-        nonlocal called
-        called = True
+        nonlocal uv_called
+        uv_called = True
         await asyncio.sleep(0)
         return "0.9.9"
+
+    def _fake_uv_secure_version() -> str | None:
+        nonlocal uv_secure_called
+        uv_secure_called = True
+        return __version__
 
     monkeypatch.setattr(
         "uv_secure.dependency_checker.dependency_checker._detect_uv_version",
         _fake_version,
+    )
+    monkeypatch.setattr(
+        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+        _fake_uv_secure_version,
     )
 
     result = runner.invoke(
@@ -350,9 +373,303 @@ def test_app_config_disables_uv_tool_check(
     )
 
     assert result.exit_code == 0
-    assert called is False
+    assert uv_called is False
+    assert uv_secure_called is True
 
     asyncio.run(_fake_version())
+    _fake_uv_secure_version()
+
+
+def test_app_disable_uv_secure_flag_skips_check(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    uv_called = False
+    uv_secure_called = False
+
+    async def _fake_version() -> str | None:
+        nonlocal uv_called
+        uv_called = True
+        await asyncio.sleep(0)
+        return "0.9.9"
+
+    def _fake_uv_secure_version() -> str | None:
+        nonlocal uv_secure_called
+        uv_secure_called = True
+        return __version__
+
+    monkeypatch.setattr(
+        "uv_secure.dependency_checker.dependency_checker._detect_uv_version",
+        _fake_version,
+    )
+    monkeypatch.setattr(
+        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+        _fake_uv_secure_version,
+    )
+
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--no-check-uv-secure"]
+    )
+
+    assert result.exit_code == 0
+    assert uv_called is True
+    assert uv_secure_called is False
+    assert "uv-secure (installed package)" not in result.output
+
+    asyncio.run(_fake_version())
+    _fake_uv_secure_version()
+
+
+def test_app_config_disables_uv_secure_check(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = temp_uv_lock_file.with_name("uv-secure.toml")
+    config_path.write_text("check_uv_secure = false\n")
+
+    uv_called = False
+    uv_secure_called = False
+
+    async def _fake_version() -> str | None:
+        nonlocal uv_called
+        uv_called = True
+        await asyncio.sleep(0)
+        return "0.9.9"
+
+    def _fake_uv_secure_version() -> str | None:
+        nonlocal uv_secure_called
+        uv_secure_called = True
+        return __version__
+
+    monkeypatch.setattr(
+        "uv_secure.dependency_checker.dependency_checker._detect_uv_version",
+        _fake_version,
+    )
+    monkeypatch.setattr(
+        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+        _fake_uv_secure_version,
+    )
+
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--config", str(config_path)]
+    )
+
+    assert result.exit_code == 0
+    assert uv_called is True
+    assert uv_secure_called is False
+
+    asyncio.run(_fake_version())
+    _fake_uv_secure_version()
+
+
+def test_app_reports_uv_secure_package_vulnerability(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _fake_uv_secure_version() -> str | None:
+        return "9.9.9"
+
+    monkeypatch.setattr(
+        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+        _fake_uv_secure_version,
+    )
+
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/uv-secure/9.9.9/json",
+        json={
+            "info": {
+                "author_email": "maintainer@example.com",
+                "classifiers": [],
+                "description": "Vulnerable uv-secure",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "uv-secure",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/uv-secure/9.9.9/",
+                "requires_python": ">=3.10",
+                "summary": "uv-secure release",
+                "version": "9.9.9",
+                "yanked": False,
+            },
+            "last_serial": 42,
+            "urls": [],
+            "vulnerabilities": [
+                {
+                    "id": "UV-SECURE-ALERT",
+                    "details": "Privilege escalation",
+                    "fixed_in": ["9.9.10"],
+                    "link": "https://example.com/uv-secure-alert",
+                }
+            ],
+        },
+    )
+
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 2
+    assert "uv-secure (installed package)" in result.output
+    assert "UV-SECURE-ALERT" in result.output
+    assert "9.9.9" in result.output
+
+
+def test_app_invalid_uv_secure_local_version_is_skipped(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "uv_secure.dependency_checker.dependency_checker.__version__", "local-dev-build"
+    )
+
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 0
+    assert "uv-secure (installed package)" not in result.output
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+
+
+def test_app_unpublished_uv_secure_version_is_skipped(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _fake_uv_secure_version() -> str | None:
+        return "9999.0.0"
+
+    monkeypatch.setattr(
+        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+        _fake_uv_secure_version,
+    )
+
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/uv-secure/9999.0.0/json",
+        status_code=404,
+        json={"message": "Not Found"},
+    )
+
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 0
+    assert "uv-secure (installed package)" not in result.output
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+
+
+def test_app_ignore_pkgs_skips_uv_secure_package_check(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _fake_uv_secure_version() -> str | None:
+        return "9.9.8"
+
+    monkeypatch.setattr(
+        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+        _fake_uv_secure_version,
+    )
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/uv-secure/9.9.8/json",
+        json={
+            "info": {
+                "author_email": "maintainer@example.com",
+                "classifiers": [],
+                "description": "Vulnerable uv-secure",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "uv-secure",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/uv-secure/9.9.8/",
+                "requires_python": ">=3.10",
+                "summary": "uv-secure release",
+                "version": "9.9.8",
+                "yanked": False,
+            },
+            "last_serial": 42,
+            "urls": [],
+            "vulnerabilities": [
+                {
+                    "id": "UV-SECURE-ALERT",
+                    "details": "Privilege escalation",
+                    "fixed_in": ["9.9.9"],
+                    "link": "https://example.com/uv-secure-alert",
+                }
+            ],
+        },
+    )
+
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--ignore-pkgs", "uv-secure"]
+    )
+
+    assert result.exit_code == 0
+    assert "uv-secure (installed package)" not in result.output
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+
+
+def test_app_non_404_uv_secure_error_is_reported(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _fake_uv_secure_version() -> str | None:
+        return "9.9.7"
+
+    monkeypatch.setattr(
+        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+        _fake_uv_secure_version,
+    )
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/uv-secure/9.9.7/json",
+        status_code=500,
+        json={"message": "Server error"},
+    )
+
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 3
+    assert "uv-secure raised exception:" in result.output
+
+
+def test_app_unpublished_uv_tool_version_is_skipped(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fake_uv_version() -> str | None:
+        await asyncio.sleep(0)
+        return "9999.0.0"
+
+    monkeypatch.setattr(
+        "uv_secure.dependency_checker.dependency_checker._detect_uv_version",
+        _fake_uv_version,
+    )
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/uv/9999.0.0/json",
+        status_code=404,
+        json={"message": "Not Found"},
+    )
+
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 0
+    assert "uv (global tool)" not in result.output
 
 
 def test_app_no_vulnerabilities_requirements_txt(
@@ -1860,6 +2177,60 @@ def test_json_format_with_vulnerabilities(
     assert "id" in vuln
     assert "details" in vuln
     assert vuln["id"] == "VULN-123"
+
+
+def test_json_format_with_long_vulnerability_details(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    """Ensure long vulnerability details remain valid JSON output."""
+    long_details = (
+        "Long vulnerability detail paragraph. " * 40
+        + "Include markdown-like sections and punctuation for realism."
+    )
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "maintainer@example.com",
+                "classifiers": [],
+                "description": "Example package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.10",
+                "summary": "Example package release",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 42,
+            "urls": [],
+            "vulnerabilities": [
+                {
+                    "id": "VULN-LONG-DETAILS",
+                    "details": long_details,
+                    "fixed_in": ["1.0.1"],
+                    "aliases": ["CVE-2026-12345"],
+                    "link": "https://example.com/vuln-long-details",
+                }
+            ],
+        },
+    )
+
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--format", "json", "--disable-cache"]
+    )
+
+    assert result.exit_code == 2
+    output = json.loads(result.output)
+    file_result = get_file_output(output, temp_uv_lock_file.as_posix())
+    vulnerability = file_result["dependencies"][0]["vulns"][0]
+    assert vulnerability["id"] == "VULN-LONG-DETAILS"
+    assert vulnerability["details"] == long_details
 
 
 def test_json_format_with_maintenance_issues(
