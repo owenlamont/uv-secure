@@ -24,11 +24,9 @@ from uv_secure.dependency_checker.tool_audit import (
     GLOBAL_UV_SECURE_PACKAGE_LABEL,
     GLOBAL_UV_TOOL_LABEL,
 )
-from uv_secure.directory_scanner import get_dependency_file_to_config_map
+from uv_secure.directory_scanner import get_dependency_file_and_source_maps
 from uv_secure.directory_scanner.directory_scanner import (
-    get_dependency_file_to_config_source_map,
-    get_dependency_files_to_config_map,
-    get_dependency_files_to_config_source_map,
+    get_dependency_files_and_source_maps,
 )
 from uv_secure.output_formatters import ColumnsFormatter, JsonFormatter, OutputFormatter
 from uv_secure.output_models import ErrorOutput, FileResultOutput, ScanResultsOutput
@@ -271,10 +269,10 @@ async def _resolve_file_paths_and_configs(
     )
 
     if len(file_apaths) == 1 and await file_apaths[0].is_dir():
-        lock_to_config_map = await get_dependency_file_to_config_map(file_apaths[0])
-        lock_to_config_source_map = await get_dependency_file_to_config_source_map(
-            file_apaths[0]
-        )
+        (
+            lock_to_config_map,
+            lock_to_config_source_map,
+        ) = await get_dependency_file_and_source_maps(file_apaths[0])
         file_apaths = tuple(lock_to_config_map.keys())
     else:
         if config_path is not None:
@@ -291,10 +289,10 @@ async def _resolve_file_paths_and_configs(
             file_path.name in {"pylock.toml", "requirements.txt", "uv.lock"}
             for file_path in file_apaths
         ):
-            lock_to_config_map = await get_dependency_files_to_config_map(file_apaths)
-            lock_to_config_source_map = await get_dependency_files_to_config_source_map(
-                file_apaths
-            )
+            (
+                lock_to_config_map,
+                lock_to_config_source_map,
+            ) = await get_dependency_files_and_source_maps(file_apaths)
             file_apaths = tuple(lock_to_config_map.keys())
         else:
             raise ValueError(

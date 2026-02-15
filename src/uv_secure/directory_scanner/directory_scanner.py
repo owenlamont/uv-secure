@@ -172,13 +172,21 @@ async def get_dependency_files_to_config_map(
     return dependency_file_to_config_map
 
 
-async def get_dependency_file_to_config_source_map(
+async def get_dependency_file_and_source_maps(
     root_dir: Path,
-) -> dict[Path, Path | None]:
-    """Map dependency files under ``root_dir`` to config source file paths.
+) -> tuple[dict[Path, Configuration], dict[Path, Path | None]]:
+    """Map dependency files under ``root_dir`` to config values and sources.
+
+    Args:
+        root_dir: Project root to scan.
 
     Returns:
-        dict[Path, Path | None]: Dependency file to nearest config file path map.
+        tuple[dict[Path, Configuration], dict[Path, Path | None]]:
+        Two mappings keyed by dependency file path:
+        1. The effective ``Configuration`` selected by nearest-parent config discovery.
+        2. The source config file path used to produce that configuration
+           (``pyproject.toml`` / ``uv-secure.toml`` / ``.uv-secure.toml``), or
+           ``None`` when no config file applies and defaults are used.
     """
 
     root_dir = await root_dir.resolve()
@@ -193,19 +201,24 @@ async def get_dependency_file_to_config_source_map(
             "uv.lock",
         ),
     )
-    _, dependency_file_to_source_map = await _fetch_dependency_files(
-        root_dir, config_and_lock_files
-    )
-    return dependency_file_to_source_map
+    return await _fetch_dependency_files(root_dir, config_and_lock_files)
 
 
-async def get_dependency_files_to_config_source_map(
+async def get_dependency_files_and_source_maps(
     file_paths: Sequence[Path],
-) -> dict[Path, Path | None]:
-    """Map specific dependency files to config source file paths.
+) -> tuple[dict[Path, Configuration], dict[Path, Path | None]]:
+    """Map specific dependency files to config values and source file paths.
+
+    Args:
+        file_paths: Dependency files to process.
 
     Returns:
-        dict[Path, Path | None]: Dependency file to nearest config file path map.
+        tuple[dict[Path, Configuration], dict[Path, Path | None]]:
+        Two mappings keyed by dependency file path:
+        1. The effective ``Configuration`` selected by nearest-parent config discovery.
+        2. The source config file path used to produce that configuration
+           (``pyproject.toml`` / ``uv-secure.toml`` / ``.uv-secure.toml``), or
+           ``None`` when no config file applies and defaults are used.
     """
 
     resolved_paths = await _resolve_paths(file_paths)
@@ -222,7 +235,34 @@ async def get_dependency_files_to_config_source_map(
     config_and_lock_files["uv.lock"] = [
         path for path in resolved_paths if path.name == "uv.lock"
     ]
-    _, dependency_file_to_source_map = await _fetch_dependency_files(
-        root_dir, config_and_lock_files
+    return await _fetch_dependency_files(root_dir, config_and_lock_files)
+
+
+async def get_dependency_file_to_config_source_map(
+    root_dir: Path,
+) -> dict[Path, Path | None]:
+    """Map dependency files under ``root_dir`` to config source file paths.
+
+    Returns:
+        dict[Path, Path | None]: Dependency file to nearest config file path map.
+    """
+
+    _, dependency_file_to_source_map = await get_dependency_file_and_source_maps(
+        root_dir
+    )
+    return dependency_file_to_source_map
+
+
+async def get_dependency_files_to_config_source_map(
+    file_paths: Sequence[Path],
+) -> dict[Path, Path | None]:
+    """Map specific dependency files to config source file paths.
+
+    Returns:
+        dict[Path, Path | None]: Dependency file to nearest config file path map.
+    """
+
+    _, dependency_file_to_source_map = await get_dependency_files_and_source_maps(
+        file_paths
     )
     return dependency_file_to_source_map
