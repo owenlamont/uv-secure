@@ -225,7 +225,8 @@ class ColumnsFormatter(OutputFormatter):
         table.add_column(
             "Vulnerability ID", style="bold cyan", min_width=20, max_width=24
         )
-        table.add_column("Severity", min_width=8, max_width=10)
+        if self.config.vulnerability_criteria.show_severity:
+            table.add_column("Severity", min_width=8, max_width=10)
         table.add_column("Fix Versions", min_width=10, max_width=20)
         if self.config.vulnerability_criteria.aliases:
             table.add_column("Aliases", min_width=20, max_width=24)
@@ -262,9 +263,10 @@ class ColumnsFormatter(OutputFormatter):
             Text.assemble((vuln.id, f"link {vuln.link}"))
             if vuln.link
             else Text(vuln.id),
-            self._create_severity_text(vuln),
-            self._create_fix_versions_text(dep.name, vuln),
         ]
+        if self.config.vulnerability_criteria.show_severity:
+            renderables.append(self._create_severity_text(vuln))
+        renderables.append(self._create_fix_versions_text(dep.name, vuln))
 
         if self.config.vulnerability_criteria.aliases:
             renderables.append(self._create_aliases_text(vuln, dep.name))

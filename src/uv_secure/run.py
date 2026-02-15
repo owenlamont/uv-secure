@@ -34,12 +34,22 @@ _file_path_args = typer.Argument(
 
 
 _aliases_option = typer.Option(
-    None, "--aliases", help="Include vulnerability aliases in output."
+    None,
+    "--aliases/--no-aliases",
+    help="Enable or disable vulnerability aliases in output.",
 )
 
 
 _desc_option = typer.Option(
-    None, "--desc", help="Include vulnerability descriptions in output."
+    None,
+    "--desc/--no-desc",
+    help="Enable or disable vulnerability descriptions in output.",
+)
+
+_show_severity_option = typer.Option(
+    None,
+    "--show-severity/--no-show-severity",
+    help="Enable or disable severity values in columns output.",
 )
 
 _cache_path_option = typer.Option(
@@ -190,6 +200,7 @@ def main(
     file_paths: list[Path] | None = _file_path_args,
     aliases: bool | None = _aliases_option,
     desc: bool | None = _desc_option,
+    show_severity: bool | None = _show_severity_option,
     cache_path: Path = _cache_path_option,
     cache_ttl_seconds: float = _cache_ttl_seconds_option,
     disable_cache: bool = _disable_cache_option,
@@ -229,6 +240,7 @@ def main(
                 file_paths,
                 aliases,
                 desc,
+                show_severity,
                 cache_path,
                 cache_ttl_seconds,
                 disable_cache,

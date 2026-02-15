@@ -1257,6 +1257,27 @@ def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_overr
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
+def test_cli_can_disable_aliases_and_desc_even_when_config_enables_them(
+    temp_uv_lock_file: Path,
+    temp_pyproject_toml_file_extra_columns_enabled: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--no-aliases", "--no-desc", "--disable-cache"]
+    )
+
+    assert result.exit_code == 2
+    assert "Vulnerabilities detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "VULN-123" in result.output
+    assert "Aliases" not in result.output
+    assert "Details" not in result.output
+    assert "CVE-2024-12345" not in result.output
+    assert "A critical vulnerability in example-package." not in result.output
+    assert "[/]" not in result.output
+
+
 def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_pkg_override(
     temp_uv_lock_file: Path,
     temp_pyproject_toml_file_ignored_package: Path,
@@ -2951,7 +2972,7 @@ def test_json_format_enriches_severity_from_osv_cvss_vector_without_database_spe
     )
 
 
-def test_columns_format_shows_severity_column(
+def test_columns_format_shows_severity_column_with_show_severity_flag(
     temp_uv_lock_file: Path,
     httpx_mock: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
@@ -3004,11 +3025,41 @@ def test_columns_format_shows_severity_column(
         },
     )
 
-    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--show-severity"]
+    )
 
     assert result.exit_code == 2
     assert "Severity" in result.output
     assert "MEDIUM" in result.output
+    assert "[/]" not in result.output
+
+
+def test_columns_format_hides_severity_column_by_default(
+    temp_uv_lock_file: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 2
+    assert "Severity" not in result.output
+    assert "VULN-123" in result.output
+    assert "[/]" not in result.output
+
+
+def test_columns_format_severity_threshold_does_not_enable_severity_column(
+    temp_uv_lock_file: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--severity", "high"]
+    )
+
+    assert result.exit_code == 2
+    assert "Severity" not in result.output
+    assert "VULN-123" in result.output
     assert "[/]" not in result.output
 
 

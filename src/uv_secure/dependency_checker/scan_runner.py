@@ -211,6 +211,7 @@ def _apply_cli_config_overrides(
     lock_to_config_map: dict[APath, Configuration],
     aliases: bool | None,
     desc: bool | None,
+    show_severity: bool | None,
     ignore_vulns: str | None,
     severity: SeverityLevel | None,
     ignore_unfixed: bool | None,
@@ -229,8 +230,9 @@ def _apply_cli_config_overrides(
 ) -> dict[APath, Configuration]:
     if any(
         (
-            aliases,
-            desc,
+            aliases is not None,
+            desc is not None,
+            show_severity is not None,
             ignore_vulns,
             severity is not None,
             ignore_unfixed is not None,
@@ -253,6 +255,7 @@ def _apply_cli_config_overrides(
             check_direct_dependency_maintenance_issues_only,
             check_direct_dependency_vulnerabilities_only,
             desc,
+            show_severity,
             severity,
             ignore_unfixed,
             allow_unused_ignores,
@@ -423,6 +426,7 @@ async def check_lock_files(
     file_paths: Sequence[Path] | None,
     aliases: bool | None,
     desc: bool | None,
+    show_severity: bool | None,
     cache_path: Path,
     cache_ttl_seconds: float,
     disable_cache: bool,
@@ -478,6 +482,7 @@ async def check_lock_files(
         lock_to_config_map,
         aliases,
         desc,
+        show_severity,
         ignore_vulns,
         severity,
         ignore_unfixed,

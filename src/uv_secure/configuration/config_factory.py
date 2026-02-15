@@ -45,6 +45,7 @@ def config_cli_arg_factory(
     check_direct_dependency_maintenance_issues_only: bool | None,
     check_direct_dependency_vulnerabilities_only: bool | None,
     desc: bool | None,
+    show_severity: bool | None,
     severity: SeverityLevel | None,
     ignore_unfixed: bool | None,
     allow_unused_ignores: bool | None,
@@ -68,6 +69,7 @@ def config_cli_arg_factory(
         check_direct_dependency_vulnerabilities_only: Limit vulnerability checks to
             direct dependencies.
         desc: Whether to include vulnerability descriptions.
+        show_severity: Whether to show severity in columns output.
         severity: Minimum severity threshold to report.
         ignore_unfixed: Ignore vulnerabilities with no available fix versions.
         allow_unused_ignores: Allow configured ignore IDs that do not match findings.
@@ -96,6 +98,7 @@ def config_cli_arg_factory(
         check_direct_dependency_maintenance_issues_only=check_direct_dependency_maintenance_issues_only,
         check_direct_dependency_vulnerabilities_only=check_direct_dependency_vulnerabilities_only,
         desc=desc,
+        show_severity=show_severity,
         severity=severity,
         ignore_unfixed=ignore_unfixed,
         allow_unused_ignores=allow_unused_ignores,

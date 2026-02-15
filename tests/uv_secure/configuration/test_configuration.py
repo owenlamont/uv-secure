@@ -62,22 +62,25 @@ from uv_secure.configuration import (
                 vulnerability_criteria=VulnerabilityCriteria(
                     severity=SeverityLevel.LOW,
                     ignore_unfixed=False,
+                    show_severity=False,
                     allow_unused_ignores=False,
                 )
             ),
             OverrideConfiguration(
+                show_severity=True,
                 severity=SeverityLevel.HIGH,
                 ignore_unfixed=True,
                 allow_unused_ignores=True,
             ),
             Configuration(
                 vulnerability_criteria=VulnerabilityCriteria(
+                    show_severity=True,
                     severity=SeverityLevel.HIGH,
                     ignore_unfixed=True,
                     allow_unused_ignores=True,
                 )
             ),
-            id="severity and ignore controls override",
+            id="severity visibility and ignore controls override",
         ),
     ],
 )

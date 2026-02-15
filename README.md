@@ -122,13 +122,16 @@ After installation, you can run uv-secure --help to see the options.
 │                                    working directory when omitted.                   │
 ╰──────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ────────────────────────────────────────────────────────────────────────────╮
-│ --aliases                                                        Include             │
+│ --aliases              --no-aliases                              Enable or disable   │
 │                                                                  vulnerability       │
 │                                                                  aliases in output.  │
-│ --desc                                                           Include             │
+│ --desc                 --no-desc                                 Enable or disable   │
 │                                                                  vulnerability       │
 │                                                                  descriptions in     │
 │                                                                  output.             │
+│ --show-severity        --no-show-severity                        Enable or disable   │
+│                                                                  severity values in  │
+│                                                                  columns output.     │
 │ --cache-path                                 PATH                Directory for       │
 │                                                                  cached HTTP         │
 │                                                                  responses.          │
@@ -264,6 +267,7 @@ jinja2 = [">=0.1, <1.0", "~=2.0"] # Ignore issues between version 0.1 and 1.0 or
 
 [vulnerability_criteria]
 ignore_vulnerabilities = ["VULN-123", "CVE-2024-12345"]
+show_severity = false # Defaults to false. Set true to show severity in columns output.
 severity = "medium" # Defaults to "low". Unknown severities are always included.
 ignore_unfixed = true # Defaults to false
 allow_unused_ignores = false # Defaults to false. false => unused ignores fail the run.
@@ -293,6 +297,7 @@ jinja2 = [">=0.1, <1.0", "~=2.0"] # Ignore issues between version 0.1 and 1.0 or
 
 [tool.uv-secure.vulnerability_criteria]
 ignore_vulnerabilities = ["VULN-123", "CVE-2024-12345"]
+show_severity = false # Defaults to false. Set true to show severity in columns output.
 severity = "medium" # Defaults to "low". Unknown severities are always included.
 ignore_unfixed = true # Defaults to false
 allow_unused_ignores = false # Defaults to false. false => unused ignores fail the run.
@@ -360,15 +365,18 @@ Like Ruff, configuration files aren't hierarchically combined, the nearest / hig
 precedence configuration is used. If you set a specific configuration file that will
 take precedence and hierarchical configuration file discovery is disabled. If you do
 specify configuration options directly on CLI (for example `--ignore-vulns`,
-`--severity`, `--ignore-unfixed`, or `--allow-unused-ignores`) those values override
-the equivalent settings from discovered or manually specified configuration files.
+`--severity`, `--show-severity`, `--ignore-unfixed`, or
+`--allow-unused-ignores`) those values override the equivalent settings from
+discovered or manually specified configuration files.
 
 ### Vulnerability Severity Data
 
 PyPI package JSON responses currently do not include normalized vulnerability severities
 for package/version vulnerability entries. uv-secure enriches severity values by
 querying OSV advisory data for recognized advisory IDs (for example `GHSA-*`,
-`CVE-*`, `PYSEC-*`, `OSV-*`) and shows the resulting severity in table and JSON output.
+`CVE-*`, `PYSEC-*`, `OSV-*`) and includes the resulting severity in JSON output.
+Columns output shows severity only when `show_severity = true` or `--show-severity` is
+used.
 When available, severity entries link to the advisory source used for that severity.
 
 ## Pre-commit Usage

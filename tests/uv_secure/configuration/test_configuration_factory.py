@@ -66,18 +66,20 @@ from uv_secure.configuration import (
             "uv-secure.toml",
             """
             [vulnerability_criteria]
+            show_severity = true
             severity = "high"
             ignore_unfixed = true
             allow_unused_ignores = true
             """,
             Configuration(
                 vulnerability_criteria=VulnerabilityCriteria(
+                    show_severity=True,
                     severity=SeverityLevel.HIGH,
                     ignore_unfixed=True,
                     allow_unused_ignores=True,
                 )
             ),
-            id="Vulnerability severity and ignore controls",
+            id="Vulnerability display and ignore controls",
         ),
         pytest.param(
             "pyproject.toml",

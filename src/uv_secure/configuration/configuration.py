@@ -43,6 +43,7 @@ class VulnerabilityCriteria(BaseModel):
     model_config = ConfigDict(extra="forbid")
     aliases: bool = False
     desc: bool = False
+    show_severity: bool = False
     severity: SeverityLevel = SeverityLevel.LOW
     ignore_unfixed: bool = False
     ignore_vulnerabilities: set[str] | None = None
@@ -65,6 +66,7 @@ class OverrideConfiguration(BaseModel):
     check_direct_dependency_maintenance_issues_only: bool | None = None
     check_direct_dependency_vulnerabilities_only: bool | None = None
     desc: bool | None = None
+    show_severity: bool | None = None
     severity: SeverityLevel | None = None
     ignore_unfixed: bool | None = None
     ignore_vulnerabilities: set[str] | None = None
@@ -107,6 +109,7 @@ def override_config(
             "check_direct_dependencies_only",
         ),
         ("desc", new_configuration.vulnerability_criteria, "desc"),
+        ("show_severity", new_configuration.vulnerability_criteria, "show_severity"),
         ("severity", new_configuration.vulnerability_criteria, "severity"),
         ("ignore_unfixed", new_configuration.vulnerability_criteria, "ignore_unfixed"),
         (
