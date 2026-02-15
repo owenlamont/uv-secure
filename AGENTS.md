@@ -23,6 +23,11 @@ concurrently and supports hierarchical configuration discovery.
 - Diagnose bugs before patching: avoid speculative “symptom” fixes. When behaviour is
   unclear, instrument or reproduce minimally to identify the exact cause before
   landing code changes; prefer root-cause fixes over defensive clean-ups.
+- Any new CLI option or argument must have corresponding TOML configuration support,
+  with CLI values taking precedence over configuration-file values.
+- When CLI help text changes, regenerate and update the README embedded help output
+  using an 88-character terminal width
+  (`COLUMNS=88 uv run ./src/uv_secure/run.py --help`).
 
 ## Project Structure
 
@@ -105,11 +110,26 @@ concurrently and supports hierarchical configuration discovery.
   suspect until proven otherwise.
 - Tests treat warnings as errors. Fix warnings raised by this repo. Third-party
   warnings can be explicitly ignored when necessary.
+- Prefer the `pytest-mock` `mocker` fixture for patching and creating mocks in tests.
+  Avoid using `pytest.MonkeyPatch` directly when `mocker` can cover the case.
+- Prefer CLI-level system tests in `tests/uv_secure/test_run.py` for user-facing
+  behaviour and coverage; use lower-level unit tests when CLI tests would add
+  disproportionate complexity.
 - Only use test functions (no classes). Put setup into fixtures or parameters so the
   code under test is near the top of each function.
 - Use explicit `pytest.param` entries with meaningful `id` strings for parametrized
   tests.
+- When test expectations change, ensure the test name still matches the behaviour. If
+  semantics change, rename the test or adjust the implementation so the original test
+  name remains accurate.
 - Skip test docstrings and comments; describe intent through descriptive names and
   param ids.
 - Each new test should meaningfully increase coverage. Aim for full branch coverage
   while keeping the ratio of test code to src code lean.
+
+## CLI/Output Consistency
+
+- For `--format json`, stdout must remain valid JSON for all code paths. Do not append
+  plain-text errors; represent errors via the JSON error envelope consistently.
+- Runtime/processing errors take precedence over policy-style failures (for example,
+  unused-ignore violations) for both reporting and exit status.

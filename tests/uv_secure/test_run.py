@@ -9,8 +9,10 @@ from textwrap import dedent
 from typing import Any
 
 from freezegun import freeze_time
+from httpx import Request, RequestError
 import pytest
 from pytest_httpx import HTTPXMock
+from pytest_mock import MockerFixture
 from typer.testing import CliRunner
 
 from uv_secure import __version__, app
@@ -84,6 +86,16 @@ def test_bad_file_name() -> None:
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
 
+def test_bad_file_name_json_error_envelope() -> None:
+    result = runner.invoke(
+        app, ["i_dont_exist.txt", "--disable-cache", "--format", "json"]
+    )
+    assert result.exit_code == 3
+    output = json.loads(result.output)
+    assert output["files"] == []
+    assert output["errors"][0]["code"] == "invalid_file_paths"
+
+
 def test_bad_pyproject_toml_config_file(tmp_path: Path) -> None:
     pyproject_toml_path = tmp_path / "pyproject.toml"
     pyproject_toml_contents = """
@@ -95,6 +107,23 @@ def test_bad_pyproject_toml_config_file(tmp_path: Path) -> None:
     result = runner.invoke(app, [str(tmp_path / "uv.lock"), "--disable-cache"])
     assert "Error: Parsing uv-secure configuration at: " in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
+
+
+def test_bad_pyproject_toml_config_file_json_error_envelope(tmp_path: Path) -> None:
+    pyproject_toml_path = tmp_path / "pyproject.toml"
+    pyproject_toml_contents = """
+        [tool.uv-secure]
+        aliases = true
+        desc = true
+    """
+    pyproject_toml_path.write_text(dedent(pyproject_toml_contents).strip())
+    result = runner.invoke(
+        app, [str(tmp_path / "uv.lock"), "--disable-cache", "--format", "json"]
+    )
+    assert result.exit_code == 3
+    output = json.loads(result.output)
+    assert output["files"] == []
+    assert output["errors"][0]["code"] == "configuration_error"
 
 
 def test_bad_uv_secure_toml_config_file(tmp_path: Path) -> None:
@@ -243,15 +272,14 @@ def test_app_reports_uv_tool_vulnerability(
     httpx_mock: HTTPXMock,
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
     async def _fake_version() -> str | None:
         await asyncio.sleep(0)
         return "0.9.5"
 
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_version",
-        _fake_version,
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_version", _fake_version
     )
 
     httpx_mock.add_response(
@@ -297,7 +325,7 @@ def test_app_disable_uv_tool_flag_skips_check(
     temp_uv_lock_file: Path,
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
     uv_called = False
     uv_secure_called = False
@@ -313,12 +341,11 @@ def test_app_disable_uv_tool_flag_skips_check(
         uv_secure_called = True
         return __version__
 
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_version",
-        _fake_version,
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_version", _fake_version
     )
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_secure_version",
         _fake_uv_secure_version,
     )
 
@@ -340,7 +367,7 @@ def test_app_config_disables_uv_tool_check(
     temp_uv_lock_file: Path,
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
     config_path = temp_uv_lock_file.with_name("uv-secure.toml")
     config_path.write_text("check_uv_tool = false\n")
@@ -359,12 +386,11 @@ def test_app_config_disables_uv_tool_check(
         uv_secure_called = True
         return __version__
 
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_version",
-        _fake_version,
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_version", _fake_version
     )
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_secure_version",
         _fake_uv_secure_version,
     )
 
@@ -384,7 +410,7 @@ def test_app_disable_uv_secure_flag_skips_check(
     temp_uv_lock_file: Path,
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
     uv_called = False
     uv_secure_called = False
@@ -400,12 +426,11 @@ def test_app_disable_uv_secure_flag_skips_check(
         uv_secure_called = True
         return __version__
 
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_version",
-        _fake_version,
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_version", _fake_version
     )
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_secure_version",
         _fake_uv_secure_version,
     )
 
@@ -426,7 +451,7 @@ def test_app_config_disables_uv_secure_check(
     temp_uv_lock_file: Path,
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
     config_path = temp_uv_lock_file.with_name("uv-secure.toml")
     config_path.write_text("check_uv_secure = false\n")
@@ -445,12 +470,11 @@ def test_app_config_disables_uv_secure_check(
         uv_secure_called = True
         return __version__
 
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_version",
-        _fake_version,
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_version", _fake_version
     )
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_secure_version",
         _fake_uv_secure_version,
     )
 
@@ -471,13 +495,13 @@ def test_app_reports_uv_secure_package_vulnerability(
     httpx_mock: HTTPXMock,
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
     def _fake_uv_secure_version() -> str | None:
         return "9.9.9"
 
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_secure_version",
         _fake_uv_secure_version,
     )
 
@@ -524,10 +548,10 @@ def test_app_invalid_uv_secure_local_version_is_skipped(
     temp_uv_lock_file: Path,
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker.__version__", "local-dev-build"
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.__version__", "local-dev-build"
     )
 
     result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
@@ -542,13 +566,13 @@ def test_app_unpublished_uv_secure_version_is_skipped(
     httpx_mock: HTTPXMock,
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
     def _fake_uv_secure_version() -> str | None:
         return "9999.0.0"
 
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_secure_version",
         _fake_uv_secure_version,
     )
 
@@ -570,13 +594,13 @@ def test_app_ignore_pkgs_skips_uv_secure_package_check(
     httpx_mock: HTTPXMock,
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
     def _fake_uv_secure_version() -> str | None:
         return "9.9.8"
 
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_secure_version",
         _fake_uv_secure_version,
     )
     httpx_mock.add_response(
@@ -624,13 +648,13 @@ def test_app_non_404_uv_secure_error_is_reported(
     httpx_mock: HTTPXMock,
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
     def _fake_uv_secure_version() -> str | None:
         return "9.9.7"
 
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_secure_version",
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_secure_version",
         _fake_uv_secure_version,
     )
     httpx_mock.add_response(
@@ -650,15 +674,14 @@ def test_app_unpublished_uv_tool_version_is_skipped(
     httpx_mock: HTTPXMock,
     no_vulnerabilities_response: HTTPXMock,
     pypi_simple_example_package: HTTPXMock,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
 ) -> None:
     async def _fake_uv_version() -> str | None:
         await asyncio.sleep(0)
         return "9999.0.0"
 
-    monkeypatch.setattr(
-        "uv_secure.dependency_checker.dependency_checker._detect_uv_version",
-        _fake_uv_version,
+    mocker.patch(
+        "uv_secure.dependency_checker.tool_audit.detect_uv_version", _fake_uv_version
     )
     httpx_mock.add_response(
         url="https://pypi.org/pypi/uv/9999.0.0/json",
@@ -1077,10 +1100,8 @@ def test_app_with_arg_ignored_package_with_specifiers_no_match(
         ],
     )
 
-    assert result.exit_code == 2
-    assert "Vulnerabilities detected!" in result.output
-    assert "Checked: 1 dependency" in result.output
-    assert "Vulnerable: 1 vulnerability" in result.output
+    assert result.exit_code == 4
+    assert "unused package ignore ids" in result.output.lower()
     assert "example-package" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
 
@@ -1234,6 +1255,27 @@ def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_overr
     assert "Details" in result.output
     assert "A critical vulnerability in example-package.  " in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
+
+
+def test_cli_can_disable_aliases_and_desc_even_when_config_enables_them(
+    temp_uv_lock_file: Path,
+    temp_pyproject_toml_file_extra_columns_enabled: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--no-aliases", "--no-desc", "--disable-cache"]
+    )
+
+    assert result.exit_code == 2
+    assert "Vulnerabilities detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "VULN-123" in result.output
+    assert "Aliases" not in result.output
+    assert "Details" not in result.output
+    assert "CVE-2024-12345" not in result.output
+    assert "A critical vulnerability in example-package." not in result.output
+    assert "[/]" not in result.output
 
 
 def test_check_dependencies_with_vulnerability_pyproject_toml_cli_argument_pkg_override(
@@ -2091,6 +2133,650 @@ def test_vulnerability_with_no_fix_versions(
     assert "[/]" not in result.output
 
 
+def test_vulnerability_with_no_fix_versions_ignored_by_cli_flag(
+    temp_uv_lock_file: Path,
+    vulnerability_no_fix_versions_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--ignore-unfixed"]
+    )
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "VULN-NO-FIX" not in result.output
+    assert "[/]" not in result.output
+
+
+def test_vulnerability_with_no_fix_versions_ignored_by_config(
+    temp_uv_lock_file: Path,
+    temp_uv_secure_toml_file_ignore_unfixed: Path,
+    vulnerability_no_fix_versions_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 0
+    assert "No vulnerabilities or maintenance issues detected!" in result.output
+    assert "VULN-NO-FIX" not in result.output
+    assert "[/]" not in result.output
+
+
+def test_vulnerability_with_fix_versions_not_ignored_by_ignore_unfixed(
+    temp_uv_lock_file: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--ignore-unfixed"]
+    )
+
+    assert result.exit_code == 2
+    assert "VULN-123" in result.output
+    assert "[/]" not in result.output
+
+
+def test_severity_cli_filters_known_severity_and_keeps_unknown(
+    temp_uv_lock_file: Path,
+    vulnerability_mixed_severity_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--severity", "high"]
+    )
+
+    assert result.exit_code == 2
+    assert "VULN-HIGH" in result.output
+    assert "VULN-UNKNOWN" in result.output
+    assert "VULN-LOW" not in result.output
+    assert "[/]" not in result.output
+
+
+def test_severity_config_filters_known_severity_and_keeps_unknown(
+    temp_uv_lock_file: Path,
+    temp_uv_secure_toml_file_severity_high: Path,
+    vulnerability_mixed_severity_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 2
+    assert "VULN-HIGH" in result.output
+    assert "VULN-UNKNOWN" in result.output
+    assert "VULN-LOW" not in result.output
+    assert "[/]" not in result.output
+
+
+def test_severity_threshold_parses_numeric_and_unknown_embedded_values(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "A minimal package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "A minimal package example",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
+            "vulnerabilities": [
+                {
+                    "id": "VULN-CRITICAL",
+                    "details": "Critical vulnerability",
+                    "fixed_in": ["1.0.1"],
+                    "severity": "9.1",
+                    "link": "https://example.com/vuln-critical",
+                },
+                {
+                    "id": "VULN-HIGH",
+                    "details": "High vulnerability",
+                    "fixed_in": ["1.0.1"],
+                    "severity": "7.5",
+                    "link": "https://example.com/vuln-high",
+                },
+                {
+                    "id": "VULN-MEDIUM",
+                    "details": "Medium vulnerability",
+                    "fixed_in": ["1.0.1"],
+                    "severity": "4.2",
+                    "link": "https://example.com/vuln-medium",
+                },
+                {
+                    "id": "VULN-LOW",
+                    "details": "Low vulnerability",
+                    "fixed_in": ["1.0.1"],
+                    "severity": "0.5",
+                    "link": "https://example.com/vuln-low",
+                },
+                {
+                    "id": "VULN-UNKNOWN",
+                    "details": "Unknown vulnerability",
+                    "fixed_in": ["1.0.1"],
+                    "severity": "not-a-number",
+                    "link": "https://example.com/vuln-unknown",
+                },
+            ],
+        },
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            "--disable-cache",
+            "--severity",
+            "critical",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 2
+    output = json.loads(result.output)
+    file_result = get_file_output(output, temp_uv_lock_file.as_posix())
+    vuln_ids = {
+        vuln["id"] for dep in file_result["dependencies"] for vuln in dep["vulns"]
+    }
+    assert "VULN-CRITICAL" in vuln_ids
+    assert "VULN-UNKNOWN" in vuln_ids
+    assert "VULN-HIGH" not in vuln_ids
+    assert "VULN-MEDIUM" not in vuln_ids
+    assert "VULN-LOW" not in vuln_ids
+
+    vulnerability = file_result["dependencies"][0]["vulns"][0]
+    assert vulnerability["severity_source_link"] in {
+        "https://example.com/vuln-critical",
+        "https://example.com/vuln-unknown",
+    }
+
+
+def test_json_severity_enrichment_osv_edge_cases(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "A minimal package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "A minimal package example",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
+            "vulnerabilities": [
+                {"id": "GHSA-1111-2222-3333", "details": "db important"},
+                {"id": "GHSA-aaaa-bbbb-cccc", "details": "db unknown no severity"},
+                {"id": "GHSA-4444-5555-6666", "details": "cvss numeric list only"},
+                {"id": "GHSA-7777-8888-9999", "details": "osv not found"},
+                {"id": "GHSA-dead-beef-cafe", "details": "invalid osv payload"},
+            ],
+        },
+    )
+    httpx_mock.add_response(
+        url="https://api.osv.dev/v1/vulns/GHSA-1111-2222-3333",
+        json={
+            "id": "GHSA-1111-2222-3333",
+            "database_specific": {"severity": "important"},
+        },
+    )
+    httpx_mock.add_response(
+        url="https://api.osv.dev/v1/vulns/GHSA-aaaa-bbbb-cccc",
+        json={
+            "id": "GHSA-aaaa-bbbb-cccc",
+            "database_specific": {"severity": "mystery"},
+        },
+    )
+    httpx_mock.add_response(
+        url="https://api.osv.dev/v1/vulns/GHSA-4444-5555-6666",
+        json={
+            "id": "GHSA-4444-5555-6666",
+            "severity": [{"score": "bad"}, {"score": "8.7"}, {"score": "7.0"}],
+        },
+    )
+    httpx_mock.add_response(
+        url="https://api.osv.dev/v1/vulns/GHSA-7777-8888-9999", status_code=404
+    )
+    httpx_mock.add_response(
+        url="https://api.osv.dev/v1/vulns/GHSA-dead-beef-cafe",
+        json={"id": "GHSA-dead-beef-cafe", "severity": "invalid-type"},
+    )
+
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--format", "json"]
+    )
+
+    assert result.exit_code == 2
+    output = json.loads(result.output)
+    file_result = get_file_output(output, temp_uv_lock_file.as_posix())
+    vulnerabilities = file_result["dependencies"][0]["vulns"]
+    by_id = {v["id"]: v for v in vulnerabilities}
+
+    assert by_id["GHSA-1111-2222-3333"]["severity"] == "high"
+    assert by_id["GHSA-4444-5555-6666"]["severity"] == "high"
+    assert "severity" not in by_id["GHSA-aaaa-bbbb-cccc"]
+    assert "severity" not in by_id["GHSA-7777-8888-9999"]
+    assert "severity" not in by_id["GHSA-dead-beef-cafe"]
+
+
+def test_json_severity_enrichment_with_cache_enabled(
+    temp_uv_lock_file: Path,
+    tmp_path: Path,
+    httpx_mock: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "A minimal package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "A minimal package example",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
+            "vulnerabilities": [{"id": "GHSA-cache-1111-2222", "details": "cached"}],
+        },
+    )
+    httpx_mock.add_response(
+        url="https://api.osv.dev/v1/vulns/GHSA-cache-1111-2222",
+        json={
+            "id": "GHSA-cache-1111-2222",
+            "database_specific": {"severity": "moderate"},
+        },
+    )
+
+    cache_dir = tmp_path / "cache"
+    result = runner.invoke(
+        app,
+        [str(temp_uv_lock_file), "--format", "json", "--cache-path", str(cache_dir)],
+    )
+
+    assert result.exit_code == 2
+    output = json.loads(result.output)
+    file_result = get_file_output(output, temp_uv_lock_file.as_posix())
+    vuln = file_result["dependencies"][0]["vulns"][0]
+    assert vuln["severity"] == "medium"
+
+
+def test_unused_ignore_vulnerability_fails_by_default(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--ignore-vulns", "VULN-999"]
+    )
+
+    assert result.exit_code == 4
+    assert "unused vulnerability ignore ids" in result.output.lower()
+    assert "VULN-999" in result.output
+    assert "configured via: CLI" in result.output
+    assert "[/]" not in result.output
+
+
+def test_unused_ignore_vulnerability_json_output_stays_valid_json(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            "--disable-cache",
+            "--ignore-vulns",
+            "VULN-999",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 4
+    output = json.loads(result.output)
+    file_result = get_file_output(output, temp_uv_lock_file.as_posix())
+    assert file_result["file_path"] == temp_uv_lock_file.as_posix()
+    assert output["errors"][0]["code"] == "unused_ignores"
+
+
+def test_unused_ignore_vulnerability_can_be_allowed_by_cli_flag(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            "--disable-cache",
+            "--ignore-vulns",
+            "VULN-999",
+            "--allow-unused-ignores",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "unused vulnerability ignore IDs" not in result.output.lower()
+    assert "[/]" not in result.output
+
+
+def test_unused_ignore_vulnerability_can_be_allowed_by_config(
+    temp_uv_lock_file: Path,
+    temp_uv_secure_toml_file_allow_unused_ignores: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 0
+    assert "unused vulnerability ignore IDs" not in result.output.lower()
+    assert "[/]" not in result.output
+
+
+def test_unused_ignore_vulnerability_alias_identifier_is_counted_as_used(
+    temp_uv_lock_file: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [str(temp_uv_lock_file), "--disable-cache", "--ignore-vulns", "CVE-2024-12345"],
+    )
+
+    assert result.exit_code == 0
+    assert "unused vulnerability ignore ids" not in result.output.lower()
+    assert "[/]" not in result.output
+
+
+def test_unused_ignore_vulnerability_used_in_other_scope_does_not_fail(
+    temp_uv_lock_file: Path,
+    temp_nested_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    one_vulnerability_response_v2: HTTPXMock,
+    pypi_simple_example_package_twice: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            str(temp_nested_uv_lock_file),
+            "--disable-cache",
+            "--ignore-vulns",
+            "VULN-123",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "unused vulnerability ignore ids" not in result.output.lower()
+    assert "[/]" not in result.output
+
+
+def test_unused_ignore_package_fails_by_default(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--ignore-pkgs", "missing-pkg"]
+    )
+
+    assert result.exit_code == 4
+    assert "unused package ignore ids" in result.output.lower()
+    assert "no matching scanned package" in result.output.lower()
+    assert "missing-pkg" in result.output
+    assert "configured via: CLI" in result.output
+    assert "[/]" not in result.output
+
+
+def test_unused_ignore_package_fails_when_match_has_no_findings(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [str(temp_uv_lock_file), "--disable-cache", "--ignore-pkgs", "example-package"],
+    )
+
+    assert result.exit_code == 4
+    assert "unused package ignore ids" in result.output.lower()
+    assert "matched package would have no findings" in result.output.lower()
+    assert "example-package" in result.output
+    assert "configured via: CLI" in result.output
+    assert "[/]" not in result.output
+
+
+def test_unused_ignore_vulnerability_reports_config_file_source(
+    temp_uv_lock_file: Path,
+    temp_uv_secure_toml_file_ignored_vulnerability: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 4
+    assert "unused vulnerability ignore ids" in result.output.lower()
+    assert "VULN-123" in result.output
+    assert temp_uv_secure_toml_file_ignored_vulnerability.as_posix() in result.output
+    assert "[/]" not in result.output
+
+
+def test_unused_ignore_package_reports_config_file_source(
+    temp_uv_lock_file: Path,
+    temp_uv_secure_toml_file_ignored_package: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 4
+    assert "unused package ignore ids" in result.output.lower()
+    assert "example-package" in result.output
+    assert temp_uv_secure_toml_file_ignored_package.as_posix() in result.output
+    assert "[/]" not in result.output
+
+
+def test_unused_ignore_package_can_be_allowed_by_cli_flag(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            "--disable-cache",
+            "--ignore-pkgs",
+            "missing-pkg",
+            "--allow-unused-ignores",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "unused package ignore ids" not in result.output.lower()
+    assert "[/]" not in result.output
+
+
+def test_runtime_error_takes_precedence_over_unused_ignores(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+    tmp_path: Path,
+) -> None:
+    missing_uv_lock_file = tmp_path / "missing.lock" / "uv.lock"
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            str(missing_uv_lock_file),
+            "--disable-cache",
+            "--ignore-vulns",
+            "VULN-999",
+        ],
+    )
+
+    assert result.exit_code == 3
+    assert "does not exist" in result.output
+    assert "unused vulnerability ignore ids" not in result.output.lower()
+
+
+def test_runtime_error_does_not_emit_unused_ignore_error_in_json_mode(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+    tmp_path: Path,
+) -> None:
+    missing_uv_lock_file = tmp_path / "missing.lock" / "uv.lock"
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            str(missing_uv_lock_file),
+            "--disable-cache",
+            "--ignore-vulns",
+            "VULN-999",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 3
+    output = json.loads(result.output)
+    error_codes = [error["code"] for error in output["errors"]]
+    assert "unused_ignores" not in error_codes
+    missing_file_result = get_file_output(output, missing_uv_lock_file.as_posix())
+    assert missing_file_result["error"] is not None
+    assert "does not exist" in missing_file_result["error"]
+
+
+def test_json_severity_enrichment_retries_transient_osv_request_error(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    osv_url = "https://api.osv.dev/v1/vulns/GHSA-retry-1111-2222"
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "A minimal package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "A minimal package example",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
+            "vulnerabilities": [{"id": "GHSA-retry-1111-2222", "details": "retry me"}],
+        },
+    )
+    httpx_mock.add_exception(
+        RequestError("temporary OSV transport error", request=Request("GET", osv_url)),
+        url=osv_url,
+    )
+    httpx_mock.add_response(
+        url=osv_url,
+        json={"id": "GHSA-retry-1111-2222", "database_specific": {"severity": "high"}},
+    )
+
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--format", "json"]
+    )
+
+    assert result.exit_code == 2
+    output = json.loads(result.output)
+    file_result = get_file_output(output, temp_uv_lock_file.as_posix())
+    vuln = file_result["dependencies"][0]["vulns"][0]
+    assert vuln["severity"] == "high"
+
+
+def test_json_severity_enrichment_retryable_osv_status_is_non_fatal(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    osv_url = "https://api.osv.dev/v1/vulns/GHSA-status-1111-2222"
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "example@example.com",
+                "classifiers": [],
+                "description": "A minimal package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.9",
+                "summary": "A minimal package example",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 1,
+            "urls": [],
+            "vulnerabilities": [{"id": "GHSA-status-1111-2222", "details": "retry me"}],
+        },
+    )
+    httpx_mock.add_response(url=osv_url, status_code=503)
+    httpx_mock.add_response(url=osv_url, status_code=503)
+    httpx_mock.add_response(url=osv_url, status_code=503)
+
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--format", "json"]
+    )
+
+    assert result.exit_code == 2
+    output = json.loads(result.output)
+    file_result = get_file_output(output, temp_uv_lock_file.as_posix())
+    vuln = file_result["dependencies"][0]["vulns"][0]
+    assert vuln["id"] == "GHSA-status-1111-2222"
+    assert "severity" not in vuln
+
+
 def test_vulnerability_with_all_alias_types(
     temp_uv_lock_file: Path,
     vulnerability_multiple_alias_types_response: HTTPXMock,
@@ -2177,6 +2863,253 @@ def test_json_format_with_vulnerabilities(
     assert "id" in vuln
     assert "details" in vuln
     assert vuln["id"] == "VULN-123"
+
+
+def test_json_format_enriches_severity_from_osv(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "maintainer@example.com",
+                "classifiers": [],
+                "description": "Example package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.10",
+                "summary": "Example package release",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 42,
+            "urls": [],
+            "vulnerabilities": [
+                {
+                    "id": "GHSA-gm62-xv2j-4w53",
+                    "details": "OSV-backed vulnerability",
+                    "fixed_in": ["2.6.0"],
+                    "aliases": ["CVE-2025-66418"],
+                    "link": "https://osv.dev/vulnerability/GHSA-gm62-xv2j-4w53",
+                }
+            ],
+        },
+    )
+    httpx_mock.add_response(
+        url="https://api.osv.dev/v1/vulns/GHSA-gm62-xv2j-4w53",
+        json={
+            "id": "GHSA-gm62-xv2j-4w53",
+            "severity": [
+                {
+                    "type": "CVSS_V4",
+                    "score": (
+                        "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:N/VI:N/VA:H/"
+                        "SC:N/SI:N/SA:H"
+                    ),
+                }
+            ],
+            "database_specific": {"severity": "HIGH"},
+        },
+    )
+
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--format", "json", "--disable-cache"]
+    )
+
+    assert result.exit_code == 2
+    output = json.loads(result.output)
+    file_result = get_file_output(output, temp_uv_lock_file.as_posix())
+    vuln = file_result["dependencies"][0]["vulns"][0]
+    assert vuln["severity"] == "high"
+    assert (
+        vuln["severity_source_link"]
+        == "https://osv.dev/vulnerability/GHSA-gm62-xv2j-4w53"
+    )
+
+
+def test_json_format_enriches_severity_from_osv_cvss_vector_without_database_specific(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "maintainer@example.com",
+                "classifiers": [],
+                "description": "Example package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.10",
+                "summary": "Example package release",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 42,
+            "urls": [],
+            "vulnerabilities": [
+                {
+                    "id": "GHSA-vector-1111-2222",
+                    "details": "OSV-backed vulnerability",
+                    "fixed_in": ["2.6.0"],
+                    "aliases": ["CVE-2025-12345"],
+                    "link": "https://osv.dev/vulnerability/GHSA-vector-1111-2222",
+                }
+            ],
+        },
+    )
+    httpx_mock.add_response(
+        url="https://api.osv.dev/v1/vulns/GHSA-vector-1111-2222",
+        json={
+            "id": "GHSA-vector-1111-2222",
+            "severity": [
+                {
+                    "type": "CVSS_V3",
+                    "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+                }
+            ],
+        },
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            "--format",
+            "json",
+            "--disable-cache",
+            "--severity",
+            "high",
+        ],
+    )
+
+    assert result.exit_code == 2
+    output = json.loads(result.output)
+    file_result = get_file_output(output, temp_uv_lock_file.as_posix())
+    vuln = file_result["dependencies"][0]["vulns"][0]
+    assert vuln["severity"] == "high"
+    assert (
+        vuln["severity_source_link"]
+        == "https://osv.dev/vulnerability/GHSA-vector-1111-2222"
+    )
+
+
+def test_columns_format_shows_severity_column_with_show_severity_flag(
+    temp_uv_lock_file: Path,
+    httpx_mock: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    httpx_mock.add_response(
+        url="https://pypi.org/pypi/example-package/1.0.0/json",
+        json={
+            "info": {
+                "author_email": "maintainer@example.com",
+                "classifiers": [],
+                "description": "Example package",
+                "description_content_type": "text/plain",
+                "downloads": {"last_day": None, "last_month": None, "last_week": None},
+                "name": "example-package",
+                "project_urls": {},
+                "provides_extra": [],
+                "release_url": "https://pypi.org/project/example-package/1.0.0/",
+                "requires_python": ">=3.10",
+                "summary": "Example package release",
+                "version": "1.0.0",
+                "yanked": False,
+            },
+            "last_serial": 42,
+            "urls": [],
+            "vulnerabilities": [
+                {
+                    "id": "GHSA-hgf8-39gv-g3f2",
+                    "details": "OSV-backed vulnerability",
+                    "fixed_in": ["3.1.4"],
+                    "aliases": ["CVE-2025-66221"],
+                    "link": "https://osv.dev/vulnerability/GHSA-hgf8-39gv-g3f2",
+                }
+            ],
+        },
+    )
+    httpx_mock.add_response(
+        url="https://api.osv.dev/v1/vulns/GHSA-hgf8-39gv-g3f2",
+        json={
+            "id": "GHSA-hgf8-39gv-g3f2",
+            "severity": [
+                {
+                    "type": "CVSS_V4",
+                    "score": (
+                        "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:N/VI:N/VA:L/"
+                        "SC:N/SI:N/SA:N"
+                    ),
+                }
+            ],
+            "database_specific": {"severity": "MODERATE"},
+        },
+    )
+
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--show-severity"]
+    )
+
+    assert result.exit_code == 2
+    assert "Severity" in result.output
+    assert "MEDIUM" in result.output
+    assert "[/]" not in result.output
+
+
+def test_columns_format_hides_severity_column_by_default(
+    temp_uv_lock_file: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 2
+    assert "Severity" not in result.output
+    assert "VULN-123" in result.output
+    assert "[/]" not in result.output
+
+
+def test_columns_format_show_severity_without_source_link_displays_unknown(
+    temp_uv_lock_file: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--show-severity"]
+    )
+
+    assert result.exit_code == 2
+    assert "Severity" in result.output
+    assert "UNKNOWN" in result.output
+    assert "VULN-123" in result.output
+    assert "[/]" not in result.output
+
+
+def test_columns_format_severity_threshold_does_not_enable_severity_column(
+    temp_uv_lock_file: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--severity", "high"]
+    )
+
+    assert result.exit_code == 2
+    assert "Severity" not in result.output
+    assert "VULN-123" in result.output
+    assert "[/]" not in result.output
 
 
 def test_json_format_with_long_vulnerability_details(

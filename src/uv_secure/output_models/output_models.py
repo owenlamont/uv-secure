@@ -6,6 +6,8 @@ class VulnerabilityOutput(BaseModel):
 
     id: str
     details: str
+    severity: str | None = None
+    severity_source_link: str | None = None
     fix_versions: list[str] | None = None
     aliases: list[str] | None = None
     link: str | None = None
@@ -40,7 +42,15 @@ class FileResultOutput(BaseModel):
     error: str | None = None
 
 
+class ErrorOutput(BaseModel):
+    """Represents a top-level error in JSON output."""
+
+    code: str
+    message: str
+
+
 class ScanResultsOutput(BaseModel):
     """Top-level output structure containing results for all scanned files"""
 
     files: list[FileResultOutput] = []
+    errors: list[ErrorOutput] = []

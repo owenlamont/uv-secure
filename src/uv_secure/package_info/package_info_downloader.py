@@ -78,6 +78,8 @@ class Vulnerability(BaseModel):
     details: str
     fixed_in: list[str] | None = None
     aliases: list[str] | None = None
+    severity: str | None = None
+    severity_source_link: str | None = None
     link: str | None = None
     source: str | None = None
     summary: str | None = None
