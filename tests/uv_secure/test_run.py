@@ -2445,6 +2445,7 @@ def test_unused_ignore_vulnerability_fails_by_default(
     assert result.exit_code == 4
     assert "unused vulnerability ignore ids" in result.output.lower()
     assert "VULN-999" in result.output
+    assert "configured via: CLI" in result.output
     assert "[/]" not in result.output
 
 
@@ -2557,6 +2558,7 @@ def test_unused_ignore_package_fails_by_default(
     assert "unused package ignore ids" in result.output.lower()
     assert "no matching scanned package" in result.output.lower()
     assert "missing-pkg" in result.output
+    assert "configured via: CLI" in result.output
     assert "[/]" not in result.output
 
 
@@ -2574,6 +2576,37 @@ def test_unused_ignore_package_fails_when_match_has_no_findings(
     assert "unused package ignore ids" in result.output.lower()
     assert "matched package would have no findings" in result.output.lower()
     assert "example-package" in result.output
+    assert "configured via: CLI" in result.output
+    assert "[/]" not in result.output
+
+
+def test_unused_ignore_vulnerability_reports_config_file_source(
+    temp_uv_lock_file: Path,
+    temp_uv_secure_toml_file_ignored_vulnerability: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 4
+    assert "unused vulnerability ignore ids" in result.output.lower()
+    assert "VULN-123" in result.output
+    assert temp_uv_secure_toml_file_ignored_vulnerability.as_posix() in result.output
+    assert "[/]" not in result.output
+
+
+def test_unused_ignore_package_reports_config_file_source(
+    temp_uv_lock_file: Path,
+    temp_uv_secure_toml_file_ignored_package: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 4
+    assert "unused package ignore ids" in result.output.lower()
+    assert "example-package" in result.output
+    assert temp_uv_secure_toml_file_ignored_package.as_posix() in result.output
     assert "[/]" not in result.output
 
 

@@ -26,7 +26,9 @@ from uv_secure.dependency_checker.tool_audit import (
 )
 from uv_secure.directory_scanner import get_dependency_file_to_config_map
 from uv_secure.directory_scanner.directory_scanner import (
+    get_dependency_file_to_config_source_map,
     get_dependency_files_to_config_map,
+    get_dependency_files_to_config_source_map,
 )
 from uv_secure.output_formatters import ColumnsFormatter, JsonFormatter, OutputFormatter
 from uv_secure.output_models import ErrorOutput, FileResultOutput, ScanResultsOutput
@@ -81,6 +83,53 @@ def _find_unused_ignore_vulnerability_ids(
     return unused_ignore_ids
 
 
+def _format_config_source(
+    config_source: APath | None, ignore_defined_via_cli: bool
+) -> str:
+    if ignore_defined_via_cli:
+        return "CLI"
+    if config_source is None:
+        return "default configuration"
+    return config_source.as_posix()
+
+
+def _format_unused_ignore_with_sources(
+    ignore_ids: set[str], ignore_sources: dict[str, set[str]]
+) -> str:
+    return ", ".join(
+        (
+            f"{ignore_id} (configured via: "
+            f"{', '.join(sorted(ignore_sources[ignore_id]))})"
+        )
+        for ignore_id in sorted(ignore_ids)
+    )
+
+
+def _collect_unused_ignore_vulnerability_sources(
+    unused_ignore_ids: set[str],
+    lock_to_config_map: dict[APath, Configuration],
+    lock_to_config_source_map: dict[APath, APath | None],
+    ignore_vulns: str | None,
+) -> dict[str, set[str]]:
+    ignore_sources: dict[str, set[str]] = {}
+    ignore_defined_via_cli = ignore_vulns is not None
+    for lock_file, config in lock_to_config_map.items():
+        if config.vulnerability_criteria.allow_unused_ignores:
+            continue
+        configured_ignore_ids = config.vulnerability_criteria.ignore_vulnerabilities
+        if configured_ignore_ids is None:
+            continue
+        matching_ids = configured_ignore_ids & unused_ignore_ids
+        if not matching_ids:
+            continue
+        source = _format_config_source(
+            lock_to_config_source_map.get(lock_file), ignore_defined_via_cli
+        )
+        for ignore_id in matching_ids:
+            ignore_sources.setdefault(ignore_id, set()).add(source)
+    return ignore_sources
+
+
 def _find_unused_ignore_package_ids(
     lock_to_config_map: dict[APath, Configuration],
     matched_ignore_packages_by_scope: dict[str, set[str]],
@@ -115,11 +164,37 @@ def _find_unused_ignore_package_ids(
     return unmatched_ignore_packages, matched_but_clean_ignore_packages
 
 
+def _collect_unused_ignore_package_sources(
+    unused_ignore_packages: set[str],
+    lock_to_config_map: dict[APath, Configuration],
+    lock_to_config_source_map: dict[APath, APath | None],
+    ignore_pkgs: list[str] | None,
+) -> dict[str, set[str]]:
+    ignore_sources: dict[str, set[str]] = {}
+    ignore_defined_via_cli = ignore_pkgs is not None
+    for lock_file, config in lock_to_config_map.items():
+        if config.vulnerability_criteria.allow_unused_ignores:
+            continue
+        configured_ignore_packages = set(config.ignore_packages or {})
+        matching_packages = configured_ignore_packages & unused_ignore_packages
+        if not matching_packages:
+            continue
+        source = _format_config_source(
+            lock_to_config_source_map.get(lock_file), ignore_defined_via_cli
+        )
+        for package_name in matching_packages:
+            ignore_sources.setdefault(package_name, set()).add(source)
+    return ignore_sources
+
+
 def _apply_unused_ignore_policy(
     lock_to_config_map: dict[APath, Configuration],
+    lock_to_config_source_map: dict[APath, APath | None],
     used_ignore_vulnerabilities_by_scope: dict[str, set[str]],
     matched_ignore_packages_by_scope: dict[str, set[str]],
     used_ignore_packages_by_scope: dict[str, set[str]],
+    ignore_vulns: str | None,
+    ignore_pkgs: list[str] | None,
     config: Configuration,
     scan_results: ScanResultsOutput,
     console: Console,
@@ -144,10 +219,24 @@ def _apply_unused_ignore_policy(
     if not unused_ignore_ids and not unused_ignore_packages:
         return final_status
 
-    unused_ignore_display = ", ".join(sorted(unused_ignore_ids))
-    unmatched_package_display = ", ".join(sorted(unmatched_ignore_packages))
-    matched_but_clean_package_display = ", ".join(
-        sorted(matched_but_clean_ignore_packages)
+    unused_vulnerability_ignore_sources = _collect_unused_ignore_vulnerability_sources(
+        unused_ignore_ids, lock_to_config_map, lock_to_config_source_map, ignore_vulns
+    )
+    unused_package_ignore_sources = _collect_unused_ignore_package_sources(
+        unused_ignore_packages,
+        lock_to_config_map,
+        lock_to_config_source_map,
+        ignore_pkgs,
+    )
+
+    unused_ignore_display = _format_unused_ignore_with_sources(
+        unused_ignore_ids, unused_vulnerability_ignore_sources
+    )
+    unmatched_package_display = _format_unused_ignore_with_sources(
+        unmatched_ignore_packages, unused_package_ignore_sources
+    )
+    matched_but_clean_package_display = _format_unused_ignore_with_sources(
+        matched_but_clean_ignore_packages, unused_package_ignore_sources
     )
     message_parts: list[str] = []
     if unused_ignore_display:
@@ -176,13 +265,16 @@ def _apply_unused_ignore_policy(
 
 async def _resolve_file_paths_and_configs(
     file_paths: Sequence[Path] | None, config_path: Path | None
-) -> tuple[tuple[APath, ...], dict[APath, Configuration]]:
+) -> tuple[tuple[APath, ...], dict[APath, Configuration], dict[APath, APath | None]]:
     file_apaths: tuple[APath, ...] = (
         (APath(),) if not file_paths else tuple(APath(file) for file in file_paths)
     )
 
     if len(file_apaths) == 1 and await file_apaths[0].is_dir():
         lock_to_config_map = await get_dependency_file_to_config_map(file_apaths[0])
+        lock_to_config_source_map = await get_dependency_file_to_config_source_map(
+            file_apaths[0]
+        )
         file_apaths = tuple(lock_to_config_map.keys())
     else:
         if config_path is not None:
@@ -192,11 +284,17 @@ async def _resolve_file_paths_and_configs(
                 raise UvSecureConfigurationError(str(exc)) from exc
             config = possible_config if possible_config is not None else Configuration()
             lock_to_config_map = dict.fromkeys(file_apaths, config)
+            lock_to_config_source_map = dict.fromkeys(
+                file_apaths, APath(config_path) if possible_config is not None else None
+            )
         elif all(
             file_path.name in {"pylock.toml", "requirements.txt", "uv.lock"}
             for file_path in file_apaths
         ):
             lock_to_config_map = await get_dependency_files_to_config_map(file_apaths)
+            lock_to_config_source_map = await get_dependency_files_to_config_source_map(
+                file_apaths
+            )
             file_apaths = tuple(lock_to_config_map.keys())
         else:
             raise ValueError(
@@ -204,7 +302,7 @@ async def _resolve_file_paths_and_configs(
                 "or a sequence of uv.lock / pylock.toml / requirements.txt file paths"
             )
 
-    return file_apaths, lock_to_config_map
+    return file_apaths, lock_to_config_map, lock_to_config_source_map
 
 
 def _apply_cli_config_overrides(
@@ -456,9 +554,11 @@ async def check_lock_files(
     console = Console()
 
     try:
-        file_apaths, lock_to_config_map = await _resolve_file_paths_and_configs(
-            file_paths, config_path
-        )
+        (
+            file_apaths,
+            lock_to_config_map,
+            lock_to_config_source_map,
+        ) = await _resolve_file_paths_and_configs(file_paths, config_path)
     except ValueError:
         error_message = (
             "file_paths must either reference a single project root directory "
@@ -525,9 +625,12 @@ async def check_lock_files(
     final_status = _determine_final_status(file_results)
     final_status = _apply_unused_ignore_policy(
         lock_to_config_map,
+        lock_to_config_source_map,
         used_ignore_vulnerabilities_by_scope,
         matched_ignore_packages_by_scope,
         used_ignore_packages_by_scope,
+        ignore_vulns,
+        ignore_pkgs,
         config,
         scan_results,
         console,
