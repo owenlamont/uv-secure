@@ -26,94 +26,85 @@ def _version_callback(value: bool) -> None:
 _file_path_args = typer.Argument(
     None,
     help=(
-        "Paths to the uv.lock, PEP751 pylock.toml, or requirements.txt files "
-        "or a single project root level directory (defaults to working directory "
-        "if not set)"
+        "One or more dependency files (uv.lock, pylock.toml, requirements.txt), "
+        "or a single project root directory. Defaults to the current working "
+        "directory when omitted."
     ),
 )
 
 
 _aliases_option = typer.Option(
-    None,
-    "--aliases",
-    help="Flag whether to include vulnerability aliases in the vulnerabilities table",
+    None, "--aliases", help="Include vulnerability aliases in output."
 )
 
 
 _desc_option = typer.Option(
-    None,
-    "--desc",
-    help=(
-        "Flag whether to include vulnerability detailed description in the "
-        "vulnerabilities table"
-    ),
+    None, "--desc", help="Include vulnerability descriptions in output."
 )
 
 _cache_path_option = typer.Option(
     Path.home() / ".cache/uv-secure",
     "--cache-path",
-    help="Path to the cache directory for vulnerability http requests",
+    help="Directory for cached HTTP responses.",
     show_default="~/.cache/uv-secure",
 )
 
 _cache_ttl_seconds_option = typer.Option(
     DEFAULT_HTTPX_CACHE_TTL_SECONDS,
     "--cache-ttl-seconds",
-    help="Time to live in seconds for the vulnerability http requests cache",
+    help=(
+        "Cache TTL in seconds for HTTP responses. Ignored when --disable-cache is set."
+    ),
 )
 
 _disable_cache_option = typer.Option(
-    False,
-    "--disable-cache",
-    help="Flag whether to disable caching for vulnerability http requests",
+    False, "--disable-cache", help="Disable the HTTP cache for this run."
 )
 
 _forbid_archived_option = typer.Option(
-    None,
-    "--forbid-archived",
-    help="Flag whether disallow archived package versions from being dependencies",
+    None, "--forbid-archived", help="Report archived packages as maintenance issues."
 )
 
 _forbid_deprecated_option = typer.Option(
     None,
     "--forbid-deprecated",
-    help="Flag whether disallow deprecated package versions from being dependencies",
+    help="Report deprecated packages as maintenance issues.",
 )
 
 _forbid_quarantined_option = typer.Option(
     None,
     "--forbid-quarantined",
-    help="Flag whether disallow quarantined package versions from being dependencies",
+    help="Report quarantined packages as maintenance issues.",
 )
 
 _forbid_yanked_option = typer.Option(
-    None,
-    "--forbid-yanked",
-    help="Flag whether disallow yanked package versions from being dependencies",
+    None, "--forbid-yanked", help="Report yanked packages as maintenance issues."
 )
 
 _check_direct_dependency_vulnerabilities_only_option = typer.Option(
     None,
     "--check-direct-dependency-vulnerabilities-only",
-    help="Flag whether to only test only direct dependencies for vulnerabilities",
+    help="Only scan direct dependencies for vulnerabilities.",
 )
 
 _check_direct_dependency_maintenance_issues_only_option = typer.Option(
     None,
     "--check-direct-dependency-maintenance-issues-only",
-    help="Flag whether to only test only direct dependencies for maintenance issues",
+    help="Only scan direct dependencies for maintenance issues.",
 )
 
 _max_package_age_option = typer.Option(
-    None, "--max-age-days", help="Maximum age threshold for packages in days"
+    None,
+    "--max-age-days",
+    help="Report a maintenance issue when package age exceeds this many days.",
 )
 
 _ignore_vulns_option = typer.Option(
     None,
     "--ignore-vulns",
     help=(
-        "Comma-separated list of vulnerability IDs or aliases to ignore, e.g. "
-        "VULN-123,CVE-2024-12345"
+        "Comma-separated vulnerability IDs and/or aliases to suppress, e.g. "
+        "VULN-123,CVE-2024-12345."
     ),
 )
 
@@ -121,23 +112,24 @@ _severity_option = typer.Option(
     None,
     "--severity",
     help=(
-        "Minimum vulnerability severity to include: low, medium, high, or critical. "
-        "Vulnerabilities with unknown severity are always included."
+        "Only include vulnerabilities at or above this severity "
+        "(low/medium/high/critical). Vulnerabilities with unknown severity are "
+        "still included."
     ),
 )
 
 _ignore_unfixed_option = typer.Option(
     None,
     "--ignore-unfixed",
-    help="Ignore vulnerabilities that do not provide any fix version",
+    help="Ignore vulnerabilities that have no known fix version.",
 )
 
 _allow_unused_ignores_option = typer.Option(
     None,
     "--allow-unused-ignores",
     help=(
-        "Allow ignore-vulns / ignore_vulnerabilities / ignore-pkgs entries that "
-        "match nothing in this run"
+        "Allow ignore-vulns and ignore-pkgs entries that are unused in this run "
+        "(no matching target or no suppressed findings)."
     ),
 )
 
@@ -145,8 +137,8 @@ _config_option = typer.Option(
     None,
     "--config",
     help=(
-        "Optional path to a configuration file (uv-secure.toml, .uv-secure.toml, or "
-        "pyproject.toml)"
+        "Path to a configuration file (uv-secure.toml, .uv-secure.toml, or "
+        "pyproject.toml). CLI options override config values."
     ),
 )
 
@@ -164,27 +156,22 @@ _ignore_pkg_options = typer.Option(
     "--ignore-pkgs",
     metavar="PKG:SPEC1|SPEC2|…",
     help=(
-        "Dependency with optional version specifiers. "
-        "Syntax: name:spec1|spec2|…  "
-        "e.g. foo:>=1.0,<1.5|==4.5.*"
+        "Suppress vulnerabilities and maintenance issues for matching packages. "
+        "Syntax: name or name:spec1|spec2|…  "
+        "e.g. foo or foo:>=1.0,<1.5|==4.5.*"
     ),
 )
 
 
 _format_option = typer.Option(
-    None,
-    "--format",
-    help=(
-        "Output format: 'columns' for table output (default) or 'json' for JSON output"
-    ),
+    None, "--format", help=("Output format: columns (default) or json.")
 )
 
 _check_uv_tool_option = typer.Option(
     None,
     "--check-uv-tool/--no-check-uv-tool",
     help=(
-        "Enable or disable scanning the globally installed uv CLI for "
-        "vulnerabilities (enabled by default)"
+        "Enable or disable scanning the globally installed uv CLI (enabled by default)."
     ),
 )
 
@@ -192,8 +179,8 @@ _check_uv_secure_option = typer.Option(
     None,
     "--check-uv-secure/--no-check-uv-secure",
     help=(
-        "Enable or disable scanning the installed uv-secure package for "
-        "vulnerabilities (enabled by default)"
+        "Enable or disable scanning the installed uv-secure package "
+        "(enabled by default)."
     ),
 )
 

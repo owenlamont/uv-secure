@@ -110,121 +110,129 @@ After installation, you can run uv-secure --help to see the options.
 ```shell
 >> uv-secure --help
 
+
  Usage: run.py [OPTIONS] [FILE_PATHS]...
 
  Parse dependency manifests and display vulnerability summaries.
 
 ╭─ Arguments ──────────────────────────────────────────────────────────────────────────╮
-│   file_paths      [FILE_PATHS]...  Paths to the uv.lock, PEP751 pylock.toml, or      │
-│                                    requirements.txt files or a single project root   │
-│                                    level directory (defaults to working directory if │
-│                                    not set)                                          │
+│   file_paths      [FILE_PATHS]...  One or more dependency files (uv.lock,            │
+│                                    pylock.toml, requirements.txt), or a single       │
+│                                    project root directory. Defaults to the current   │
+│                                    working directory when omitted.                   │
 ╰──────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ────────────────────────────────────────────────────────────────────────────╮
-│ --aliases                                                       Flag whether to      │
-│                                                                 include              │
-│                                                                 vulnerability        │
-│                                                                 aliases in the       │
-│                                                                 vulnerabilities      │
-│                                                                 table                │
-│ --desc                                                          Flag whether to      │
-│                                                                 include              │
-│                                                                 vulnerability        │
-│                                                                 detailed description │
-│                                                                 in the               │
-│                                                                 vulnerabilities      │
-│                                                                 table                │
-│ --cache-path                                 PATH               Path to the cache    │
-│                                                                 directory for        │
-│                                                                 vulnerability http   │
-│                                                                 requests             │
-│                                                                 [default:            │
-│                                                                 (~/.cache/uv-secure… │
-│ --cache-ttl-seconds                          FLOAT              Time to live in      │
-│                                                                 seconds for the      │
-│                                                                 vulnerability http   │
-│                                                                 requests cache       │
-│                                                                 [default: 86400.0]   │
-│ --disable-cache                                                 Flag whether to      │
-│                                                                 disable caching for  │
-│                                                                 vulnerability http   │
-│                                                                 requests             │
-│ --forbid-archived                                               Flag whether         │
-│                                                                 disallow archived    │
-│                                                                 package versions     │
-│                                                                 from being           │
-│                                                                 dependencies         │
-│ --forbid-deprecated                                             Flag whether         │
-│                                                                 disallow deprecated  │
-│                                                                 package versions     │
-│                                                                 from being           │
-│                                                                 dependencies         │
-│ --forbid-quarantin…                                             Flag whether         │
-│                                                                 disallow quarantined │
-│                                                                 package versions     │
-│                                                                 from being           │
-│                                                                 dependencies         │
-│ --forbid-yanked                                                 Flag whether         │
-│                                                                 disallow yanked      │
-│                                                                 package versions     │
-│                                                                 from being           │
-│                                                                 dependencies         │
-│ --max-age-days                               INTEGER            Maximum age          │
-│                                                                 threshold for        │
-│                                                                 packages in days     │
-│ --ignore-vulns                               TEXT               Comma-separated list │
-│                                                                 of vulnerability IDs │
-│                                                                 or aliases to        │
-│                                                                 ignore, e.g.         │
-│                                                                 VULN-123,CVE-2024-1… │
-│ --ignore-pkgs                                PKG:SPEC1|SPEC2|…  Dependency with      │
-│                                                                 optional version     │
-│                                                                 specifiers. Syntax:  │
-│                                                                 name:spec1|spec2|…   │
-│                                                                 e.g.                 │
-│                                                                 foo:>=1.0,<1.5|==4.… │
-│ --check-direct-dep…                                             Flag whether to only │
-│                                                                 test only direct     │
-│                                                                 dependencies for     │
-│                                                                 vulnerabilities      │
-│ --check-direct-dep…                                             Flag whether to only │
-│                                                                 test only direct     │
-│                                                                 dependencies for     │
-│                                                                 maintenance issues   │
-│ --config                                     PATH               Optional path to a   │
-│                                                                 configuration file   │
-│                                                                 (uv-secure.toml,     │
-│                                                                 .uv-secure.toml, or  │
-│                                                                 pyproject.toml)      │
-│ --version                                                       Show the application │
-│                                                                 version              │
-│ --format                                     [columns|json]     Output format:       │
-│                                                                 'columns' for table  │
-│                                                                 output (default) or  │
-│                                                                 'json' for JSON      │
-│                                                                 output               │
-│ --check-uv-tool        --no-check-uv-tool                       Enable or disable    │
-│                                                                 scanning the         │
-│                                                                 globally installed   │
-│                                                                 uv CLI for           │
-│                                                                 vulnerabilities      │
-│                                                                 (enabled by default) │
-│ --check-uv-secure      --no-check-uv-sec…                       Enable or disable    │
-│                                                                 scanning the         │
-│                                                                 installed uv-secure  │
-│                                                                 package for          │
-│                                                                 vulnerabilities      │
-│                                                                 (enabled by default) │
-│ --install-completi…                                             Install completion   │
-│                                                                 for the current      │
-│                                                                 shell.               │
-│ --show-completion                                               Show completion for  │
-│                                                                 the current shell,   │
-│                                                                 to copy it or        │
-│                                                                 customize the        │
-│                                                                 installation.        │
-│ --help                                                          Show this message    │
-│                                                                 and exit.            │
+│ --aliases                                                        Include             │
+│                                                                  vulnerability       │
+│                                                                  aliases in output.  │
+│ --desc                                                           Include             │
+│                                                                  vulnerability       │
+│                                                                  descriptions in     │
+│                                                                  output.             │
+│ --cache-path                                 PATH                Directory for       │
+│                                                                  cached HTTP         │
+│                                                                  responses.          │
+│                                                                  [default:           │
+│                                                                  (~/.cache/uv-secur… │
+│ --cache-ttl-seconds                          FLOAT               Cache TTL in        │
+│                                                                  seconds for HTTP    │
+│                                                                  responses. Ignored  │
+│                                                                  when                │
+│                                                                  --disable-cache is  │
+│                                                                  set.                │
+│                                                                  [default: 86400.0]  │
+│ --disable-cache                                                  Disable the HTTP    │
+│                                                                  cache for this run. │
+│ --forbid-archived                                                Report archived     │
+│                                                                  packages as         │
+│                                                                  maintenance issues. │
+│ --forbid-deprecated                                              Report deprecated   │
+│                                                                  packages as         │
+│                                                                  maintenance issues. │
+│ --forbid-quarantin…                                              Report quarantined  │
+│                                                                  packages as         │
+│                                                                  maintenance issues. │
+│ --forbid-yanked                                                  Report yanked       │
+│                                                                  packages as         │
+│                                                                  maintenance issues. │
+│ --max-age-days                               INTEGER             Report a            │
+│                                                                  maintenance issue   │
+│                                                                  when package age    │
+│                                                                  exceeds this many   │
+│                                                                  days.               │
+│ --ignore-vulns                               TEXT                Comma-separated     │
+│                                                                  vulnerability IDs   │
+│                                                                  and/or aliases to   │
+│                                                                  suppress, e.g.      │
+│                                                                  VULN-123,CVE-2024-… │
+│ --severity                                   [low|medium|high|c  Only include        │
+│                                              ritical]            vulnerabilities at  │
+│                                                                  or above this       │
+│                                                                  severity            │
+│                                                                  (low/medium/high/c… │
+│                                                                  Vulnerabilities     │
+│                                                                  with unknown        │
+│                                                                  severity are still  │
+│                                                                  included.           │
+│ --ignore-unfixed                                                 Ignore              │
+│                                                                  vulnerabilities     │
+│                                                                  that have no known  │
+│                                                                  fix version.        │
+│ --allow-unused-ign…                                              Allow ignore-vulns  │
+│                                                                  and ignore-pkgs     │
+│                                                                  entries that are    │
+│                                                                  unused in this run  │
+│                                                                  (no matching target │
+│                                                                  or no suppressed    │
+│                                                                  findings).          │
+│ --ignore-pkgs                                PKG:SPEC1|SPEC2|…   Suppress            │
+│                                                                  vulnerabilities and │
+│                                                                  maintenance issues  │
+│                                                                  for matching        │
+│                                                                  packages. Syntax:   │
+│                                                                  name or             │
+│                                                                  name:spec1|spec2|…  │
+│                                                                  e.g. foo or         │
+│                                                                  foo:>=1.0,<1.5|==4… │
+│ --check-direct-dep…                                              Only scan direct    │
+│                                                                  dependencies for    │
+│                                                                  vulnerabilities.    │
+│ --check-direct-dep…                                              Only scan direct    │
+│                                                                  dependencies for    │
+│                                                                  maintenance issues. │
+│ --config                                     PATH                Path to a           │
+│                                                                  configuration file  │
+│                                                                  (uv-secure.toml,    │
+│                                                                  .uv-secure.toml, or │
+│                                                                  pyproject.toml).    │
+│                                                                  CLI options         │
+│                                                                  override config     │
+│                                                                  values.             │
+│ --version                                                        Show the            │
+│                                                                  application version │
+│ --format                                     [columns|json]      Output format:      │
+│                                                                  columns (default)   │
+│                                                                  or json.            │
+│ --check-uv-tool        --no-check-uv-tool                        Enable or disable   │
+│                                                                  scanning the        │
+│                                                                  globally installed  │
+│                                                                  uv CLI (enabled by  │
+│                                                                  default).           │
+│ --check-uv-secure      --no-check-uv-sec…                        Enable or disable   │
+│                                                                  scanning the        │
+│                                                                  installed uv-secure │
+│                                                                  package (enabled by │
+│                                                                  default).           │
+│ --install-completi…                                              Install completion  │
+│                                                                  for the current     │
+│                                                                  shell.              │
+│ --show-completion                                                Show completion for │
+│                                                                  the current shell,  │
+│                                                                  to copy it or       │
+│                                                                  customize the       │
+│                                                                  installation.       │
+│ --help                                                           Show this message   │
+│                                                                  and exit.           │
 ╰──────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
