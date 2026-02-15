@@ -3081,6 +3081,22 @@ def test_columns_format_hides_severity_column_by_default(
     assert "[/]" not in result.output
 
 
+def test_columns_format_show_severity_without_source_link_displays_unknown(
+    temp_uv_lock_file: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--show-severity"]
+    )
+
+    assert result.exit_code == 2
+    assert "Severity" in result.output
+    assert "UNKNOWN" in result.output
+    assert "VULN-123" in result.output
+    assert "[/]" not in result.output
+
+
 def test_columns_format_severity_threshold_does_not_enable_severity_column(
     temp_uv_lock_file: Path,
     one_vulnerability_response: HTTPXMock,
