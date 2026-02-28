@@ -49,6 +49,7 @@ def config_cli_arg_factory(
     severity: SeverityLevel | None,
     ignore_unfixed: bool | None,
     allow_unused_ignores: bool | None,
+    fix: bool | None,
     forbid_archived: bool | None,
     forbid_deprecated: bool | None,
     forbid_quarantined: bool | None,
@@ -73,6 +74,7 @@ def config_cli_arg_factory(
         severity: Minimum severity threshold to report.
         ignore_unfixed: Ignore vulnerabilities with no available fix versions.
         allow_unused_ignores: Allow configured ignore IDs that do not match findings.
+        fix: Apply safe automatic fixes.
         forbid_archived: Reject archived packages when True.
         forbid_deprecated: Reject deprecated packages when True.
         forbid_quarantined: Reject quarantined packages when True.
@@ -102,6 +104,7 @@ def config_cli_arg_factory(
         severity=severity,
         ignore_unfixed=ignore_unfixed,
         allow_unused_ignores=allow_unused_ignores,
+        fix=fix,
         forbid_archived=forbid_archived,
         forbid_deprecated=forbid_deprecated,
         forbid_quarantined=forbid_quarantined,

@@ -80,10 +80,13 @@ class CacheManager:
             )
 
     async def _get_lock(self, key: str) -> asyncio.Lock:
-        async with self._locks_lock:
+        await self._locks_lock.acquire()
+        try:
             if key not in self._locks:
                 self._locks[key] = asyncio.Lock()
             return self._locks[key]
+        finally:
+            self._locks_lock.release()
 
     def _get_from_memory(self, key: str) -> Any | None:
         entry = self.memory_cache.get(key)
@@ -211,4 +214,5 @@ class CacheManager:
 
     async def close(self) -> None:
         """Shut down the executor."""
-        self._executor.shutdown(wait=True)
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self._executor.shutdown, True)

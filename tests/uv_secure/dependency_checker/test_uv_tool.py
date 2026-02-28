@@ -21,7 +21,10 @@ class _FakeProcess:
         self.returncode = returncode
 
     async def communicate(self) -> tuple[bytes, bytes]:
-        return self.stdout, self.stderr
+        loop = asyncio.get_running_loop()
+        result_future = loop.create_future()
+        result_future.set_result((self.stdout, self.stderr))
+        return await result_future
 
 
 @pytest.mark.asyncio

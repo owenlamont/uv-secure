@@ -30,6 +30,7 @@ async def check_lock_files(
     severity: SeverityLevel | None,
     ignore_unfixed: bool | None,
     allow_unused_ignores: bool | None,
+    fix: bool | None,
     ignore_pkgs: list[str] | None,
     check_direct_dependency_vulnerabilities_only: bool | None,
     check_direct_dependency_maintenance_issues_only: bool | None,
@@ -61,6 +62,7 @@ async def check_lock_files(
         severity=severity,
         ignore_unfixed=ignore_unfixed,
         allow_unused_ignores=allow_unused_ignores,
+        fix=fix,
         ignore_pkgs=ignore_pkgs,
         check_direct_dependency_vulnerabilities_only=(
             check_direct_dependency_vulnerabilities_only

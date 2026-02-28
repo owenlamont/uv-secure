@@ -72,6 +72,8 @@ concurrently and supports hierarchical configuration discovery.
   since pytest can't support duplicate test file names without sub-packages.
 - Use the most modern Python idioms and syntax allowed by the minimum supported Python
   version (currently this is Python 3.10).
+- Coroutines must contain at least one `await`; don't keep `async def` functions that
+  have no `await` expressions.
 - Comments should be kept to an absolute minimum, try to achieve code readability
   through meaningful class, function, and variable names. Public functions should have
   Google-style docstrings; parameters only need to be documented if the name and type
