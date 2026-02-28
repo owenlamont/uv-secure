@@ -390,6 +390,7 @@ class ColumnsFormatter(OutputFormatter):
         table.add_column("Status Reason", min_width=20, max_width=40)
 
         for dep, issue in maintenance_items:
+            failed_checks = self._get_failed_maintenance_checks(issue)
             renderables = [
                 Text.assemble((dep.name, f"link https://pypi.org/project/{dep.name}")),
                 Text.assemble(
@@ -398,20 +399,64 @@ class ColumnsFormatter(OutputFormatter):
                         f"link https://pypi.org/project/{dep.name}/{dep.version}/",
                     )
                 ),
-                Text(str(issue.yanked)),
+                Text(
+                    str(issue.yanked),
+                    style="bold red" if "Yanked" in failed_checks else "",
+                ),
                 Text(issue.yanked_reason or "Unknown"),
                 (
                     Text(
                         humanize.precisedelta(
                             issue.age_days * 86400, minimum_unit="days"
-                        )
+                        ),
+                        style="bold red" if "Max Age" in failed_checks else "",
                     )
                     if issue.age_days is not None
                     else Text("Unknown")
                 ),
-                Text(issue.status or "Unknown"),
+                Text(
+                    issue.status or "Unknown",
+                    style=(
+                        "bold red"
+                        if (
+                            "Archived" in failed_checks
+                            or "Deprecated" in failed_checks
+                            or "Quarantined" in failed_checks
+                        )
+                        else ""
+                    ),
+                ),
                 Text(issue.status_reason or "Unknown"),
             ]
             table.add_row(*renderables)
 
         return table
+
+    def _get_failed_maintenance_checks(
+        self, issue: MaintenanceIssueOutput
+    ) -> list[str]:
+        """Determine which maintenance checks failed for a dependency row.
+
+        Returns:
+            list[str]: Labels for failed maintainability checks.
+        """
+        failed_checks: list[str] = []
+        criteria = self.config.maintainability_criteria
+
+        if criteria.forbid_yanked and issue.yanked:
+            failed_checks.append("Yanked")
+
+        status = issue.status.lower() if issue.status else ""
+        if criteria.forbid_archived and status == "archived":
+            failed_checks.append("Archived")
+        if criteria.forbid_deprecated and status == "deprecated":
+            failed_checks.append("Deprecated")
+        if criteria.forbid_quarantined and status == "quarantined":
+            failed_checks.append("Quarantined")
+
+        if criteria.max_package_age is not None and issue.age_days is not None:
+            max_age_days = criteria.max_package_age.total_seconds() / 86400.0
+            if issue.age_days > max_age_days:
+                failed_checks.append("Max Age")
+
+        return failed_checks
