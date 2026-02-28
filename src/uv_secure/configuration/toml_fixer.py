@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from anyio import Path as APath
 from tomlkit import dumps, parse
 from tomlkit.exceptions import TOMLKitError
-from tomlkit.items import Array, Table
+from tomlkit.items import Array, InlineTable, Table
 from tomlkit.toml_document import TOMLDocument
 
 
@@ -14,27 +14,30 @@ class FixAppliedSummary:
     modified: bool
 
 
+TomlTableLike = TOMLDocument | Table | InlineTable
+
+
 def _get_uv_secure_root(
     document: TOMLDocument, config_path: APath
-) -> TOMLDocument | Table | None:
+) -> TomlTableLike | None:
     if config_path.name != "pyproject.toml":
         return document
     tool_section = document.get("tool")
-    if not isinstance(tool_section, Table):
+    if not isinstance(tool_section, Table | InlineTable):
         return None
     uv_secure_section = tool_section.get("uv-secure")
-    if not isinstance(uv_secure_section, Table):
+    if not isinstance(uv_secure_section, Table | InlineTable):
         return None
     return uv_secure_section
 
 
 def _remove_unused_vulnerability_ids(
-    root: TOMLDocument | Table, vulnerability_ids: set[str]
+    root: TomlTableLike, vulnerability_ids: set[str]
 ) -> tuple[set[str], bool]:
     if not vulnerability_ids:
         return set(), False
     vulnerability_criteria = root.get("vulnerability_criteria")
-    if not isinstance(vulnerability_criteria, Table):
+    if not isinstance(vulnerability_criteria, Table | InlineTable):
         return set(), False
     ignore_vulnerabilities = vulnerability_criteria.get("ignore_vulnerabilities")
     if not isinstance(ignore_vulnerabilities, Array):
@@ -57,12 +60,12 @@ def _remove_unused_vulnerability_ids(
 
 
 def _remove_unused_package_ignores(
-    root: TOMLDocument | Table, package_names: set[str]
+    root: TomlTableLike, package_names: set[str]
 ) -> tuple[set[str], bool]:
     if not package_names:
         return set(), False
     ignore_packages = root.get("ignore_packages")
-    if not isinstance(ignore_packages, Table):
+    if not isinstance(ignore_packages, Table | InlineTable):
         return set(), False
 
     removed_packages: set[str] = set()
