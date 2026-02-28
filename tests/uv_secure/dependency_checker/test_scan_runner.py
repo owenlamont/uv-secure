@@ -7,10 +7,16 @@ from uv_secure.configuration.toml_fixer import FixAppliedSummary
 from uv_secure.dependency_checker.scan_runner import (
     _apply_removed_ignores_to_in_memory_configuration,
     _apply_unused_ignore_fixes,
+    _apply_unused_ignore_policy_result,
+    _collect_fix_targets_by_source,
     _collect_unused_ignore_package_sources,
     _collect_unused_ignore_vulnerability_sources,
     _format_config_source,
+    UnusedIgnoreAnalysis,
+    UnusedIgnorePolicyResult,
 )
+from uv_secure.dependency_checker.status import RunStatus
+from uv_secure.output_models import ScanResultsOutput
 
 
 def test_format_config_source_returns_default_configuration_for_missing_source() -> (
@@ -118,3 +124,44 @@ def test_apply_removed_ignores_to_in_memory_configuration_handles_none_values() 
 
     assert config.vulnerability_criteria.ignore_vulnerabilities is None
     assert config.ignore_packages is None
+
+
+def test_apply_unused_ignore_policy_result_prints_fix_error_for_columns(
+    mocker: MockerFixture,
+) -> None:
+    console = mocker.Mock()
+    policy_result = UnusedIgnorePolicyResult(
+        status=RunStatus.RUNTIME_ERROR, fix_error_message="fix failed"
+    )
+    scan_results = ScanResultsOutput()
+
+    status = _apply_unused_ignore_policy_result(
+        policy_result, Configuration(), scan_results, console
+    )
+
+    assert status == RunStatus.RUNTIME_ERROR
+    assert scan_results.errors == []
+    console.print.assert_called_once_with("[bold red]Error:[/] fix failed")
+
+
+def test_collect_fix_targets_by_source_ignores_empty_cli_overrides() -> None:
+    lock_file = APath("project/uv.lock")
+    config_source = APath("project/uv-secure.toml")
+    config = Configuration(
+        fix=True,
+        vulnerability_criteria=VulnerabilityCriteria(ignore_vulnerabilities={"VULN-1"}),
+        ignore_packages={"pkg-a": ()},
+    )
+    analysis = UnusedIgnoreAnalysis(
+        unused_ignore_ids={"VULN-1"},
+        unmatched_ignore_packages={"pkg-a"},
+        matched_but_clean_ignore_packages=set(),
+        unused_vulnerability_ignore_sources={},
+        unused_package_ignore_sources={},
+    )
+
+    fix_targets = _collect_fix_targets_by_source(
+        analysis, {lock_file: config}, {lock_file: config_source}, "", []
+    )
+
+    assert fix_targets == {config_source: ({"VULN-1"}, {"pkg-a"})}

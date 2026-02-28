@@ -297,11 +297,11 @@ def _collect_fix_targets_by_source(
             continue
         vulnerability_ids = (
             set()
-            if ignore_vulns is not None
+            if ignore_vulns
             else set(config.vulnerability_criteria.ignore_vulnerabilities or set())
         ) & analysis.unused_ignore_ids
         package_names = (
-            set() if ignore_pkgs is not None else set(config.ignore_packages or {})
+            set() if ignore_pkgs else set(config.ignore_packages or {})
         ) & analysis.unused_ignore_packages
         if not vulnerability_ids and not package_names:
             continue
