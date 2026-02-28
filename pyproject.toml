@@ -41,6 +41,7 @@ dependencies = [
     "rich>=13.9.4",
     "stamina>=25.1.0",
     "tomli; python_version < '3.11'",
+    "tomlkit>=0.14.0",
     "typer>=0.15.1",
 ]
 

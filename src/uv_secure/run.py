@@ -143,6 +143,12 @@ _allow_unused_ignores_option = typer.Option(
     ),
 )
 
+_fix_option = typer.Option(
+    None,
+    "--fix/--no-fix",
+    help="Apply safe automatic fixes for unused ignore entries in TOML config files.",
+)
+
 _config_option = typer.Option(
     None,
     "--config",
@@ -213,6 +219,7 @@ def main(
     severity: SeverityLevel | None = _severity_option,
     ignore_unfixed: bool | None = _ignore_unfixed_option,
     allow_unused_ignores: bool | None = _allow_unused_ignores_option,
+    fix: bool | None = _fix_option,
     ignore_pkgs: list[str] | None = _ignore_pkg_options,
     check_direct_dependency_vulnerabilities_only: bool
     | None = _check_direct_dependency_vulnerabilities_only_option,
@@ -253,6 +260,7 @@ def main(
                 severity,
                 ignore_unfixed,
                 allow_unused_ignores,
+                fix,
                 ignore_pkgs,
                 check_direct_dependency_vulnerabilities_only,
                 check_direct_dependency_maintenance_issues_only,

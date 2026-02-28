@@ -188,6 +188,11 @@ After installation, you can run uv-secure --help to see the options.
 │                                                                  (no matching target │
 │                                                                  or no suppressed    │
 │                                                                  findings).          │
+│ --fix                  --no-fix                                  Apply safe          │
+│                                                                  automatic fixes for │
+│                                                                  unused ignore       │
+│                                                                  entries in TOML     │
+│                                                                  config files.       │
 │ --ignore-pkgs                                PKG:SPEC1|SPEC2|…   Suppress            │
 │                                                                  vulnerabilities and │
 │                                                                  maintenance issues  │
@@ -257,6 +262,7 @@ uv-secure can read configuration from a toml file specified with the config opti
 
 ```toml
 format = "columns"
+fix = false # Set true to auto-fix safe issues like unused ignores
 check_uv_tool = true # Disable with false to skip checking global uv CLI
 check_uv_secure = true # Disable with false to skip checking installed uv-secure
 
@@ -289,6 +295,7 @@ forbid_yanked = true # Defaults to false (allow yanked) if not set
 ```toml
 [tool.uv-secure]
 format = "columns"
+fix = false # Set true to auto-fix safe issues like unused ignores
 
 [tool.uv-secure.ignore_packages]
 requests = [] # Ignore issues with all versions of the requests package
@@ -366,7 +373,7 @@ precedence configuration is used. If you set a specific configuration file that 
 take precedence and hierarchical configuration file discovery is disabled. If you do
 specify configuration options directly on CLI (for example `--ignore-vulns`,
 `--severity`, `--show-severity`, `--ignore-unfixed`, or
-`--allow-unused-ignores`) those values override the equivalent settings from
+`--allow-unused-ignores`, or `--fix`) those values override the equivalent settings from
 discovered or manually specified configuration files.
 
 ### Vulnerability Severity Data

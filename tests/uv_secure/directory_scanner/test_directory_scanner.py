@@ -11,6 +11,7 @@ from uv_secure.directory_scanner import (
     get_dependency_files_to_config_map,
     get_dependency_files_to_config_source_map,
 )
+from uv_secure.directory_scanner.directory_scanner import _search_file
 
 
 @pytest.mark.asyncio
@@ -71,3 +72,12 @@ async def test_get_dependency_files_maps_for_explicit_paths_use_default_without_
 
     assert config_map == {APath(lock_file): Configuration()}
     assert source_map == {APath(lock_file): None}
+
+
+@pytest.mark.asyncio
+async def test_search_file_returns_empty_for_missing_directory(tmp_path: Path) -> None:
+    missing_dir = APath(tmp_path / "does-not-exist")
+
+    files = await _search_file(missing_dir, "uv.lock")
+
+    assert files == []

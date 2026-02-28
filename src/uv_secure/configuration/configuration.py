@@ -56,6 +56,7 @@ class Configuration(BaseModel):
     maintainability_criteria: MaintainabilityCriteria = MaintainabilityCriteria()
     vulnerability_criteria: VulnerabilityCriteria = VulnerabilityCriteria()
     ignore_packages: dict[str, tuple[str, ...]] | None = None
+    fix: bool = False
     format: OutputFormat = OutputFormat.COLUMNS
     check_uv_tool: bool = True
     check_uv_secure: bool = True
@@ -72,6 +73,7 @@ class OverrideConfiguration(BaseModel):
     ignore_vulnerabilities: set[str] | None = None
     allow_unused_ignores: bool | None = None
     ignore_packages: dict[str, tuple[str, ...]] | None = None
+    fix: bool | None = None
     forbid_archived: bool | None = None
     forbid_deprecated: bool | None = None
     forbid_quarantined: bool | None = None
@@ -123,6 +125,7 @@ def override_config(
             "allow_unused_ignores",
         ),
         ("ignore_packages", new_configuration, "ignore_packages"),
+        ("fix", new_configuration, "fix"),
         (
             "forbid_archived",
             new_configuration.maintainability_criteria,

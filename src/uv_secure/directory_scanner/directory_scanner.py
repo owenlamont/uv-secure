@@ -7,6 +7,8 @@ from uv_secure.configuration import config_file_factory, Configuration
 
 
 async def _search_file(directory: Path, filename: str) -> list[Path]:
+    if not await directory.exists():
+        return []
     return [file_path async for file_path in directory.glob(f"**/{filename}")]
 
 

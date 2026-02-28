@@ -1,5 +1,7 @@
 import asyncio
+from collections import defaultdict
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 from anyio import Path as APath
@@ -16,6 +18,7 @@ from uv_secure.configuration import (
     SeverityLevel,
 )
 from uv_secure.configuration.exceptions import UvSecureConfigurationError
+from uv_secure.configuration.toml_fixer import fix_unused_ignores_in_toml_config
 from uv_secure.dependency_checker.file_checker import check_dependencies
 from uv_secure.dependency_checker.status import RunStatus
 from uv_secure.dependency_checker.tool_audit import (
@@ -30,6 +33,28 @@ from uv_secure.directory_scanner.directory_scanner import (
 )
 from uv_secure.output_formatters import ColumnsFormatter, JsonFormatter, OutputFormatter
 from uv_secure.output_models import ErrorOutput, FileResultOutput, ScanResultsOutput
+
+
+@dataclass(frozen=True)
+class UnusedIgnoreAnalysis:
+    unused_ignore_ids: set[str]
+    unmatched_ignore_packages: set[str]
+    matched_but_clean_ignore_packages: set[str]
+    unused_vulnerability_ignore_sources: dict[str, set[str]]
+    unused_package_ignore_sources: dict[str, set[str]]
+
+    @property
+    def unused_ignore_packages(self) -> set[str]:
+        """Return the union of all unused package-ignore names."""
+        return self.unmatched_ignore_packages | self.matched_but_clean_ignore_packages
+
+
+@dataclass(frozen=True)
+class UnusedIgnorePolicyResult:
+    status: RunStatus
+    analysis: UnusedIgnoreAnalysis | None = None
+    fix_error_message: str | None = None
+    fixed_summary: tuple[int, int, int] | None = None
 
 
 def _determine_file_status(file_result: FileResultOutput) -> int:
@@ -185,7 +210,7 @@ def _collect_unused_ignore_package_sources(
     return ignore_sources
 
 
-def _apply_unused_ignore_policy(
+def _analyze_unused_ignores(
     lock_to_config_map: dict[APath, Configuration],
     lock_to_config_source_map: dict[APath, APath | None],
     used_ignore_vulnerabilities_by_scope: dict[str, set[str]],
@@ -193,14 +218,7 @@ def _apply_unused_ignore_policy(
     used_ignore_packages_by_scope: dict[str, set[str]],
     ignore_vulns: str | None,
     ignore_pkgs: list[str] | None,
-    config: Configuration,
-    scan_results: ScanResultsOutput,
-    console: Console,
-    final_status: RunStatus,
-) -> RunStatus:
-    if final_status == RunStatus.RUNTIME_ERROR:
-        return final_status
-
+) -> UnusedIgnoreAnalysis:
     unused_ignore_ids = _find_unused_ignore_vulnerability_ids(
         lock_to_config_map, used_ignore_vulnerabilities_by_scope
     )
@@ -211,30 +229,34 @@ def _apply_unused_ignore_policy(
             used_ignore_packages_by_scope,
         )
     )
-    unused_ignore_packages = (
-        unmatched_ignore_packages | matched_but_clean_ignore_packages
-    )
-    if not unused_ignore_ids and not unused_ignore_packages:
-        return final_status
-
     unused_vulnerability_ignore_sources = _collect_unused_ignore_vulnerability_sources(
         unused_ignore_ids, lock_to_config_map, lock_to_config_source_map, ignore_vulns
     )
     unused_package_ignore_sources = _collect_unused_ignore_package_sources(
-        unused_ignore_packages,
+        unmatched_ignore_packages | matched_but_clean_ignore_packages,
         lock_to_config_map,
         lock_to_config_source_map,
         ignore_pkgs,
     )
+    return UnusedIgnoreAnalysis(
+        unused_ignore_ids=unused_ignore_ids,
+        unmatched_ignore_packages=unmatched_ignore_packages,
+        matched_but_clean_ignore_packages=matched_but_clean_ignore_packages,
+        unused_vulnerability_ignore_sources=unused_vulnerability_ignore_sources,
+        unused_package_ignore_sources=unused_package_ignore_sources,
+    )
 
+
+def _build_unused_ignore_message(analysis: UnusedIgnoreAnalysis) -> str:
     unused_ignore_display = _format_unused_ignore_with_sources(
-        unused_ignore_ids, unused_vulnerability_ignore_sources
+        analysis.unused_ignore_ids, analysis.unused_vulnerability_ignore_sources
     )
     unmatched_package_display = _format_unused_ignore_with_sources(
-        unmatched_ignore_packages, unused_package_ignore_sources
+        analysis.unmatched_ignore_packages, analysis.unused_package_ignore_sources
     )
     matched_but_clean_package_display = _format_unused_ignore_with_sources(
-        matched_but_clean_ignore_packages, unused_package_ignore_sources
+        analysis.matched_but_clean_ignore_packages,
+        analysis.unused_package_ignore_sources,
     )
     message_parts: list[str] = []
     if unused_ignore_display:
@@ -251,7 +273,51 @@ def _apply_unused_ignore_policy(
             "unused package ignore IDs (matched package would have no findings): "
             f"{matched_but_clean_package_display}"
         )
-    unused_ignore_message = "Found " + "; ".join(message_parts)
+    return "Found " + "; ".join(message_parts)
+
+
+def _collect_fix_targets_by_source(
+    analysis: UnusedIgnoreAnalysis,
+    lock_to_config_map: dict[APath, Configuration],
+    lock_to_config_source_map: dict[APath, APath | None],
+    ignore_vulns: str | None,
+    ignore_pkgs: list[str] | None,
+) -> dict[APath, tuple[set[str], set[str]]]:
+    fix_targets: defaultdict[APath, tuple[set[str], set[str]]] = defaultdict(
+        lambda: (set(), set())
+    )
+
+    for lock_file, config in lock_to_config_map.items():
+        config_source = lock_to_config_source_map.get(lock_file)
+        if (
+            config_source is None
+            or not config.fix
+            or config.vulnerability_criteria.allow_unused_ignores
+        ):
+            continue
+        vulnerability_ids = (
+            set()
+            if ignore_vulns
+            else set(config.vulnerability_criteria.ignore_vulnerabilities or set())
+        ) & analysis.unused_ignore_ids
+        package_names = (
+            set() if ignore_pkgs else set(config.ignore_packages or {})
+        ) & analysis.unused_ignore_packages
+        if not vulnerability_ids and not package_names:
+            continue
+        source_vulnerability_ids, source_package_names = fix_targets[config_source]
+        source_vulnerability_ids.update(vulnerability_ids)
+        source_package_names.update(package_names)
+    return dict(fix_targets)
+
+
+def _record_unused_ignore_error(
+    config: Configuration,
+    scan_results: ScanResultsOutput,
+    console: Console,
+    analysis: UnusedIgnoreAnalysis,
+) -> RunStatus:
+    unused_ignore_message = _build_unused_ignore_message(analysis)
     if config.format.value == "json":
         scan_results.errors.append(
             ErrorOutput(code="unused_ignores", message=unused_ignore_message)
@@ -259,6 +325,194 @@ def _apply_unused_ignore_policy(
     else:
         console.print(f"[bold red]Error:[/] {unused_ignore_message}")
     return RunStatus.UNUSED_IGNORES_FOUND
+
+
+async def _apply_unused_ignore_fixes(
+    fix_targets_by_source: dict[APath, tuple[set[str], set[str]]],
+) -> tuple[dict[APath, set[str]], dict[APath, set[str]], int]:
+    removed_vulnerability_ids_by_source: dict[APath, set[str]] = {}
+    removed_package_names_by_source: dict[APath, set[str]] = {}
+    modified_files = 0
+
+    for config_source in sorted(
+        fix_targets_by_source, key=lambda path: path.as_posix()
+    ):
+        vulnerability_ids, package_names = fix_targets_by_source[config_source]
+        fix_result = await fix_unused_ignores_in_toml_config(
+            config_source, vulnerability_ids, package_names
+        )
+        if fix_result.modified:
+            modified_files += 1
+        if fix_result.removed_vulnerability_ids:
+            removed_vulnerability_ids_by_source[config_source] = (
+                fix_result.removed_vulnerability_ids
+            )
+        if fix_result.removed_package_ignores:
+            removed_package_names_by_source[config_source] = (
+                fix_result.removed_package_ignores
+            )
+    return (
+        removed_vulnerability_ids_by_source,
+        removed_package_names_by_source,
+        modified_files,
+    )
+
+
+def _apply_removed_ignores_to_in_memory_configuration(
+    lock_to_config_map: dict[APath, Configuration],
+    lock_to_config_source_map: dict[APath, APath | None],
+    removed_vulnerability_ids_by_source: dict[APath, set[str]],
+    removed_package_names_by_source: dict[APath, set[str]],
+) -> None:
+    for lock_file, config in lock_to_config_map.items():
+        config_source = lock_to_config_source_map.get(lock_file)
+        if config_source is None:
+            continue
+        removed_vulnerability_ids = removed_vulnerability_ids_by_source.get(
+            config_source
+        )
+        if removed_vulnerability_ids:
+            configured_ignore_ids = config.vulnerability_criteria.ignore_vulnerabilities
+            if configured_ignore_ids is not None:
+                config.vulnerability_criteria.ignore_vulnerabilities = (
+                    configured_ignore_ids - removed_vulnerability_ids
+                )
+        removed_package_names = removed_package_names_by_source.get(config_source)
+        if removed_package_names:
+            configured_ignore_packages = config.ignore_packages
+            if configured_ignore_packages is not None:
+                config.ignore_packages = {
+                    package_name: specifiers
+                    for package_name, specifiers in configured_ignore_packages.items()
+                    if package_name not in removed_package_names
+                }
+
+
+async def _evaluate_unused_ignore_policy(
+    lock_to_config_map: dict[APath, Configuration],
+    lock_to_config_source_map: dict[APath, APath | None],
+    used_ignore_vulnerabilities_by_scope: dict[str, set[str]],
+    matched_ignore_packages_by_scope: dict[str, set[str]],
+    used_ignore_packages_by_scope: dict[str, set[str]],
+    ignore_vulns: str | None,
+    ignore_pkgs: list[str] | None,
+    final_status: RunStatus,
+) -> UnusedIgnorePolicyResult:
+    if final_status == RunStatus.RUNTIME_ERROR:
+        return UnusedIgnorePolicyResult(status=final_status)
+
+    analysis = _analyze_unused_ignores(
+        lock_to_config_map,
+        lock_to_config_source_map,
+        used_ignore_vulnerabilities_by_scope,
+        matched_ignore_packages_by_scope,
+        used_ignore_packages_by_scope,
+        ignore_vulns,
+        ignore_pkgs,
+    )
+    if not analysis.unused_ignore_ids and not analysis.unused_ignore_packages:
+        return UnusedIgnorePolicyResult(status=final_status)
+    if not any(current_config.fix for current_config in lock_to_config_map.values()):
+        return UnusedIgnorePolicyResult(
+            status=RunStatus.UNUSED_IGNORES_FOUND, analysis=analysis
+        )
+
+    fix_targets_by_source = _collect_fix_targets_by_source(
+        analysis,
+        lock_to_config_map,
+        lock_to_config_source_map,
+        ignore_vulns,
+        ignore_pkgs,
+    )
+    try:
+        (
+            removed_vulnerability_ids_by_source,
+            removed_package_names_by_source,
+            modified_files,
+        ) = await _apply_unused_ignore_fixes(fix_targets_by_source)
+    except (OSError, PermissionError) as exc:
+        return UnusedIgnorePolicyResult(
+            status=RunStatus.RUNTIME_ERROR,
+            fix_error_message=f"Failed applying --fix updates: {exc}",
+        )
+
+    _apply_removed_ignores_to_in_memory_configuration(
+        lock_to_config_map,
+        lock_to_config_source_map,
+        removed_vulnerability_ids_by_source,
+        removed_package_names_by_source,
+    )
+    post_fix_analysis = _analyze_unused_ignores(
+        lock_to_config_map,
+        lock_to_config_source_map,
+        used_ignore_vulnerabilities_by_scope,
+        matched_ignore_packages_by_scope,
+        used_ignore_packages_by_scope,
+        ignore_vulns,
+        ignore_pkgs,
+    )
+    removed_vulnerability_count = sum(
+        len(removed_ids) for removed_ids in removed_vulnerability_ids_by_source.values()
+    )
+    removed_package_count = sum(
+        len(removed_names) for removed_names in removed_package_names_by_source.values()
+    )
+    if (
+        not post_fix_analysis.unused_ignore_ids
+        and not post_fix_analysis.unused_ignore_packages
+    ):
+        return UnusedIgnorePolicyResult(
+            status=final_status,
+            fixed_summary=(
+                removed_vulnerability_count,
+                removed_package_count,
+                modified_files,
+            ),
+        )
+    return UnusedIgnorePolicyResult(
+        status=RunStatus.UNUSED_IGNORES_FOUND,
+        analysis=post_fix_analysis,
+        fixed_summary=(
+            removed_vulnerability_count,
+            removed_package_count,
+            modified_files,
+        ),
+    )
+
+
+def _apply_unused_ignore_policy_result(
+    policy_result: UnusedIgnorePolicyResult,
+    config: Configuration,
+    scan_results: ScanResultsOutput,
+    console: Console,
+) -> RunStatus:
+    final_status = policy_result.status
+    if policy_result.fix_error_message is not None:
+        if config.format.value == "json":
+            scan_results.errors.append(
+                ErrorOutput(code="fix_error", message=policy_result.fix_error_message)
+            )
+        else:
+            console.print(f"[bold red]Error:[/] {policy_result.fix_error_message}")
+    if policy_result.fixed_summary is not None and config.format.value != "json":
+        removed_vulnerability_count, removed_package_count, modified_files = (
+            policy_result.fixed_summary
+        )
+        if modified_files:
+            console.print(
+                "[green]Fixed:[/] removed "
+                f"{removed_vulnerability_count} vulnerability ignore ID(s) and "
+                f"{removed_package_count} package ignore entry(ies) from "
+                f"{modified_files} config file(s)."
+            )
+    if (
+        final_status == RunStatus.UNUSED_IGNORES_FOUND
+        and policy_result.analysis is not None
+    ):
+        return _record_unused_ignore_error(
+            config, scan_results, console, policy_result.analysis
+        )
+    return final_status
 
 
 async def _resolve_file_paths_and_configs(
@@ -312,6 +566,7 @@ def _apply_cli_config_overrides(
     severity: SeverityLevel | None,
     ignore_unfixed: bool | None,
     allow_unused_ignores: bool | None,
+    fix: bool | None,
     ignore_pkgs: list[str] | None,
     forbid_archived: bool | None,
     forbid_deprecated: bool | None,
@@ -333,6 +588,7 @@ def _apply_cli_config_overrides(
             severity is not None,
             ignore_unfixed is not None,
             allow_unused_ignores is not None,
+            fix is not None,
             ignore_pkgs,
             forbid_archived,
             forbid_deprecated,
@@ -355,6 +611,7 @@ def _apply_cli_config_overrides(
             severity,
             ignore_unfixed,
             allow_unused_ignores,
+            fix,
             forbid_archived,
             forbid_deprecated,
             forbid_quarantined,
@@ -535,6 +792,7 @@ async def check_lock_files(
     severity: SeverityLevel | None,
     ignore_unfixed: bool | None,
     allow_unused_ignores: bool | None,
+    fix: bool | None,
     ignore_pkgs: list[str] | None,
     check_direct_dependency_vulnerabilities_only: bool | None,
     check_direct_dependency_maintenance_issues_only: bool | None,
@@ -585,6 +843,7 @@ async def check_lock_files(
         severity,
         ignore_unfixed,
         allow_unused_ignores,
+        fix,
         ignore_pkgs,
         forbid_archived,
         forbid_deprecated,
@@ -621,7 +880,7 @@ async def check_lock_files(
     config = next(iter(lock_to_config_map.values()))
 
     final_status = _determine_final_status(file_results)
-    final_status = _apply_unused_ignore_policy(
+    policy_result = await _evaluate_unused_ignore_policy(
         lock_to_config_map,
         lock_to_config_source_map,
         used_ignore_vulnerabilities_by_scope,
@@ -629,10 +888,10 @@ async def check_lock_files(
         used_ignore_packages_by_scope,
         ignore_vulns,
         ignore_pkgs,
-        config,
-        scan_results,
-        console,
         final_status,
+    )
+    final_status = _apply_unused_ignore_policy_result(
+        policy_result, config, scan_results, console
     )
 
     formatter: OutputFormatter

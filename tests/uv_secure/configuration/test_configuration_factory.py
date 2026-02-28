@@ -65,6 +65,14 @@ from uv_secure.configuration import (
         pytest.param(
             "uv-secure.toml",
             """
+            fix = true
+            """,
+            Configuration(fix=True),
+            id="Enable automatic safe fixes",
+        ),
+        pytest.param(
+            "uv-secure.toml",
+            """
             [vulnerability_criteria]
             show_severity = true
             severity = "high"

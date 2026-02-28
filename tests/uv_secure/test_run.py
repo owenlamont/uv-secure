@@ -2631,6 +2631,250 @@ def test_unused_ignore_package_can_be_allowed_by_cli_flag(
     assert "[/]" not in result.output
 
 
+def test_unused_ignores_can_be_fixed_in_uv_secure_toml(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    config_path = temp_uv_lock_file.with_name("uv-secure.toml")
+    config_path.write_text(
+        dedent(
+            """
+            # preserve this
+            [vulnerability_criteria]
+            aliases = true
+            ignore_vulnerabilities = ["VULN-999"] # remove this entry
+
+            # and this
+            [ignore_packages]
+            missing-pkg = [] # remove this key
+            """
+        ).strip()
+    )
+
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache", "--fix"])
+
+    assert result.exit_code == 0
+    assert "unused ignore" not in result.output.lower()
+    updated_config = config_path.read_text()
+    assert "# preserve this" in updated_config
+    assert "aliases = true" in updated_config
+    assert "VULN-999" not in updated_config
+    assert "missing-pkg" not in updated_config
+    assert "[/]" not in result.output
+
+
+def test_unused_ignores_can_be_fixed_in_pyproject_toml(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    config_path = temp_uv_lock_file.with_name("pyproject.toml")
+    config_path.write_text(
+        dedent(
+            """
+            # keep this comment
+            [tool.uv-secure]
+            format = "columns"
+
+            [tool.uv-secure.vulnerability_criteria]
+            ignore_vulnerabilities = ["VULN-999"]
+
+            [tool.uv-secure.ignore_packages]
+            missing-pkg = []
+            """
+        ).strip()
+    )
+
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache", "--fix"])
+
+    assert result.exit_code == 0
+    assert "unused ignore" not in result.output.lower()
+    updated_config = config_path.read_text()
+    assert "# keep this comment" in updated_config
+    assert 'format = "columns"' in updated_config
+    assert "VULN-999" not in updated_config
+    assert "missing-pkg" not in updated_config
+    assert "[/]" not in result.output
+
+
+def test_unused_ignores_fix_can_be_enabled_in_configuration(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    config_path = temp_uv_lock_file.with_name("uv-secure.toml")
+    config_path.write_text(
+        dedent(
+            """
+            fix = true
+
+            [vulnerability_criteria]
+            ignore_vulnerabilities = ["VULN-999"]
+            """
+        ).strip()
+    )
+
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache"])
+
+    assert result.exit_code == 0
+    assert "unused ignore" not in result.output.lower()
+    assert "VULN-999" not in config_path.read_text()
+    assert "[/]" not in result.output
+
+
+def test_no_fix_cli_flag_overrides_configuration(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    config_path = temp_uv_lock_file.with_name("uv-secure.toml")
+    config_path.write_text(
+        dedent(
+            """
+            fix = true
+
+            [vulnerability_criteria]
+            ignore_vulnerabilities = ["VULN-999"]
+            """
+        ).strip()
+    )
+
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache", "--no-fix"])
+
+    assert result.exit_code == 4
+    assert "unused vulnerability ignore ids" in result.output.lower()
+    assert "VULN-999" in config_path.read_text()
+    assert "[/]" not in result.output
+
+
+def test_unused_ignore_entries_from_cli_are_not_modified_by_fix(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            "--disable-cache",
+            "--ignore-vulns",
+            "VULN-999",
+            "--fix",
+        ],
+    )
+
+    assert result.exit_code == 4
+    assert "unused vulnerability ignore ids" in result.output.lower()
+    assert "configured via: CLI" in result.output
+    assert "[/]" not in result.output
+
+
+def test_fix_with_cli_only_unused_ignore_and_config_source_still_reports_unused(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    config_path = temp_uv_lock_file.with_name("uv-secure.toml")
+    config_path.write_text("fix = true\n")
+
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--ignore-vulns", "VULN-999"]
+    )
+
+    assert result.exit_code == 4
+    assert "unused vulnerability ignore ids" in result.output.lower()
+    assert "configured via: CLI" in result.output
+    assert "[/]" not in result.output
+
+
+def test_fix_error_returns_runtime_error_in_json_output(
+    temp_uv_lock_file: Path,
+    no_vulnerabilities_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+    mocker: MockerFixture,
+) -> None:
+    config_path = temp_uv_lock_file.with_name("uv-secure.toml")
+    config_path.write_text(
+        dedent(
+            """
+            fix = true
+
+            [vulnerability_criteria]
+            ignore_vulnerabilities = ["VULN-999"]
+            """
+        ).strip()
+    )
+    mocker.patch(
+        "uv_secure.dependency_checker.scan_runner.fix_unused_ignores_in_toml_config",
+        side_effect=OSError("disk full"),
+    )
+
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--disable-cache", "--format", "json"]
+    )
+
+    assert result.exit_code == 3
+    output = json.loads(result.output)
+    error_codes = [error["code"] for error in output["errors"]]
+    assert "fix_error" in error_codes
+    assert "disk full" in output["errors"][0]["message"]
+
+
+def test_fix_preserves_comments_for_kept_vulnerability_ignores(
+    temp_uv_lock_file: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    config_path = temp_uv_lock_file.with_name("uv-secure.toml")
+    config_path.write_text(
+        dedent(
+            """
+            [vulnerability_criteria]
+            ignore_vulnerabilities = [
+              "VULN-123", # keep this comment
+              "VULN-999", # remove this comment
+            ]
+            """
+        ).strip()
+    )
+
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache", "--fix"])
+
+    assert result.exit_code == 0
+    updated_config = config_path.read_text()
+    assert '"VULN-123", # keep this comment' in updated_config
+    assert "VULN-999" not in updated_config
+    assert "# remove this comment" not in updated_config
+    assert "[/]" not in result.output
+
+
+def test_fix_preserves_comments_for_kept_package_ignores(
+    temp_uv_lock_file: Path,
+    one_vulnerability_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    config_path = temp_uv_lock_file.with_name("uv-secure.toml")
+    config_path.write_text(
+        dedent(
+            """
+            [ignore_packages]
+            example-package = [] # keep this package comment
+            missing-pkg = [] # remove this package comment
+            """
+        ).strip()
+    )
+
+    result = runner.invoke(app, [str(temp_uv_lock_file), "--disable-cache", "--fix"])
+
+    assert result.exit_code == 0
+    updated_config = config_path.read_text()
+    assert "example-package = [] # keep this package comment" in updated_config
+    assert "missing-pkg" not in updated_config
+    assert "# remove this package comment" not in updated_config
+    assert "[/]" not in result.output
+
+
 def test_runtime_error_takes_precedence_over_unused_ignores(
     temp_uv_lock_file: Path,
     no_vulnerabilities_response: HTTPXMock,
