@@ -850,6 +850,7 @@ def test_app_maintenance_issues_cli_args(
     assert "Checked: 1 dependency" in result.output
     assert "Issues: 1 issue" in result.output
     assert "Maintenance Issues" in result.output
+    assert "Failed Checks" not in result.output
     assert "Broken API" in result.output
     assert "4 years and 11.01 days" in result.output
     # New columns present and values for project status
@@ -857,6 +858,48 @@ def test_app_maintenance_issues_cli_args(
     assert "Reason" in result.output
     assert "active" in result.output
     assert "[/]" not in result.output  # Ensure no rich text formatting in error message
+
+
+@freeze_time(datetime(2025, 1, 30, tzinfo=timezone.utc))
+def test_app_maintenance_max_age_failure_highlighted(
+    temp_uv_lock_file: Path,
+    old_yanked_package_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app, [str(temp_uv_lock_file), "--max-age-days", "1000", "--disable-cache"]
+    )
+
+    assert result.exit_code == 1
+    assert_table_rendered(result.stdout, "Maintenance Issues")
+    assert "Failed Checks" not in result.output
+    assert "4 years and 11.01 days" in result.output
+    assert_no_markup_escape_artifacts(result.stdout)
+
+
+@freeze_time(datetime(2025, 1, 30, tzinfo=timezone.utc))
+def test_app_maintenance_yanked_failure_with_non_triggering_max_age(
+    temp_uv_lock_file: Path,
+    old_yanked_package_response: HTTPXMock,
+    pypi_simple_example_package: HTTPXMock,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            str(temp_uv_lock_file),
+            "--forbid-yanked",
+            "--max-age-days",
+            "10000",
+            "--disable-cache",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "Maintenance Issues detected!" in result.output
+    assert "Checked: 1 dependency" in result.output
+    assert "Issues: 1 issue" in result.output
+    assert_table_rendered(result.stdout, "Maintenance Issues")
+    assert_no_markup_escape_artifacts(result.stdout)
 
 
 @freeze_time(datetime(2025, 1, 30, tzinfo=timezone.utc))
