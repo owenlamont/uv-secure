@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: "3.14"
       - name: Install uv
-        uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
@@ -40,7 +40,7 @@ jobs:
           fi
       - name: Generate token
         if: steps.check_diff.outputs.changed == 'true'
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf
+        uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859
         id: generate-token
         with:
           app-id: ${{ secrets.AUTH_APP_CLIENT_ID }}
