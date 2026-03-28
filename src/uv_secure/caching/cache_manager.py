@@ -30,8 +30,8 @@ class CacheManager:
         self.cache_dir = cache_dir
         self.db_path = cache_dir / "cache.db"
         self.ttl_seconds = ttl_seconds
-        self._locks: dict[str, asyncio.Lock] = {}
-        self._locks_lock = asyncio.Lock()
+        self._in_flight: dict[str, asyncio.Task[Any]] = {}
+        self._in_flight_lock = asyncio.Lock()
 
         # Allow multiple workers for concurrency
         # SQLite connection overhead is low, so we open/close per task to ensure safety
@@ -78,15 +78,6 @@ class CacheManager:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_expires_at ON cache(expires_at)"
             )
-
-    async def _get_lock(self, key: str) -> asyncio.Lock:
-        await self._locks_lock.acquire()
-        try:
-            if key not in self._locks:
-                self._locks[key] = asyncio.Lock()
-            return self._locks[key]
-        finally:
-            self._locks_lock.release()
 
     def _get_from_memory(self, key: str) -> Any | None:
         entry = self.memory_cache.get(key)
@@ -193,24 +184,35 @@ class CacheManager:
             return data
 
         # 3. Compute with Stampede Protection
-        lock = await self._get_lock(key)
-        async with lock:
-            # Double check memory (race condition handling)
-            data = self._get_from_memory(key)
-            if data is not None:
-                return data
+        task = await self._get_or_create_in_flight_task(key, coro_func)
+        try:
+            return await task
+        finally:
+            await self._clear_in_flight_task(key, task)
 
-            # Execute fetch
-            result = await coro_func()
+    async def _get_or_create_in_flight_task(
+        self, key: str, coro_func: Callable[[], Awaitable[Any]]
+    ) -> asyncio.Task[Any]:
+        async with self._in_flight_lock:
+            task = self._in_flight.get(key)
+            if task is None:
+                task = asyncio.create_task(self._compute_and_store(key, coro_func))
+                self._in_flight[key] = task
+            return task
 
-            # Save to cache
-            expires_at = time.time() + self.ttl_seconds
-            self.memory_cache[key] = CacheEntry(data=result, expires_at=expires_at)
+    async def _clear_in_flight_task(self, key: str, task: asyncio.Task[Any]) -> None:
+        async with self._in_flight_lock:
+            if self._in_flight.get(key) is task and task.done():
+                del self._in_flight[key]
 
-            # We await the disk write to ensure it persists
-            await self._write_to_disk(key, result, expires_at)
-
-            return result
+    async def _compute_and_store(
+        self, key: str, coro_func: Callable[[], Awaitable[Any]]
+    ) -> Any:
+        result = await coro_func()
+        expires_at = time.time() + self.ttl_seconds
+        self.memory_cache[key] = CacheEntry(data=result, expires_at=expires_at)
+        await self._write_to_disk(key, result, expires_at)
+        return result
 
     async def close(self) -> None:
         """Shut down the executor."""
