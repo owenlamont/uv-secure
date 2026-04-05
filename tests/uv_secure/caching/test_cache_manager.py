@@ -167,6 +167,76 @@ async def test_ttl_expiry(cache_manager: CacheManager) -> None:
 
 
 @pytest.mark.asyncio
+async def test_stampede_protection_deterministic(cache_manager: CacheManager) -> None:
+    calls = 0
+    start_event = asyncio.Event()
+    finish_event = asyncio.Event()
+
+    async def controlled_fetch() -> str:
+        nonlocal calls
+        calls += 1
+        start_event.set()
+        await finish_event.wait()
+        return "result"
+
+    # Start first request
+    task1 = asyncio.create_task(
+        cache_manager.get_or_compute("stampede", controlled_fetch)
+    )
+
+    # Wait for it to enter the fetch
+    await start_event.wait()
+
+    # Start second request - this should hit the 'in_flight' branch
+    task2 = asyncio.create_task(
+        cache_manager.get_or_compute("stampede", controlled_fetch)
+    )
+
+    # Release the fetch
+    finish_event.set()
+
+    results = await asyncio.gather(task1, task2)
+
+    assert results == ["result", "result"]
+    assert calls == 1
+
+
+@pytest.mark.asyncio
+async def test_clear_in_flight_task_only_deletes_current_task(
+    cache_manager: CacheManager,
+) -> None:
+    async def dummy_fetch() -> str:
+        await asyncio.sleep(0)
+        return "ok"
+
+    task = asyncio.create_task(cache_manager._compute_and_store("key", dummy_fetch))
+    await task
+
+    # Manually populate in_flight with a different task
+    new_task = asyncio.create_task(asyncio.sleep(0, result="new"))
+    cache_manager._in_flight["key"] = new_task
+
+    # This call should not delete the new_task from in_flight
+    await cache_manager._clear_in_flight_task("key", task)
+
+    assert cache_manager._in_flight["key"] is new_task
+    await new_task
+
+
+@pytest.mark.asyncio
+async def test_clear_in_flight_task_skips_if_not_done(
+    cache_manager: CacheManager,
+) -> None:
+    task = asyncio.create_task(asyncio.sleep(0.1))
+    cache_manager._in_flight["key"] = task
+
+    await cache_manager._clear_in_flight_task("key", task)
+
+    assert cache_manager._in_flight["key"] is task
+    await task
+
+
+@pytest.mark.asyncio
 async def test_sqlite_cache_expiry(cache_dir: Path) -> None:
     # Populate expired entry
     db_path = cache_dir / "cache.db"
