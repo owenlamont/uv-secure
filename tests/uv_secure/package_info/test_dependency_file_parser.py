@@ -977,6 +977,57 @@ async def test_parse_requirements_txt_file_empty(
             ),
             id="First order and transitive dependencies - package uv.lock file",
         ),
+        pytest.param(
+            """
+            version = 1
+            revision = 1
+            requires-python = "==3.12.*"
+
+            [[package]]
+            name = "cryptography"
+            version = "46.0.6"
+            source = { registry = "https://gitlab.com/api/v4/projects/81000330/packages/pypi/simple" }
+            sdist = { url = "https://files.pythonhosted.org/packages/a4/ba/04b1bd4218cbc58dc90ce967106d51582371b898690f3ae0402876cc4f34/cryptography-46.0.6.tar.gz" }
+
+            [[package]]
+            name = "cffi"
+            version = "2.0.0"
+            source = { registry = "https://gitlab.com/api/v4/projects/81000330/packages/pypi/simple" }
+            wheels = [
+                { url = "https://files.pythonhosted.org/packages/47/23/9285e15e3bc57325b0a72e592921983a701efc1ee8f91c06c5f0235d86d9/cffi-2.0.0.whl" }
+            ]
+
+            [[package]]
+            name = "private-pkg"
+            version = "1.0.0"
+            source = { registry = "https://gitlab.com/api/v4/projects/81000330/packages/pypi/simple" }
+
+            [[package]]
+            name = "nosource-pypi"
+            version = "1.0.0"
+            sdist = { url = "https://files.pythonhosted.org/packages/ff/bb/nosource-pypi-1.0.0.tar.gz" }
+
+            [[package]]
+            name = "uv-secure-demo"
+            version = "1.0"
+            source = { virtual = "." }
+            dependencies = [
+                { name = "cryptography" },
+                { name = "cffi" },
+                { name = "private-pkg" },
+                { name = "nosource-pypi" },
+            ]
+            """,
+            ParseResult(
+                dependencies=[
+                    Dependency(name="cryptography", version="46.0.6", direct=True),
+                    Dependency(name="cffi", version="2.0.0", direct=True),
+                    Dependency(name="nosource-pypi", version="1.0.0", direct=True),
+                ],
+                ignored_count=1,  # private-pkg is ignored because it has a custom registry and no PyPI artifact URLs
+            ),
+            id="Custom registry with PyPI storage and truly private package",
+        ),
     ],
 )
 async def test_parse_uv_lock_file(

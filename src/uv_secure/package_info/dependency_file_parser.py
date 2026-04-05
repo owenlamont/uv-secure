@@ -244,6 +244,15 @@ def _extract_direct_dependencies_from_package(package: dict) -> set[str]:
     return direct_dependencies
 
 
+def _is_pypi_artifact_url(url: str | None) -> bool:
+    """Check whether an artifact URL points to official PyPI storage.
+
+    Returns:
+        bool: True when the URL contains the canonical PyPI storage domain.
+    """
+    return url is not None and "files.pythonhosted.org" in url
+
+
 def _process_uv_lock_package(
     package: dict, dependencies: dict[str, Dependency], direct_dependencies: set[str]
 ) -> int:
@@ -258,12 +267,27 @@ def _process_uv_lock_package(
         int: Number of ignored dependencies contributed by this package.
     """
     source = package.get("source", {})
+    registry = source.get("registry")
 
-    if _is_pypi_registry(source.get("registry")):
+    # Determine if this is a PyPI package by checking registry or artifact URLs
+    is_pypi = _is_pypi_registry(registry)
+
+    if not is_pypi:
+        # Fallback: check sdist and wheels for official PyPI storage domain
+        sdist = package.get("sdist", {})
+        if _is_pypi_artifact_url(sdist.get("url")):
+            is_pypi = True
+        else:
+            wheels = package.get("wheels", [])
+            if any(_is_pypi_artifact_url(wheel.get("url")) for wheel in wheels):
+                is_pypi = True
+
+    if is_pypi:
         dependencies[package["name"]] = Dependency(
             name=package["name"], version=package["version"]
         )
         return 0
+
     if source.get("editable") == "." or source.get("virtual") == ".":
         extracted_deps = _extract_direct_dependencies_from_package(package)
         direct_dependencies.update(extracted_deps)
