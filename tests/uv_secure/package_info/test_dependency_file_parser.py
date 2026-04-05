@@ -1058,6 +1058,32 @@ async def test_parse_requirements_txt_file_empty(
             ),
             id="Custom registry with PyPI storage via wheels fallback",
         ),
+        pytest.param(
+            """
+            version = 1
+            revision = 1
+            requires-python = "==3.12.*"
+
+            [[package]]
+            name = "spoofed-pypi"
+            version = "1.0.0"
+            source = { registry = "https://malicious.com/simple" }
+            sdist = { url = "https://malicious.com/files.pythonhosted.org/spoofed-1.0.0.tar.gz" }
+
+            [[package]]
+            name = "uv-secure-demo"
+            version = "1.0"
+            source = { virtual = "." }
+            dependencies = [
+                { name = "spoofed-pypi" },
+            ]
+            """,
+            ParseResult(
+                dependencies=[],
+                ignored_count=1,  # spoofed-pypi is ignored because the hostname is not files.pythonhosted.org
+            ),
+            id="Custom registry with spoofed PyPI artifact URL",
+        ),
     ],
 )
 async def test_parse_uv_lock_file(

@@ -248,9 +248,16 @@ def _is_pypi_artifact_url(url: str | None) -> bool:
     """Check whether an artifact URL points to official PyPI storage.
 
     Returns:
-        bool: True when the URL contains the canonical PyPI storage domain.
+        bool: True when the URL hostname is exactly the canonical PyPI storage domain.
     """
-    return url is not None and "files.pythonhosted.org" in url
+    if url is None:
+        return False
+
+    try:
+        parsed = urlparse(url)
+        return parsed.hostname == "files.pythonhosted.org"
+    except Exception:  # pragma: no cover
+        return False
 
 
 def _process_uv_lock_package(
