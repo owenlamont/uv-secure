@@ -1,3 +1,2 @@
 [vulnerability_criteria]
 ignore_unfixed = true
-ignore_vulnerabilities = ["GHSA-5239-wwwm-4pmq"]

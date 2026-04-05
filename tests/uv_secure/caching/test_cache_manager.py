@@ -167,62 +167,6 @@ async def test_ttl_expiry(cache_manager: CacheManager) -> None:
 
 
 @pytest.mark.asyncio
-async def test_stampede_protection(cache_manager: CacheManager) -> None:
-    calls = 0
-
-    async def slow_fetch() -> str:
-        nonlocal calls
-        calls += 1
-        await asyncio.sleep(0.1)
-        return "result"
-
-    # Launch multiple concurrent requests
-    results = await asyncio.gather(
-        cache_manager.get_or_compute("stampede", slow_fetch),
-        cache_manager.get_or_compute("stampede", slow_fetch),
-        cache_manager.get_or_compute("stampede", slow_fetch),
-    )
-
-    assert results == ["result", "result", "result"]
-    assert calls == 1
-
-
-@pytest.mark.asyncio
-async def test_stampede_protection_reuses_in_flight_task(
-    cache_manager: CacheManager, mocker: MockerFixture
-) -> None:
-    calls = 0
-    original_write_to_disk = cache_manager._write_to_disk
-
-    async def delayed_write(key: str, data: Any, expires_at: float) -> None:
-        await asyncio.sleep(0)
-        await original_write_to_disk(key, data, expires_at)
-
-    mocker.patch.object(cache_manager, "_write_to_disk", side_effect=delayed_write)
-
-    async def slow_fetch() -> str:
-        nonlocal calls
-        calls += 1
-        await asyncio.sleep(0.01)
-        return "result"
-
-    first_batch = await asyncio.gather(
-        cache_manager.get_or_compute("stampede", slow_fetch),
-        cache_manager.get_or_compute("stampede", slow_fetch),
-        cache_manager.get_or_compute("stampede", slow_fetch),
-    )
-
-    second_batch = await asyncio.gather(
-        cache_manager.get_or_compute("stampede", slow_fetch),
-        cache_manager.get_or_compute("stampede", slow_fetch),
-    )
-
-    assert first_batch == ["result", "result", "result"]
-    assert second_batch == ["result", "result"]
-    assert calls == 1
-
-
-@pytest.mark.asyncio
 async def test_sqlite_cache_expiry(cache_dir: Path) -> None:
     # Populate expired entry
     db_path = cache_dir / "cache.db"

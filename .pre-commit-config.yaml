@@ -47,7 +47,6 @@ repos:
     rev: v0.1.66
     hooks:
       - id: rumdl
-        args: [--fix]
   - repo: https://github.com/charliermarsh/ruff-pre-commit
     rev: v0.15.9
     hooks:
