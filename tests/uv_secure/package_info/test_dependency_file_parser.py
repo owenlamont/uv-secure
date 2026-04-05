@@ -1028,6 +1028,36 @@ async def test_parse_requirements_txt_file_empty(
             ),
             id="Custom registry with PyPI storage and truly private package",
         ),
+        pytest.param(
+            """
+            version = 1
+            revision = 1
+            requires-python = "==3.12.*"
+
+            [[package]]
+            name = "wheel-pypi"
+            version = "1.0.0"
+            source = { registry = "https://gitlab.com/api/v4/projects/81000330/packages/pypi/simple" }
+            wheels = [
+                { url = "https://files.pythonhosted.org/packages/47/23/wheel-pypi-1.0.0.whl" }
+            ]
+
+            [[package]]
+            name = "uv-secure-demo"
+            version = "1.0"
+            source = { virtual = "." }
+            dependencies = [
+                { name = "wheel-pypi" },
+            ]
+            """,
+            ParseResult(
+                dependencies=[
+                    Dependency(name="wheel-pypi", version="1.0.0", direct=True)
+                ],
+                ignored_count=0,
+            ),
+            id="Custom registry with PyPI storage via wheels fallback",
+        ),
     ],
 )
 async def test_parse_uv_lock_file(
