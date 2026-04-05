@@ -167,59 +167,73 @@ async def test_ttl_expiry(cache_manager: CacheManager) -> None:
 
 
 @pytest.mark.asyncio
-async def test_stampede_protection(cache_manager: CacheManager) -> None:
+async def test_stampede_protection_deterministic(cache_manager: CacheManager) -> None:
     calls = 0
+    start_event = asyncio.Event()
+    finish_event = asyncio.Event()
 
-    async def slow_fetch() -> str:
+    async def controlled_fetch() -> str:
         nonlocal calls
         calls += 1
-        await asyncio.sleep(0.1)
+        start_event.set()
+        await finish_event.wait()
         return "result"
 
-    # Launch multiple concurrent requests
-    results = await asyncio.gather(
-        cache_manager.get_or_compute("stampede", slow_fetch),
-        cache_manager.get_or_compute("stampede", slow_fetch),
-        cache_manager.get_or_compute("stampede", slow_fetch),
+    # Start first request
+    task1 = asyncio.create_task(
+        cache_manager.get_or_compute("stampede", controlled_fetch)
     )
 
-    assert results == ["result", "result", "result"]
+    # Wait for it to enter the fetch
+    await start_event.wait()
+
+    # Start second request - this should hit the 'in_flight' branch
+    task2 = asyncio.create_task(
+        cache_manager.get_or_compute("stampede", controlled_fetch)
+    )
+
+    # Release the fetch
+    finish_event.set()
+
+    results = await asyncio.gather(task1, task2)
+
+    assert results == ["result", "result"]
     assert calls == 1
 
 
 @pytest.mark.asyncio
-async def test_stampede_protection_reuses_in_flight_task(
-    cache_manager: CacheManager, mocker: MockerFixture
+async def test_clear_in_flight_task_only_deletes_current_task(
+    cache_manager: CacheManager,
 ) -> None:
-    calls = 0
-    original_write_to_disk = cache_manager._write_to_disk
-
-    async def delayed_write(key: str, data: Any, expires_at: float) -> None:
+    async def dummy_fetch() -> str:
         await asyncio.sleep(0)
-        await original_write_to_disk(key, data, expires_at)
+        return "ok"
 
-    mocker.patch.object(cache_manager, "_write_to_disk", side_effect=delayed_write)
+    task = asyncio.create_task(cache_manager._compute_and_store("key", dummy_fetch))
+    await task
 
-    async def slow_fetch() -> str:
-        nonlocal calls
-        calls += 1
-        await asyncio.sleep(0.01)
-        return "result"
+    # Manually populate in_flight with a different task
+    new_task = asyncio.create_task(asyncio.sleep(0, result="new"))
+    cache_manager._in_flight["key"] = new_task
 
-    first_batch = await asyncio.gather(
-        cache_manager.get_or_compute("stampede", slow_fetch),
-        cache_manager.get_or_compute("stampede", slow_fetch),
-        cache_manager.get_or_compute("stampede", slow_fetch),
-    )
+    # This call should not delete the new_task from in_flight
+    await cache_manager._clear_in_flight_task("key", task)
 
-    second_batch = await asyncio.gather(
-        cache_manager.get_or_compute("stampede", slow_fetch),
-        cache_manager.get_or_compute("stampede", slow_fetch),
-    )
+    assert cache_manager._in_flight["key"] is new_task
+    await new_task
 
-    assert first_batch == ["result", "result", "result"]
-    assert second_batch == ["result", "result"]
-    assert calls == 1
+
+@pytest.mark.asyncio
+async def test_clear_in_flight_task_skips_if_not_done(
+    cache_manager: CacheManager,
+) -> None:
+    task = asyncio.create_task(asyncio.sleep(0.1))
+    cache_manager._in_flight["key"] = task
+
+    await cache_manager._clear_in_flight_task("key", task)
+
+    assert cache_manager._in_flight["key"] is task
+    await task
 
 
 @pytest.mark.asyncio
