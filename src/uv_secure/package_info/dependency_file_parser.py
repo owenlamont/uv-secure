@@ -256,7 +256,7 @@ def _is_pypi_artifact_url(url: str | None) -> bool:
     try:
         parsed = urlparse(url)
         return parsed.hostname == "files.pythonhosted.org"
-    except Exception:  # pragma: no cover
+    except ValueError:  # pragma: no cover
         return False
 
 
