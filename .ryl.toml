@@ -1,7 +1,6 @@
 yaml-files = [
     "*.yaml",
     "*.yml",
-    ".yamllint",
 ]
 
 [rules]

@@ -40,12 +40,12 @@ concurrently and supports hierarchical configuration discovery.
 - **.coveragerc** - Coverage path mappings
 - **ty.toml** - ty type checker configuration
 - **pyproject.toml** - Package configuration
-- **.pre-commit-config.yaml** - Pre-commit linters and some configuration
+- **prek.toml** - prek linters and some configuration
 - **pytest.ini** - Pytest configuration
 - **ruff.toml** - Code style and linter configuration
 - **.rumdl.toml** - Markdown linter configuration
 - **uv-secure.toml** - uv dependency vulnerability scanner configuration
-- **.yamllint** - Yaml linter configuration
+- **.ryl.toml** - Yaml linter configuration
 
 ## Code Style
 
