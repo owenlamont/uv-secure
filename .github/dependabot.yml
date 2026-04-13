@@ -1,0 +1,13 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "friday"
+    groups:
+      actions-dependencies:
+        patterns:
+          - "*"
+    cooldown:
+      default-days: 7
