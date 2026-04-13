@@ -33,10 +33,12 @@ jobs:
         run: uv tool install prek
       - name: Run prek autoupdate --cooldown-days 7
         run: prek autoupdate --cooldown-days 7
+      - name: Install pinact
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/suzuki-shunsuke/pinact/main/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Pin GitHub Actions
-        uses: suzuki-shunsuke/pinact-action@a60b07ee63e41654915780a3297ff9f5f6b6db63 # v0.1.0
-        with:
-          args: run -u --min-age 7
+        run: pinact run -u --min-age 7
       - name: Check for changes
         id: check_diff
         run: |
