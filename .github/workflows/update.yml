@@ -33,10 +33,6 @@ jobs:
         run: uv tool install prek
       - name: Run prek autoupdate --cooldown-days 7
         run: prek autoupdate --cooldown-days 7
-      - name: Pin GitHub Actions
-        uses: suzuki-shunsuke/pinact-action@a60b07ee63e41654915780a3297ff9f5f6b6db63 # v0.1.0
-        with:
-          args: run -u --min-age 7
       - name: Check for changes
         id: check_diff
         run: |
@@ -60,9 +56,8 @@ jobs:
           commit-message: "chore: refresh dependencies and linters"
           title: "chore: refresh dependencies and linters"
           body: |
-            This PR updates `uv.lock` by running `uv lock --upgrade`,
-            updates `prek.toml` by running `prek autoupdate --cooldown-days 7`, and
-            pins GitHub Actions with `pinact`.
+            This PR updates `uv.lock` by running `uv lock --upgrade`
+            and updates `prek.toml` by running `prek autoupdate --cooldown-days 7`.
             It was triggered automatically (or manually) to keep dependencies and linters up-to-date.
           branch: bot/update-dependencies-and-linters
           author: GitHub Actions <actions@github.com>
