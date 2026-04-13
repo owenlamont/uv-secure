@@ -74,3 +74,6 @@ dev = [
     "pytest-randomly>=4.0.1",
     "pytest-xdist[psutil]>=3.8.0",
 ]
+
+[tool.uv]
+exclude-newer = "7 days"

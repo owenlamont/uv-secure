@@ -389,25 +389,19 @@ When available, severity entries link to the advisory source used for that sever
 ## Pre-commit Usage
 
 uv-secure can be run as a pre-commit hook by adding this configuration to your
-.pre-commit-config.yaml file:
+prek.toml file:
 
-```yaml
-  - repo: https://github.com/owenlamont/uv-secure
-    rev: 0.17.0
-    hooks:
-      - id: uv-secure
+```toml
+[[repos]]
+repo = "https://github.com/owenlamont/uv-secure"
+rev = "0.17.0"
+hooks = [{ id = "uv-secure" }]
 ```
 
 You should run:
 
 ```shell
 prek autoupdate
-```
-
-or
-
-```shell
-pre-commit autoupdate
 ```
 
 Or manually check the latest release and update the _rev_ value accordingly.
