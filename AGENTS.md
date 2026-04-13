@@ -44,7 +44,6 @@ concurrently and supports hierarchical configuration discovery.
 - **pytest.ini** - Pytest configuration
 - **ruff.toml** - Code style and linter configuration
 - **.rumdl.toml** - Markdown linter configuration
-- **uv-secure.toml** - uv dependency vulnerability scanner configuration
 - **.ryl.toml** - Yaml linter configuration
 
 ## Code Style

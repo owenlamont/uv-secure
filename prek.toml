@@ -71,7 +71,7 @@ hooks = [
     language = "system",
     entry = "ty check . --error-on-warning",
     pass_filenames = false,
-    types = ["python"]
+    types = ["python", "toml"]
   }
 ]
 
@@ -120,12 +120,16 @@ hooks = [
 ]
 
 [[repos]]
-repo = "https://github.com/owenlamont/uv-secure"
-rev = "0.17.1"
+repo = "local"
 hooks = [
   {
-    id = "uv-secure",
-    additional_dependencies = ["sniffio>=1.3.1"]
+    id = "uvaudit",
+    name = "uv audit",
+    language = "system",
+    entry = "uv audit --preview-features audit",
+    always_run = true,
+    pass_filenames = false,
+    types = ["python", "toml"]
   }
 ]
 
