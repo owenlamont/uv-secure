@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.10"
 
 [options]
-exclude-newer = "2026-04-10T09:51:23.57838188Z"
+exclude-newer = "2026-04-11T08:12:33.203567931Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -918,7 +918,7 @@ wheels = [
 
 [[package]]
 name = "uv-secure"
-version = "0.17.1"
+version = "0.17.2"
 source = { editable = "." }
 dependencies = [
     { name = "anyio" },

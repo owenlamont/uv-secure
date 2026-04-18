@@ -1,6 +1,18 @@
 # uv-secure
 
-Scan your uv.lock file for dependencies with known vulnerabilities.
+Deprecated dependency scanner for uv projects. Prefer `uv audit` for new use.
+
+## Deprecation Notice
+
+I created uv-secure to resolve some pain points I had with getting pip-audit to work
+with uv.lock files. Since
+[`uv audit`](https://docs.astral.sh/uv/reference/cli/#uv-audit) was announced though I
+now use that for my repos and am deprecating uv-secure in favour of the `uv audit`
+command.
+
+If `uv audit` does not work for your workflow, consider
+[`pysentry-rs`](https://pypi.org/project/pysentry-rs/) or
+[`pip-audit`](https://pypi.org/project/pip-audit/) instead.
 
 ## Scope and Limitations
 
