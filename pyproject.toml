@@ -1,7 +1,7 @@
 [project]
 name = "uv-secure"
-version = "0.17.1"
-description = "Scan your uv.lock file for dependencies with known vulnerabilities"
+version = "0.17.2"
+description = "Deprecated dependency scanner for uv projects; use uv audit instead"
 readme = "README.md"
 authors = [
     { name = "Owen Lamont", email = "owenrlamont@gmail.com" }
@@ -11,7 +11,7 @@ keywords = [
   "uv", "uv.lock", "vulnerabilities"
 ]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 7 - Inactive",
   "Environment :: Console",
   "Intended Audience :: Developers",
   "Operating System :: OS Independent",
@@ -57,6 +57,7 @@ uv-secure = "uv_secure.run:app"
 [project.urls]
 Repository = "https://github.com/owenlamont/uv-secure"
 Releases = "https://github.com/owenlamont/uv-secure/releases"
+Documentation = "https://github.com/owenlamont/uv-secure#readme"
 
 [build-system]
 requires = ["uv_build>=0.7.19,<0.11"]
